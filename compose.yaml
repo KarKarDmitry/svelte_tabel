@@ -1,14 +1,52 @@
 services:
+  dns:
+    image: strm/dnsmasq
+    container_name: tabel-dns
+    restart: always
+    # Включаем режим хоста, чтобы контейнер увидел второй IP Windows (192.168.1.242)
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - 'DNS1=8.8.8.8'
+      - 'DNS2=1.1.1.1'
+    volumes:
+      - ./dnsmasq.conf:/etc/dnsmasq.conf
+
   db:
-    image: postgres
+    image: postgres:18
+    container_name: tabel-db
     restart: always
     ports:
-      - 5432:5432
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: mysecretpassword
-      POSTGRES_DB: local
+      - ${POSTGRES_PORT:-5432}:5432
+    env_file: .env
     volumes:
       - pgdata:/var/lib/postgresql
+    # Указываем адрес нашего нового рабочего DNS-сервера
+    dns:
+      - 192.168.1.242
+
+  app:
+    build: .
+    container_name: tabel-app
+    restart: always
+    ports:
+      - 8080:3000
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD:-mysecretpassword}@db:5432/${POSTGRES_DB:-local}
+      ORIGIN: ${ORIGIN}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-dev-secret-change-in-production}
+    env_file: .env
+    depends_on:
+      - db
+    # Указываем адрес нашего нового рабочего DNS-сервера
+    dns:
+      - 192.168.1.242
+
 volumes:
   pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: D:/pg/tabel/pgdata

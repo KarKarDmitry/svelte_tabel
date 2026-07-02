@@ -34,6 +34,24 @@ interface RoundingConfig {
 const FONT = { name: 'Times New Roman', size: 6 };
 const E_FONT = { name: 'Times New Roman', size: 9 };
 const EMP_FONT = { name: 'Times New Roman', size: 10 };
+function safeMerge(
+	ws: Excel.Worksheet,
+	rowStart: number,
+	colStart: number,
+	rowEnd: number,
+	colEnd: number
+) {
+	try {
+		ws.mergeCells(rowStart, colStart, rowEnd, colEnd);
+	} catch (e: any) {
+		console.error(
+			`MERGE ERROR: mergeCells(${rowStart}, ${colStart}, ${rowEnd}, ${colEnd})`,
+			e.message
+		);
+		throw e;
+	}
+}
+
 const BORDER = {
 	top: { style: 'thin' as const },
 	bottom: { style: 'thin' as const },
@@ -438,128 +456,150 @@ function writeDivisionHeader(
 }
 
 function writeColHeaders(ws: Excel.Worksheet, row: number, lastDay: number, half1: number): number {
-	let c = 1;
-	ws.mergeCells(row, c, row + 3, c);
-	cell(ws, row, c, 'Номер по порядку', FONT, ALIGN_CENTER, BORDER);
-	c++;
-	ws.mergeCells(row, c, row + 3, c);
-	cell(
-		ws,
-		row,
-		c,
-		'Фамилия, инициалы, должность (специальность, профессия)',
-		FONT,
-		ALIGN_CENTER,
-		BORDER
-	);
-	c++;
-	ws.mergeCells(row, c, row + 3, c);
-	cell(ws, row, c, 'Табельный\nномер', FONT, ALIGN_CENTER, BORDER);
-	c++;
+	try {
+		let c = 1;
+		ws.mergeCells(row, c, row + 3, c);
+		cell(ws, row, c, 'Номер по порядку', FONT, ALIGN_CENTER, BORDER);
+		c++;
+		ws.mergeCells(row, c, row + 3, c);
+		cell(
+			ws,
+			row,
+			c,
+			'Фамилия, инициалы, должность (специальность, профессия)',
+			FONT,
+			ALIGN_CENTER,
+			BORDER
+		);
+		c++;
+		ws.mergeCells(row, c, row + 3, c);
+		cell(ws, row, c, 'Табельный\nномер', FONT, ALIGN_CENTER, BORDER);
+		c++;
 
-	const markStart = c;
-	// Заголовок "Отметки о явках..." — мержим все колонки дней (первая + вторая половина + итоги половин)
-	const markMergeEnd = lastDay > 15 ? 36 : 4 + half1 - 1;
-	ws.mergeCells(row, c, row, markMergeEnd);
-	cell(
-		ws,
-		row,
-		c,
-		'Отметки о явках и неявках на работу по числам месяца',
-		FONT,
-		ALIGN_CENTER,
-		BORDER
-	);
-	row++;
+		const markStart = c;
+		// Заголовок "Отметки о явках..." — мержим все колонки дней (первая + вторая половина + итоги половин)
+		const markMergeEnd = 36;
+		ws.mergeCells(row, c, row, markMergeEnd);
+		cell(
+			ws,
+			row,
+			c,
+			'Отметки о явках и неявках на работу по числам месяца',
+			FONT,
+			ALIGN_CENTER,
+			BORDER
+		);
+		row++;
 
-	for (let d = 1; d <= half1; d++) {
-		ws.mergeCells(row, markStart + d - 1, row + 2, markStart + d - 1);
-		cell(ws, row, markStart + d - 1, d, { name: 'Times New Roman', size: 7 }, ALIGN_CENTER, BORDER);
-	}
+		for (let d = 1; d <= half1; d++) {
+			ws.mergeCells(row, markStart + d - 1, row + 2, markStart + d - 1);
+			cell(
+				ws,
+				row,
+				markStart + d - 1,
+				d,
+				{ name: 'Times New Roman', size: 7 },
+				ALIGN_CENTER,
+				BORDER
+			);
+		}
 
-	let col = markStart + half1;
+		let col = markStart + half1;
 
-	if (lastDay > 15) {
-		ws.mergeCells(row, col, row + 2, col);
-		cell(ws, row, col, 'Итого за I половину', FONT, ALIGN_CENTER, BORDER);
-		col++;
-		for (let d = 16; d <= lastDay; d++) {
+		if (lastDay > 15) {
 			ws.mergeCells(row, col, row + 2, col);
-			cell(ws, row, col, d, { name: 'Times New Roman', size: 7 }, ALIGN_CENTER, BORDER);
+			cell(ws, row, col, 'Итого за I половину', FONT, ALIGN_CENTER, BORDER);
+			col++;
+			for (let d = 16; d <= 31; d++) {
+				ws.mergeCells(row, col, row + 2, col);
+				cell(ws, row, col, d, { name: 'Times New Roman', size: 7 }, ALIGN_CENTER, BORDER);
+				col++;
+			}
+			ws.mergeCells(row, col, row + 2, col);
+			cell(ws, row, col, 'Итого за II половину', FONT, ALIGN_CENTER, BORDER);
 			col++;
 		}
+
+		// Итого за месяц
+		ws.mergeCells(row - 1, col, row - 1, col + 5);
+		cell(ws, row - 1, col, 'Итого отработано за месяц', FONT, ALIGN_CENTER, BORDER);
 		ws.mergeCells(row, col, row + 2, col);
-		cell(ws, row, col, 'Итого за II половину', FONT, ALIGN_CENTER, BORDER);
+		cell(ws, row, col, 'дней', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
 		col++;
+		ws.mergeCells(row, col, row, col + 4);
+		cell(ws, row, col, 'часов', FONT, ALIGN_CENTER, BORDER);
+		row++;
+		ws.mergeCells(row, col, row + 1, col);
+		cell(ws, row, col, 'всего', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
+		col++;
+		ws.mergeCells(row, col, row, col + 3);
+		cell(ws, row, col, 'из них', FONT, ALIGN_CENTER, BORDER);
+		row++;
+		cell(ws, row, col, 'сверхурочных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
+		col++;
+		cell(ws, row, col, 'ночных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
+		col++;
+		cell(
+			ws,
+			row,
+			col,
+			'выходных,\nпраздничных',
+			FONT,
+			{ ...ALIGN_CENTER, vertical: 'top' },
+			BORDER
+		);
+		col++;
+		cell(ws, row, col, '', FONT, ALIGN_CENTER, BORDER);
+		col++;
+		row -= 3;
+
+		// Неявки
+		ws.mergeCells(row, col, row + 3, col);
+		cell(
+			ws,
+			row,
+			col,
+			'Количество неявок,\nдней (часов)',
+			FONT,
+			{ ...ALIGN_CENTER, vertical: 'top' },
+			BORDER
+		);
+		col++;
+		ws.mergeCells(row, col, row, col + 1);
+		cell(ws, row, col, 'Из них по причинам', FONT, ALIGN_CENTER, BORDER);
+		row++;
+		ws.mergeCells(row, col, row + 2, col);
+		cell(ws, row, col, 'код', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
+		col++;
+		ws.mergeCells(row, col, row + 2, col);
+		cell(
+			ws,
+			row,
+			col,
+			'количество\nдней (часов)',
+			FONT,
+			{ ...ALIGN_CENTER, vertical: 'top' },
+			BORDER
+		);
+		col++;
+		row--;
+		ws.mergeCells(row, col, row + 3, col);
+		cell(
+			ws,
+			row,
+			col,
+			'Количество выходных\nи праздничных дней',
+			FONT,
+			{ ...ALIGN_CENTER, vertical: 'top' },
+			BORDER
+		);
+
+		return row + 4;
+	} catch (e: any) {
+		console.error('writeColHeaders error row=' + row + ' lastDay=' + lastDay + ' half1=' + half1);
+		console.error(e.stack);
+		throw e;
 	}
-
-	// Итого за месяц
-	ws.mergeCells(row - 1, col, row - 1, col + 5);
-	cell(ws, row - 1, col, 'Итого отработано за месяц', FONT, ALIGN_CENTER, BORDER);
-	ws.mergeCells(row, col, row + 2, col);
-	cell(ws, row, col, 'дней', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	ws.mergeCells(row, col, row, col + 4);
-	cell(ws, row, col, 'часов', FONT, ALIGN_CENTER, BORDER);
-	row++;
-	ws.mergeCells(row, col, row + 1, col);
-	cell(ws, row, col, 'всего', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	ws.mergeCells(row, col, row, col + 3);
-	cell(ws, row, col, 'из них', FONT, ALIGN_CENTER, BORDER);
-	row++;
-	cell(ws, row, col, 'сверхурочных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	cell(ws, row, col, 'ночных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	cell(ws, row, col, 'выходных,\nпраздничных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	cell(ws, row, col, '', FONT, ALIGN_CENTER, BORDER);
-	col++;
-	row -= 3;
-
-	// Неявки
-	ws.mergeCells(row, col, row + 3, col);
-	cell(
-		ws,
-		row,
-		col,
-		'Количество неявок,\nдней (часов)',
-		FONT,
-		{ ...ALIGN_CENTER, vertical: 'top' },
-		BORDER
-	);
-	col++;
-	ws.mergeCells(row, col, row, col + 1);
-	cell(ws, row, col, 'Из них по причинам', FONT, ALIGN_CENTER, BORDER);
-	row++;
-	ws.mergeCells(row, col, row + 2, col);
-	cell(ws, row, col, 'код', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
-	col++;
-	ws.mergeCells(row, col, row + 2, col);
-	cell(
-		ws,
-		row,
-		col,
-		'количество\nдней (часов)',
-		FONT,
-		{ ...ALIGN_CENTER, vertical: 'top' },
-		BORDER
-	);
-	col++;
-	row--;
-	ws.mergeCells(row, col, row + 3, col);
-	cell(
-		ws,
-		row,
-		col,
-		'Количество выходных\nи праздничных дней',
-		FONT,
-		{ ...ALIGN_CENTER, vertical: 'top' },
-		BORDER
-	);
-
-	return row + 4;
 }
 
 function writeColNumbers(ws: Excel.Worksheet, row: number, lastDay: number, half1: number): number {
@@ -569,15 +609,13 @@ function writeColNumbers(ws: Excel.Worksheet, row: number, lastDay: number, half
 		c++;
 	}
 	cell(ws, row, c, 4, E_FONT, ALIGN_CENTER, BORDER);
-	ws.mergeCells(row, c, row, c + half1 - 1);
-	c += half1;
-	if (lastDay > 15) {
-		cell(ws, row, c, 5, E_FONT, ALIGN_CENTER, BORDER);
-		c++;
-		cell(ws, row, c, 6, E_FONT, ALIGN_CENTER, BORDER);
-		ws.mergeCells(row, c, row, c + lastDay - 16);
-		c += lastDay - 15;
-	}
+	ws.mergeCells(row, c, row, c + 14);
+	c += 15;
+	cell(ws, row, c, 5, E_FONT, ALIGN_CENTER, BORDER);
+	c++;
+	cell(ws, row, c, 6, E_FONT, ALIGN_CENTER, BORDER);
+	ws.mergeCells(row, c, row, c + 15);
+	c += 16;
 	let idx = 7;
 	while (c <= 46) {
 		cell(ws, row, c, idx, E_FONT, ALIGN_CENTER, BORDER);
@@ -655,6 +693,11 @@ function writeEmployee(
 			c++;
 		}
 
+		while (c < 19) {
+			dc(c, '-', '-');
+			c++;
+		}
+
 		// Итого I половина (col 19)
 		mc(
 			c,
@@ -667,7 +710,7 @@ function writeEmployee(
 
 		// Дни 16-31 (col 20-35)
 		if (lastDay > 15) {
-			for (let dayIdx = 15; dayIdx < lastDay; dayIdx++) {
+			for (let dayIdx = 15; dayIdx < 31; dayIdx++) {
 				const day = d[dayIdx] ?? null;
 				const dayOfMonth = dayIdx + 1;
 				const mark = day?.dayMarkCode ?? '';
@@ -685,13 +728,7 @@ function writeEmployee(
 
 		// Итого II половина (col 36)
 		if (lastDay > 15) {
-			mc(
-				c,
-				`=SUM(T${hr}:${getColumnLetter(20 + lastDay - 16)}${hr})`,
-				EMP_FONT,
-				ALIGN_CENTER,
-				EMP_BORDER
-			);
+			mc(c, `=SUM(T${hr}:${getColumnLetter(35)}${hr})`, EMP_FONT, ALIGN_CENTER, EMP_BORDER);
 			c++;
 		} else {
 			mc(c, '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
@@ -701,7 +738,7 @@ function writeEmployee(
 		// days count (col 37)
 		mc(
 			c,
-			`=COUNT(D${hr}:${getColumnLetter(4 + half1End - 1)}${hr})+COUNT(T${hr}:${getColumnLetter(20 + Math.max(0, lastDay - 16))}${hr})`,
+			`=COUNT(D${hr}:${getColumnLetter(4 + half1End - 1)}${hr})+COUNT(T${hr}:${getColumnLetter(35)}${hr})`,
 			EMP_FONT,
 			ALIGN_CENTER,
 			EMP_BORDER

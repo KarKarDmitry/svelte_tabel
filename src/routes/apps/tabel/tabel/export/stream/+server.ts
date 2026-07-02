@@ -68,6 +68,8 @@ export const GET: RequestHandler = async ({ url }) => {
 					controller.close();
 				})
 				.catch((err) => {
+					console.error('buildT12 error:', err.message);
+					console.error(err.stack);
 					const msg = `data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`;
 					controller.enqueue(new TextEncoder().encode(msg));
 					controller.close();

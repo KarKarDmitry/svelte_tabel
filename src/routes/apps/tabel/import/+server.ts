@@ -8,7 +8,10 @@ import { schedule } from '$lib/server/db/apps/tabel/tables/schedule';
 import { schedulePoint } from '$lib/server/db/apps/tabel/tables/schedule-point';
 import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-schedule';
 import { worktimeTracker } from '$lib/server/db/apps/tabel/tables/worktime-tracker';
-import { and, eq, sql } from 'drizzle-orm';
+import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
+import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstile-event-tracker';
+import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
+import { and, between, desc, eq, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
 
 /* helpers */
@@ -325,7 +328,13 @@ export const POST: RequestHandler = async ({ request }) => {
 					});
 
 					// Собираем все события из файла с employeeId
-					const events: { employeeId: number; date: string; time: string; event: string }[] = [];
+					const events: {
+						employeeId: number;
+						passId: number;
+						date: string;
+						time: string;
+						event: string;
+					}[] = [];
 					for (const r of rows) {
 						if (r.length < 8) continue;
 						const seria = String(r[6] ?? '').trim();
@@ -341,6 +350,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						}
 						events.push({
 							employeeId: ep.employeeId,
+							passId: ep.passId,
 							date: nd,
 							time: normTime(r[2]),
 							event: String(r[4]).trim()
@@ -381,16 +391,129 @@ export const POST: RequestHandler = async ({ request }) => {
 						);
 					}
 
+					// Загружаем константы ночных часов
+					const constRows = await db.select().from(appConstant);
+					const constMap = new Map(constRows.map((c) => [c.key, c.value]));
+					const nightStartStr = constMap.get('NIGHT_SHIFT_START') || '22:00';
+					const nightEndStr = constMap.get('NIGHT_SHIFT_END') || '06:00';
+					const nightStartMin = parseTime(nightStartStr);
+					const nightEndMin = parseTime(nightEndStr);
+
+					// Импорт сырых событий в turnstile_event_tracker
+					let turnstileSaved = 0;
+					let turnstileSkipped = 0;
+					const eventTypeRows = await db.select().from(turnstileEvent);
+					const eventByName = new Map(eventTypeRows.map((et) => [et.name, et.id]));
+
+					// Определяем период
+					let minDate = '',
+						maxDate = '';
+					for (const ev of events) {
+						if (!minDate || ev.date < minDate) minDate = ev.date;
+						if (!maxDate || ev.date > maxDate) maxDate = ev.date;
+					}
+
+					// Загружаем существующие события за период
+					const existingEvents =
+						minDate && maxDate
+							? await db
+									.select({
+										employeeId: turnstileEventTracker.employeeId,
+										datetime: turnstileEventTracker.datetime,
+										eventId: turnstileEventTracker.eventId
+									})
+									.from(turnstileEventTracker)
+									.where(
+										between(
+											turnstileEventTracker.datetime,
+											new Date(minDate),
+											new Date(maxDate + 'T23:59:59')
+										)
+									)
+							: [];
+
+					const existingSet = new Set<string>();
+					for (const ee of existingEvents) {
+						const d = ee.datetime instanceof Date ? ee.datetime.toISOString() : String(ee.datetime);
+						// toISOString даёт "2025-01-15T08:30:00.000Z", а из файла "2025-01-15T08:30:00"
+						// нормализуем: обрезаем миллисекунды и часовой пояс
+						const normalized = d.substring(0, 19);
+						existingSet.add(ee.employeeId + '|' + normalized + '|' + ee.eventId);
+					}
+
+					// Отбираем новые события
+					const newTurnstileEvents: typeof events = [];
+					for (const ev of events) {
+						const eventId = eventByName.get(ev.event);
+						if (!eventId) continue;
+						const key = ev.employeeId + '|' + ev.date + 'T' + ev.time + '|' + eventId;
+						if (!existingSet.has(key)) {
+							newTurnstileEvents.push(ev);
+						}
+					}
+
+					// Сохраняем батчами
+					if (newTurnstileEvents.length > 0) {
+						let savedCount = 0;
+						let batch: (typeof turnstileEventTracker.$inferInsert)[] = [];
+						for (const ev of newTurnstileEvents) {
+							const eventId = eventByName.get(ev.event)!;
+							batch.push({
+								employeeId: ev.employeeId,
+								passId: ev.passId,
+								datetime: new Date(ev.date + 'T' + ev.time),
+								eventId
+							});
+							savedCount++;
+							if (batch.length >= 500) {
+								await db.insert(turnstileEventTracker).values(batch).onConflictDoNothing();
+								batch = [];
+								tSend({
+									stage: 'events',
+									current: savedCount,
+									total: newTurnstileEvents.length,
+									message: 'Событий турникета: ' + savedCount + '/' + newTurnstileEvents.length,
+									employee: ''
+								});
+							}
+						}
+						if (batch.length > 0) {
+							await db.insert(turnstileEventTracker).values(batch).onConflictDoNothing();
+						}
+						tFlush({
+							stage: 'events',
+							current: savedCount,
+							total: newTurnstileEvents.length,
+							message:
+								'Сохранено событий турникета: ' +
+								savedCount +
+								', пропущено дубликатов: ' +
+								(events.length - newTurnstileEvents.length),
+							employee: ''
+						});
+						turnstileSaved = savedCount;
+						turnstileSkipped = events.length - newTurnstileEvents.length;
+					} else {
+						turnstileSkipped = events.length;
+						tSend({
+							stage: 'events',
+							current: 0,
+							total: 0,
+							message: 'Нет новых событий турникета',
+							employee: ''
+						});
+					}
+
 					// Группируем по сотруднику, сортируем
 					const byEmp = new Map<number, typeof events>();
-					for (const e of events) {
+					for (const e of newTurnstileEvents) {
 						if (!byEmp.has(e.employeeId)) byEmp.set(e.employeeId, []);
 						byEmp.get(e.employeeId)!.push(e);
 					}
 					for (const [, evs] of byEmp)
 						evs.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-					console.log('  events collected:', events.length, 'employees:', byEmp.size);
+					console.log('  events to process:', newTurnstileEvents.length, 'employees:', byEmp.size);
 					for (const [eid, evs] of byEmp) {
 						console.log('    emp', eid, empNameMap.get(eid) || '?', 'events:', evs.length);
 					}
@@ -413,6 +536,35 @@ export const POST: RequestHandler = async ({ request }) => {
 					for (const [empId, evs] of byEmp) {
 						empIdx++;
 						let last: (typeof evs)[0] | null = null;
+
+						// Ищем последний незакрытый вход из БД (событие могло быть до периода файла)
+						const [lastTrackerEvent] = await db
+							.select({
+								datetime: turnstileEventTracker.datetime,
+								eventId: turnstileEventTracker.eventId
+							})
+							.from(turnstileEventTracker)
+							.where(eq(turnstileEventTracker.employeeId, empId))
+							.orderBy(desc(turnstileEventTracker.datetime))
+							.limit(1);
+
+						if (lastTrackerEvent) {
+							const eventType = eventTypeRows.find((et) => et.id === lastTrackerEvent.eventId);
+							if (eventType && eventType.name.includes('Вход')) {
+								const dt =
+									lastTrackerEvent.datetime instanceof Date
+										? lastTrackerEvent.datetime
+										: new Date(lastTrackerEvent.datetime);
+								last = {
+									employeeId: empId,
+									passId: 0,
+									date: dt.toISOString().split('T')[0],
+									time: dt.toISOString().split('T')[1].substring(0, 8),
+									event: eventType.name
+								};
+							}
+						}
+
 						const ename = empNameMap.get(empId) ?? String(empId);
 						for (const ev of evs) {
 							console.log(ename, ev.date, ev.time, ev.event, ':');
@@ -603,13 +755,14 @@ export const POST: RequestHandler = async ({ request }) => {
 							}
 
 							let night = 0;
-							if (isNext || exit > 1320 || enter < 360) {
+							if (isNext || exit > nightStartMin || enter < nightEndMin) {
 								if (isNext) {
-									night += Math.min(exit, 360);
-									if (enter < 1320) night += 1320 - Math.max(enter, 0);
+									night += Math.min(exit, nightEndMin);
+									if (enter < nightStartMin) night += nightStartMin - Math.max(enter, 0);
 								} else {
-									if (enter < 360 && exit > 360) night += Math.min(exit, 360) - enter;
-									if (exit > 1320) night += exit - Math.max(enter, 1320);
+									if (enter < nightEndMin && exit > nightEndMin)
+										night += Math.min(exit, nightEndMin) - enter;
+									if (exit > nightStartMin) night += exit - Math.max(enter, nightStartMin);
 								}
 							}
 							night = Math.round(night);
@@ -733,9 +886,15 @@ export const POST: RequestHandler = async ({ request }) => {
 						employee: ''
 					});
 
+					const eventsMsg =
+						turnstileSaved > 0
+							? `, событий турникета: ${turnstileSaved} новых, пропущено дубликатов: ${turnstileSkipped}`
+							: turnstileSkipped > 0
+								? `, событий турникета: 0 новых, пропущено дубликатов: ${turnstileSkipped}`
+								: '';
 					tFlush({
 						stage: 'done',
-						message: `Импорт завершён: ${pairs} пар, ${saved} дней`
+						message: `Импорт завершён: ${pairs} пар, ${saved} дней${eventsMsg}`
 					});
 				} catch (e: any) {
 					if (!cancelled) {

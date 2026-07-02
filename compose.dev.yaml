@@ -9,3 +9,8 @@ services:
       - pgdata:/var/lib/postgresql
 volumes:
   pgdata:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: D:/pg/tabel/pgdata

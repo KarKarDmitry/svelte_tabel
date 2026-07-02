@@ -2,11 +2,22 @@
 """Импорт данных из MSSQL (OPP_R) в PostgreSQL (tabel)"""
 
 import json
+import os
 from datetime import date, datetime, time
 
 import psycopg2
 import pymssql
 from psycopg2.extras import execute_values
+
+try:
+    import xlrd
+except ImportError:
+    xlrd = None
+
+try:
+    import openpyxl
+except ImportError:
+    openpyxl = None
 
 # --- Конфигурация ---
 MSSQL = {
@@ -20,40 +31,63 @@ MSSQL = {
 PG = {
     "host": "localhost",
     "port": 654,
-    "dbname": "tabel",
+    "dbname": "mettem",
     "user": "karkardmitry",
-    "password": "i_am_password_please_change_me",
+    "password": "***REMOVED***",
 }
 
 
 DAY_MARKS = [
-    ("Явка", "Я", "I", "work", None, False),
-    ("Ночная смена", "Н", "N", "work", None, False),
-    ("Ежегодный отпуск", "ОТ", "OT", "paid_absence", "27", False),
-    ("Отпуск по уходу", "ОД", "OD", "paid_absence", "27", False),
-    ("-", "О", "O", "paid_absence", "27", False),
-    ("-", "ОА", "OA", "paid_absence", "27", False),
-    ("-", "ОД1", "OD1", "paid_absence", "28.1", False),
-    ("-", "ДС", "DS", "paid_absence", "28.3", False),
-    ("Учебный отпуск", "У", "U", "paid_absence", "23", False),
-    ("-", "УД", "UD", "paid_absence", "22", False),
-    ("-", "ОР", "OR", "unpaid_absence", "43", False),
-    ("-", "ОЖ", "OZH", "paid_absence", "39", False),
-    ("-", "ОЗ", "OZ", "unpaid_absence", "27", False),
-    ("Больничный", "Б", "B", "paid_absence", "24", False),
-    ("-", "БТ", "BT", "paid_absence", "24.8", False),
-    ("-", "Г", "G", "paid_absence", "13", False),
-    ("-", "ОВ", "OV", "paid_absence", "12", False),
-    ("Административный отпуск", "АО", "AO", "unpaid_absence", None, False),
-    ("Прогул", "ПР", "PR", "violation", None, False),
-    ("Выходной", "В", "W", "day_off", None, False),
-    ("Командировка", "К", "K", "paid_absence", "7.1", False),
-    ("-", "С", "S", "paid_absence", "18", False),
-    ("-", "РВ", "RV", "paid_absence", "19", False),
-    ("Отпуск за свой счёт", "Д", "D", "unpaid_absence", "33", False),
-    ("-", "НП", "NP", "unpaid_absence", "18.1", False),
-    ("-", "НОД", "NOD", "paid_absence", "12.2", False),
+    ("Явка", "Я", "Я", "work", None, False),
+    ("Ночная смена", "Н", "Н", "work", None, False),
+    ("Ежегодный отпуск", "ОТ", "ОТ", "paid_absence", "27", False),
+    ("Отпуск по уходу", "ОД", "ОД", "paid_absence", "27", False),
+    ("-", "О", "О", "paid_absence", "27", False),
+    ("-", "ОА", "ОА", "paid_absence", "27", False),
+    ("-", "ОД1", "ОД1", "paid_absence", "28.1", False),
+    ("-", "ДС", "ДС", "paid_absence", "28.3", False),
+    ("Учебный отпуск", "У", "У", "paid_absence", "23", False),
+    ("-", "УД", "УД", "paid_absence", "22", False),
+    ("-", "ОР", "ОР", "unpaid_absence", "43", False),
+    ("-", "ОЖ", "ОЖ", "paid_absence", "39", False),
+    ("-", "ОЗ", "ОЗ", "unpaid_absence", "27", False),
+    ("Больничный", "Б", "Б", "paid_absence", "24", False),
+    ("-", "БТ", "БТ", "paid_absence", "24.8", False),
+    ("-", "Г", "Г", "paid_absence", "13", False),
+    ("-", "ОВ", "ОВ", "paid_absence", "12", False),
+    ("Административный отпуск", "АО", "АО", "unpaid_absence", None, False),
+    ("Прогул", "ПР", "ПР", "violation", None, False),
+    ("Выходной", "В", "В", "day_off", None, False),
+    ("Командировка", "К", "К", "paid_absence", "7.1", False),
+    ("-", "С", "С", "paid_absence", "18", False),
+    ("-", "РВ", "РВ", "paid_absence", "19", False),
+    ("Отпуск за свой счёт", "Д", "Д", "unpaid_absence", "33", False),
+    ("-", "НП", "НП", "unpaid_absence", "18.1", False),
+    ("-", "НОД", "НОД", "paid_absence", "12.2", False),
 ]
+
+
+def fix_encoding(value):
+    """Перекодирует строку из cp1251 (MSSQL) в корректный unicode.
+    pymssql без charset читает cp1251-байты как latin-1, из-за чего
+    русские буквы превращаются в латинские символы."""
+    if isinstance(value, str):
+        try:
+            return value.encode("latin-1").decode("cp1251")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            return value
+    return value
+
+
+def _normalize_xls_value(v):
+    """Преобразует значение из Excel в строку, убирая .0 у целых чисел."""
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        if v == int(v):
+            return str(int(v))
+        return str(v)
+    return str(v).strip()
 
 
 def time_to_minutes(t):
@@ -88,6 +122,10 @@ def connect_pg():
 def clear_tables(pg):
     print("Очистка таблиц...")
     with pg.cursor() as cur:
+        cur.execute("TRUNCATE TABLE turnstile_event_tracker CASCADE")
+        cur.execute("TRUNCATE TABLE employee_pass CASCADE")
+        cur.execute("TRUNCATE TABLE pass CASCADE")
+        cur.execute("TRUNCATE TABLE turnstile_event CASCADE")
         cur.execute("TRUNCATE TABLE worktime_tracker CASCADE")
         cur.execute("TRUNCATE TABLE employee_schedule CASCADE")
         cur.execute("TRUNCATE TABLE hr_document CASCADE")
@@ -167,9 +205,23 @@ def import_day_marks(pg):
                 "Правила окраски ячеек табеля",
             ),
         )
+        # NIGHT_SHIFT_START
+        cur.execute(
+            """INSERT INTO app_constant (key, value, is_json, hint)
+            VALUES (%s, %s, false, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+            ("NIGHT_SHIFT_START", "22:00", "Начало ночных часов (HH:MM)"),
+        )
+        # NIGHT_SHIFT_END
+        cur.execute(
+            """INSERT INTO app_constant (key, value, is_json, hint)
+            VALUES (%s, %s, false, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value""",
+            ("NIGHT_SHIFT_END", "06:00", "Конец ночных часов (HH:MM)"),
+        )
     pg.commit()
     print(
-        "  OK: app_constant (MARK_COLOR_RULES, SHIFT_MARK_SHORTNAMES, CELL_COLOR_RULES)"
+        "  OK: app_constant (MARK_COLOR_RULES, SHIFT_MARK_SHORTNAMES, CELL_COLOR_RULES, NIGHT_SHIFT_START, NIGHT_SHIFT_END)"
     )
 
 
@@ -325,7 +377,7 @@ def import_employees(ms, pg, div_map, pos_map):
             if dept_id and pos_id:
                 cur.execute(
                     "INSERT INTO hr_document (type, date, employee_id, department_id, position_id) "
-                    "VALUES ('hiring', '2000-01-01', %s, %s, %s)",
+                    "VALUES ('hiring', '2026-01-01', %s, %s, %s)",
                     (new_id, dept_id, pos_id),
                 )
     pg.commit()
@@ -336,7 +388,9 @@ def import_employees(ms, pg, div_map, pos_map):
 def import_employee_schedules(ms, pg, emp_map, sched_map):
     print("Импорт employee_schedule (EmployeeSchedules)...")
     with ms.cursor(as_dict=True) as cur:
-        cur.execute("SELECT ID, Employee, Schedule FROM EmployeeSchedules ORDER BY ID")
+        cur.execute(
+            "SELECT ID, Employee, Schedule FROM EmployeeSchedules WHERE IsDeleted IS NULL ORDER BY ID"
+        )
         rows = cur.fetchall()
     count = 0
     with pg.cursor() as cur:
@@ -361,7 +415,13 @@ def load_worktime_table(ms, table_name):
             SELECT Employee, Date, WorkTime, NightHours, IsNightShift, DayMarkCode
             FROM {table_name} ORDER BY Employee, Date
         """)
-        return cur.fetchall()
+        rows = cur.fetchall()
+        # Исправляем кодировку cp1251 → unicode для всех строковых полей
+        for row in rows:
+            for key in row:
+                if isinstance(row[key], str):
+                    row[key] = fix_encoding(row[key])
+        return rows
 
 
 def import_worktime(ms, pg, emp_map):
@@ -451,6 +511,248 @@ def import_worktime(ms, pg, emp_map):
     print(f"  OK: {count}")
 
 
+def import_turnstile_events(ms, pg, emp_map):
+    """Импорт событий турникета.
+    - Справочник событий: из MSSQL TurnstileEvents
+    - Пропуска (связь сотрудник-пропуск): из Excel-файла employee_events.xls
+    - События: из MSSQL TurnstileEventTracker
+    """
+    print("\n--- Импорт событий турникета ---")
+
+    # 1. Импорт справочника TurnstileEvents из MSSQL → turnstile_event
+    print("  Импорт справочника turnstile_event...")
+    with ms.cursor(as_dict=True) as cur:
+        cur.execute("SELECT ID, Name FROM TurnstileEvents ORDER BY ID")
+        event_rows = cur.fetchall()
+
+    event_id_map = {}
+    with pg.cursor() as cur:
+        for row in event_rows:
+            name = fix_encoding(row["Name"])
+            direction = (
+                "exit"
+                if name.startswith("Выход")
+                else "entry"
+                if name.startswith("Вход")
+                else None
+            )
+            cur.execute(
+                "INSERT INTO turnstile_event (name, direction) VALUES (%s, %s) RETURNING id",
+                (name, direction),
+            )
+            new_id = cur.fetchone()[0]
+            event_id_map[row["ID"]] = new_id
+    pg.commit()
+    print(f"    OK: {len(event_rows)} событий")
+
+    # 2. Загрузка пропусков из Excel-файла (серия, номер → сотрудник)
+    if xlrd is None:
+        print("  ПРОПУСК: xlrd не установлен, пропуска из Excel не загружены")
+        emp_to_pass = {}
+    else:
+        emp_to_pass = _load_passes_from_excel(pg)
+        if emp_to_pass is None:
+            return
+
+    # 3. Импорт событий из MSSQL TurnstileEventTracker
+    print("  Импорт событий из TurnstileEventTracker...")
+    with ms.cursor(as_dict=True) as cur:
+        cur.execute("""
+            SELECT Employee, Date, Time, Event
+            FROM TurnstileEventTracker ORDER BY Employee, Date, Time
+        """)
+        event_rows = cur.fetchall()
+
+    count = 0
+    count_no_pass = 0
+    count_no_event = 0
+    batch = []
+    BATCH = 500
+
+    for row in event_rows:
+        employee_id = emp_map.get(row["Employee"])
+        if not employee_id:
+            continue
+
+        # Ищем пропуск сотрудника
+        pass_id = emp_to_pass.get(employee_id)
+        if not pass_id:
+            count_no_pass += 1
+            continue
+
+        # Парсим дату и время
+        d = row["Date"]
+        t = row["Time"]
+        if isinstance(d, (date, datetime)):
+            ds = d.isoformat()
+        else:
+            ds = str(d)[:10]
+        if isinstance(t, time):
+            ts = t.isoformat()
+        elif isinstance(t, str):
+            ts = t[:8]
+        else:
+            ts = str(t)[:8]
+        dt_str = f"{ds}T{ts}"
+
+        # Ищем event_id — row["Event"] это числовой ID из MSSQL (1, 2, 3...)
+        event_id = event_id_map.get(row["Event"])
+        if not event_id:
+            count_no_event += 1
+            continue
+
+        batch.append((employee_id, pass_id, dt_str, event_id))
+        count += 1
+
+        if len(batch) >= BATCH:
+            with pg.cursor() as cur:
+                execute_values(
+                    cur,
+                    """
+                    INSERT INTO turnstile_event_tracker
+                        (employee_id, pass_id, datetime, event_id)
+                    VALUES %s
+                    ON CONFLICT ON CONSTRAINT uq_turnstile_event DO NOTHING
+                    """,
+                    batch,
+                )
+            pg.commit()
+            batch = []
+            print(f"    ... {count}")
+
+    if batch:
+        with pg.cursor() as cur:
+            execute_values(
+                cur,
+                """
+                INSERT INTO turnstile_event_tracker
+                    (employee_id, pass_id, datetime, event_id)
+                VALUES %s
+                ON CONFLICT ON CONSTRAINT uq_turnstile_event DO NOTHING
+                """,
+                batch,
+            )
+        pg.commit()
+
+    print(f"  Импортировано: {count} событий")
+    if count_no_pass:
+        print(f"  Пропущено (нет пропуска): {count_no_pass}")
+    if count_no_event:
+        print(f"  Пропущено (нет события): {count_no_event}")
+
+
+def _load_passes_from_excel(pg):
+    """Читает employee_events.xls, создаёт пропуска и привязывает к сотрудникам.
+    Возвращает словарь: employee_id → pass_id."""
+    xls_path = os.path.join(os.path.dirname(__file__), "employee_events.xls")
+    if not os.path.exists(xls_path):
+        print(f"  Файл {xls_path} не найден, пропуска не загружены")
+        return {}
+
+    print(f"  Загрузка пропусков из {xls_path}...")
+    wb = xlrd.open_workbook(xls_path)
+    ws = wb.sheet_by_index(0)
+
+    # Собираем уникальные пропуска: (серия, номер, ФИО)
+    pass_set = {}
+    for i in range(1, ws.nrows):
+        vals = [ws.cell_value(i, c) for c in range(ws.ncols)]
+        if len(vals) < 8:
+            continue
+        seria = _normalize_xls_value(vals[6])
+        number = _normalize_xls_value(vals[7])
+        full_name = str(vals[0] or "").strip()
+        if not seria or not number or not full_name:
+            continue
+        key = f"{seria}|{number}"
+        if key not in pass_set:
+            pass_set[key] = (seria, number, full_name)
+
+    print(f"  Найдено {len(pass_set)} уникальных пропусков")
+
+    # Загружаем сотрудников из PG
+    with pg.cursor() as cur:
+        cur.execute("SELECT id, last_name, first_name, middle_name FROM employee")
+        emp_rows = cur.fetchall()
+
+    emp_by_name = {}
+    for eid, ln, fn, mn in emp_rows:
+        ln = (ln or "").strip().lower()
+        fn = (fn or "").strip().lower()
+        mn = (mn or "").strip().lower()
+        full = f"{ln} {fn}"
+        if mn:
+            full += f" {mn}"
+        emp_by_name[full] = eid
+        emp_by_name[f"{ln} {fn}"] = eid
+
+    # Загружаем существующие пропуска
+    with pg.cursor() as cur:
+        cur.execute("""
+            SELECT p.id, p.seria, p.number, ep.employee_id
+            FROM pass p
+            LEFT JOIN employee_pass ep ON ep.pass_id = p.id
+        """)
+        existing = cur.fetchall()
+
+    pass_by_key = {}
+    emp_to_pass = {}
+    for pid, seria, num, emp_id in existing:
+        key = f"{seria or ''}|{num or ''}"
+        pass_by_key[key] = {"pass_id": pid, "employee_id": emp_id}
+        if emp_id:
+            emp_to_pass[emp_id] = pid
+
+    # Создаём недостающие пропуска и привязываем к сотрудникам
+    count_created = 0
+    count_linked = 0
+    count_not_found = 0
+
+    for key, (seria, number, full_name) in pass_set.items():
+        existing_pass = pass_by_key.get(key)
+        if existing_pass and existing_pass["employee_id"]:
+            # Уже есть и привязан
+            emp_to_pass[existing_pass["employee_id"]] = existing_pass["pass_id"]
+            continue
+
+        if existing_pass and not existing_pass["employee_id"]:
+            pass_id = existing_pass["pass_id"]
+        else:
+            # Создаём новый пропуск
+            with pg.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO pass (seria, number) VALUES (%s, %s) RETURNING id",
+                    (seria, number),
+                )
+                pass_id = cur.fetchone()[0]
+            pg.commit()
+            pass_by_key[key] = {"pass_id": pass_id, "employee_id": None}
+            count_created += 1
+
+        # Ищем сотрудника по ФИО и привязываем
+        name_lower = full_name.strip().lower()
+        emp_id = emp_by_name.get(name_lower)
+        if emp_id:
+            with pg.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO employee_pass (employee_id, pass_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                    (emp_id, pass_id),
+                )
+            pg.commit()
+            pass_by_key[key]["employee_id"] = emp_id
+            emp_to_pass[emp_id] = pass_id
+            count_linked += 1
+        else:
+            count_not_found += 1
+            print(f"    Не найден сотрудник: {full_name} (пропуск {seria} {number})")
+
+    print(f"  Пропусков создано: {count_created}, привязано: {count_linked}")
+    if count_not_found:
+        print(f"  Не найдено сотрудников: {count_not_found}")
+
+    return emp_to_pass
+
+
 def main():
     print("=== Импорт из MSSQL в PostgreSQL ===\n")
     ms = connect_mssql()
@@ -464,6 +766,7 @@ def main():
         emp_map = import_employees(ms, pg, div_map, pos_map)
         import_employee_schedules(ms, pg, emp_map, sched_map)
         import_worktime(ms, pg, emp_map)
+        import_turnstile_events(ms, pg, emp_map)
         print("\n=== Импорт завершён успешно ===")
     except Exception as e:
         print(f"\nОШИБКА: {e}")
