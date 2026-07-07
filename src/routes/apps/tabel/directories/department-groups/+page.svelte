@@ -2,9 +2,8 @@
 	import { enhance } from '$app/forms';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import {
-		Dialog, DialogContent, DialogHeader, DialogTitle
-	} from '$lib/components/ui/dialog';
+	import { Dialog, DialogContent, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	let { data }: { data: any } = $props();
 	let createOpen = $state(false);
@@ -13,6 +12,7 @@
 	let editName = $state('');
 	let addDeptGroupId = $state<number | null>(null);
 	let addDeptOpen = $state(false);
+	let checkedDepts = $state<Set<number>>(new Set());
 </script>
 
 <div class="space-y-6">
@@ -33,7 +33,8 @@
 							editId = group.id;
 							editName = group.name;
 							editOpen = true;
-						}}>✎</Button>
+						}}>✎</Button
+					>
 					<form method="post" action="?/remove" use:enhance>
 						<input type="hidden" name="id" value={group.id} />
 						<Button variant="outline" size="sm" type="submit">×</Button>
@@ -48,7 +49,9 @@
 						<form method="post" action="?/removeDept" use:enhance>
 							<input type="hidden" name="groupId" value={group.id} />
 							<input type="hidden" name="departmentId" value={dept.departmentId} />
-							<button type="submit" class="text-xs text-muted-foreground hover:text-destructive">×</button>
+							<button type="submit" class="text-xs text-muted-foreground hover:text-destructive"
+								>×</button
+							>
 						</form>
 					</div>
 				{/each}
@@ -57,8 +60,12 @@
 					variant="ghost"
 					size="sm"
 					class="text-xs text-muted-foreground"
-					onclick={() => { addDeptGroupId = group.id; addDeptOpen = true; }}
-				>+ Добавить отдел</Button>
+					onclick={() => {
+						addDeptGroupId = group.id;
+						checkedDepts = new Set(group.departments.map((d: any) => d.departmentId));
+						addDeptOpen = true;
+					}}>+ Добавить отдел</Button
+				>
 			</div>
 		</div>
 	{/each}
@@ -93,18 +100,60 @@
 
 <!-- Добавление отдела в группу -->
 <Dialog bind:open={addDeptOpen}>
-	<DialogContent>
-		<DialogHeader>
-			<DialogTitle>Добавить отдел</DialogTitle>
+	<DialogContent class="flex max-h-[80vh] flex-col">
+		<DialogHeader class="shrink-0">
+			<DialogTitle>Отделы группы</DialogTitle>
 		</DialogHeader>
-		<form method="post" action="?/addDept" class="flex flex-col gap-4" use:enhance>
-			<input type="hidden" name="groupId" value={addDeptGroupId ?? ''} />
-			<select name="departmentId" required class="rounded-md border border-input px-3 py-2 text-sm">
-				{#each data.allDepts as d}
-					<option value={d.id}>{d.name}</option>
-				{/each}
-			</select>
-			<Button type="submit">Добавить</Button>
-		</form>
+
+		{#if addDeptGroupId}
+			{@const busyDeptIds = new Set(
+				data.groups
+					.filter((g) => g.id !== addDeptGroupId)
+					.flatMap((g) => g.departments.map((d) => d.departmentId))
+			)}
+
+			<form
+				method="post"
+				action="?/saveDepts"
+				class="flex flex-1 flex-col gap-3 overflow-hidden"
+				use:enhance
+			>
+				<input type="hidden" name="groupId" value={addDeptGroupId} />
+
+				<div class="flex-1 space-y-1 overflow-y-auto">
+					{#each data.allDepts as d}
+						{@const isChecked = checkedDepts.has(d.id)}
+						{@const isDisabled = busyDeptIds.has(d.id)}
+						<label
+							class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+							class:bg-green-100={isChecked && !isDisabled}
+							class:bg-gray-300={isDisabled}
+							class:border-green-700={isChecked && !isDisabled}
+							class:border-gray-700={isDisabled}
+						>
+							<Checkbox
+								name="departmentIds"
+								value={d.id}
+								checked={isChecked}
+								disabled={isDisabled}
+								onCheckedChange={() => {
+									if (isDisabled) return;
+									const next = new Set(checkedDepts);
+									if (isChecked) next.delete(d.id);
+									else next.add(d.id);
+									checkedDepts = next;
+								}}
+							/>
+							<span class:line-through={isDisabled} class:font-medium={isChecked}>{d.name}</span>
+							{#if isDisabled}
+								<span class="ml-auto text-xs text-muted-foreground">занят</span>
+							{/if}
+						</label>
+					{/each}
+				</div>
+
+				<Button type="submit" class="shrink-0">Сохранить</Button>
+			</form>
+		{/if}
 	</DialogContent>
 </Dialog>

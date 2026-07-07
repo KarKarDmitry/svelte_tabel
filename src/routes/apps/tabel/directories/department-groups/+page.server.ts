@@ -13,7 +13,10 @@ export const load: PageServerLoad = async () => {
 export const actions: Actions = {
 	create: async (event) => {
 		const f = await event.request.formData();
-		await departmentGroupService.create({ name: f.get('name')?.toString() || '', sortOrder: Number(f.get('sortOrder')) || 0 });
+		await departmentGroupService.create({
+			name: f.get('name')?.toString() || '',
+			sortOrder: Number(f.get('sortOrder')) || 0
+		});
 		return { success: true };
 	},
 	update: async (event) => {
@@ -28,12 +31,32 @@ export const actions: Actions = {
 	},
 	addDept: async (event) => {
 		const f = await event.request.formData();
-		await departmentGroupService.addDepartment(Number(f.get('groupId')), Number(f.get('departmentId')));
+		await departmentGroupService.addDepartment(
+			Number(f.get('groupId')),
+			Number(f.get('departmentId'))
+		);
 		return { success: true };
 	},
 	removeDept: async (event) => {
 		const f = await event.request.formData();
-		await departmentGroupService.removeDepartment(Number(f.get('groupId')), Number(f.get('departmentId')));
+		await departmentGroupService.removeDepartment(
+			Number(f.get('groupId')),
+			Number(f.get('departmentId'))
+		);
+		return { success: true };
+	},
+	saveDepts: async (event) => {
+		const f = await event.request.formData();
+		const groupId = Number(f.get('groupId'));
+		const deptIds = f.getAll('departmentIds').map(Number);
+		const groups = await departmentGroupService.listWithDepartments();
+		const group = groups.find((g) => g.id === groupId);
+		if (!group) return { success: false };
+		const existing = group.departments.map((d) => d.departmentId);
+		const toRemove = existing.filter((id) => !deptIds.includes(id));
+		const toAdd = deptIds.filter((id) => !existing.includes(id));
+		if (toRemove.length) await departmentGroupService.removeDepartments(groupId, toRemove);
+		if (toAdd.length) await departmentGroupService.addDepartments(groupId, toAdd);
 		return { success: true };
 	}
 };
