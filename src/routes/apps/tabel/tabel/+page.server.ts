@@ -1,5 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
+import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 
 const PAGE_SIZE = 200;
 
@@ -9,7 +10,12 @@ export const load: PageServerLoad = async (event) => {
 	const month = Number(url.searchParams.get('month')) || new Date().getMonth() + 1;
 	const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
 
-	return await worktimeService.getMonthGrouped(year, month, { page, pageSize: PAGE_SIZE });
+	const [data, groups] = await Promise.all([
+		worktimeService.getMonthGrouped(year, month, { page, pageSize: PAGE_SIZE }),
+		departmentGroupService.listWithDepartments()
+	]);
+
+	return { ...data, departmentGroups: groups };
 };
 
 export const actions: Actions = {

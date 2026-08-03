@@ -58,6 +58,34 @@ export const calendarService = {
 			.values(data)
 			.returning()
 			.then((r) => r[0]),
+
+	/** Массовое создание правил */
+	createRules: (data: {
+		templateId: number;
+		days: { month: number; day: number }[];
+		autoTransfer?: boolean;
+		preHoliday?: boolean;
+		preScheduleId?: number | null;
+	}) => {
+		const {
+			templateId,
+			days,
+			autoTransfer = false,
+			preHoliday = false,
+			preScheduleId = null
+		} = data;
+		const values = days.map((d) => ({
+			templateId,
+			month: d.month,
+			day: d.day,
+			autoTransfer,
+			preHoliday,
+			preScheduleId
+		}));
+		return values.length > 0
+			? db.insert(calendarTemplateRule).values(values).onConflictDoNothing().returning()
+			: Promise.resolve([]);
+	},
 	updateRule: (
 		id: number,
 		data: {

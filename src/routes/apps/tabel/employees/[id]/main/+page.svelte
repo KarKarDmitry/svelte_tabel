@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+	import { toast } from 'svelte-sonner';
 
 	let emp = $derived($page.data.employee);
 	let lastDoc = $derived($page.data.lastDoc);
@@ -53,14 +54,31 @@
 				</p>
 			</div>
 			{#if !isDismissed && !lastDoc}
-				<form method="post" action="?/hire" class="flex flex-col gap-3 border-t pt-3" use:enhance>
+				<form
+					method="post"
+					action="?/hire"
+					class="flex flex-col gap-3 border-t pt-3"
+					use:enhance={() => {
+						return async ({ result }) => {
+							if (result.type === 'redirect') toast.success('Приём оформлен');
+						};
+					}}
+				>
 					<p class="text-sm font-medium">Оформить приём</p>
-					<select name="departmentId" required class="rounded-md border border-input px-3 py-2 text-sm">
+					<select
+						name="departmentId"
+						required
+						class="rounded-md border border-input px-3 py-2 text-sm"
+					>
 						{#each $page.data.departments as d}
 							<option value={d.id}>{d.name}</option>
 						{/each}
 					</select>
-					<select name="positionId" required class="rounded-md border border-input px-3 py-2 text-sm">
+					<select
+						name="positionId"
+						required
+						class="rounded-md border border-input px-3 py-2 text-sm"
+					>
 						{#each $page.data.positions as p}
 							<option value={p.id}>{p.name}</option>
 						{/each}

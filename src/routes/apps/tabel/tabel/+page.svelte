@@ -9,13 +9,16 @@
 		CollapsibleContent,
 		CollapsibleTrigger
 	} from '$lib/components/ui/collapsible';
-	import ETable from '$lib/components/ETable/ETable.svelte';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import DepartmentCard from './DepartmentCard.svelte';
 	import EmployeeEventsModal from './EmployeeEventsModal.svelte';
-	import MonthYearPicker from './MonthYearPicker.svelte';
+	import MonthYearPicker from '$lib/components/MonthYearPicker.svelte';
 
 	import { Input } from '$lib/components/ui/input';
 	import { Select, SelectTrigger, SelectContent, SelectItem } from '$lib/components/ui/select';
+	import { Switch } from '$lib/components/ui/switch';
+	import { toast } from 'svelte-sonner';
 
 	type TabelRow = {
 		id: string;
@@ -28,17 +31,6 @@
 		totalNight?: number;
 		schedule?: any;
 		[key: string]: any;
-	};
-
-	type DayMarkValue = {
-		value: string;
-		date: string;
-		reportWorkTime: number | null;
-		dayMarkCode: string;
-		blocked?: boolean;
-		missingMinutes?: number;
-		extraMarkCode?: string | null;
-		extraMarkMinutes?: number | null;
 	};
 
 	// Единый источник данных — сихронизируем с page.data при навигации
@@ -79,6 +71,9 @@
 		dayData: any;
 		empId: number;
 	} | null>(null);
+
+	// Фактическое время (rawWorkTime) вместо среза по графику (reportWorkTime)
+	let showActual = $state(false);
 
 	function openEmployeeModal(empId: number) {
 		for (const dept of data.departments as any[]) {
@@ -122,70 +117,27 @@
 		return (minutes / 60).toFixed(1);
 	}
 
-	function getDayMark(value: string): string {
-		if (!value) return '';
-		// Ищем по shortName (то что хранится в БД), затем по code для обратной совместимости
-		const mark = dayMarks.find((m: any) => m.shortName === value || m.code === value);
-		return mark?.shortName ?? value;
-	}
+	// Группируем департаменты по группам подразделений
+	const groupedDepartments = $derived.by(() => {
+		const groups = (data.departmentGroups ?? []) as any[];
+		const grouped = groups
+			.map((g) => {
+				const deptIds = new Set(g.departments.map((m: any) => m.departmentId));
+				return {
+					id: g.id,
+					name: g.name,
+					departments: departments.filter((d: any) => deptIds.has(d.id))
+				};
+			})
+			.filter((g) => g.departments.length > 0);
 
-	function buildRows(emp: any): TabelRow[] {
-		const segKey = `${emp.segmentFrom || ''}-${emp.departmentId || 0}`;
-
-		const hoursRow: TabelRow = {
-			id: `${emp.id}-${segKey}-hours`,
-			type: 'hours',
-			empId: emp.id,
-			number: emp.number,
-			lastName: emp.lastName,
-			firstName: emp.firstName,
-			totalReport: emp.totalReport,
-			totalNight: emp.totalNight
-		};
-
-		const markRow: TabelRow = {
-			id: `${emp.id}-${segKey}-mark`,
-			type: 'mark',
-			empId: emp.id,
-			number: '',
-			lastName: '',
-			firstName: '',
-			schedule: emp.schedule
-		};
-
-		for (const [index, day] of emp.days.entries()) {
-			const calDayForDate = day.date ? calendarDays[day.date] : null;
-			const dayStdMin =
-				day.scheduleId && schedulesById[day.scheduleId]
-					? schedulesById[day.scheduleId].standardWorkTime
-					: day.reportWorkTime && !day.scheduleId
-						? (Object.values(schedulesById).find((s) => s.standardWorkTime === day.reportWorkTime)
-								?.standardWorkTime ?? null)
-						: null;
-			const stdMin = calDayForDate?.workTime ?? dayStdMin ?? emp.schedule?.standardWorkTime;
-			const hasShortage =
-				day.reportWorkTime != null && stdMin != null && day.reportWorkTime < stdMin;
-			hoursRow[`day_${index + 1}`] = formatHours(day.reportWorkTime);
-			hoursRow[`day_${index + 1}_blocked`] = day.blocked ?? false;
-			markRow[`day_${index + 1}`] = {
-				value: getDayMark(day.dayMarkCode),
-				date: day.date,
-				reportWorkTime: day.reportWorkTime,
-				dayMarkCode: day.dayMarkCode,
-				blocked: day.blocked ?? false,
-				missingMinutes: hasShortage ? stdMin - day.reportWorkTime : 0,
-				extraMarkCode: day.extraMarkCode ?? null,
-				extraMarkMinutes: day.extraMarkMinutes ?? null
-			} satisfies DayMarkValue;
+		// Департаменты без группы — в конце
+		const inGroup = new Set(grouped.flatMap((g) => g.departments.map((d: any) => d.id)));
+		const ungrouped = departments.filter((d: any) => !inGroup.has(d.id));
+		if (ungrouped.length > 0) {
+			grouped.push({ id: 0, name: 'Без группы', departments: ungrouped });
 		}
-		return [hoursRow, markRow];
-	}
-
-	const preparedDepartments = $derived.by(() => {
-		return departments.map((dept: any) => ({
-			...dept,
-			rows: dept.employees.flatMap(buildRows)
-		}));
+		return grouped;
 	});
 
 	// --- Debounce: накапливаем изменения и отправляем пачкой с задержкой ---
@@ -490,10 +442,12 @@
 				a.click();
 				URL.revokeObjectURL(url);
 				exportOpen = false;
+				toast.success(`Файл «${data.filename}» сформирован`);
 			} else if (data.type === 'error') {
 				es.close();
 				exportOpen = false;
 				console.error(data.error);
+				toast.error(data.error ?? 'Ошибка формирования отчёта');
 			} else {
 				exportProgress = 'Формирование отчёта...';
 				exportDivision = data.division;
@@ -506,6 +460,7 @@
 		es.onerror = () => {
 			es.close();
 			exportOpen = false;
+			toast.error('Не удалось подключиться к серверу экспорта');
 		};
 	}
 
@@ -676,6 +631,9 @@
 					if (!res.ok) {
 						const text = await res.text();
 						console.error('[WTT] save failed', res.status, text.substring(0, 200));
+						toast.error('Не удалось сохранить доп. метку');
+					} else {
+						toast.success('Доп. метка сохранена');
 					}
 					cellPopup = null;
 				}}>Сохранить</Button
@@ -689,7 +647,15 @@
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
 	<div class="mb-2 flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold tracking-tight">Табель</h1>
+			<h1 class="flex flex-row gap-2 text-2xl font-bold tracking-tight">
+				Табель
+				<div class="flex items-center gap-2">
+					<Switch bind:checked={showActual} id="show-actual" />
+					<label for="show-actual" class="cursor-pointer text-sm font-medium select-none">
+						Фактическое время
+					</label>
+				</div>
+			</h1>
 			<p class="text-sm text-muted-foreground">
 				{months[month - 1]}
 				{year}
@@ -721,34 +687,32 @@
 		<Button size="sm" onclick={exportExcel}>Экспорт</Button>
 	</div>
 
-	<div class="flex min-h-0 flex-1 flex-col gap-3 overflow-auto">
-		{#each preparedDepartments as dept}
-			<Collapsible class="overflow-hidden rounded-2xl border bg-card shadow-sm">
+	<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">
+		{#each groupedDepartments as group}
+			<Collapsible class="group">
 				<CollapsibleTrigger
-					class="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-muted/40"
+					class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground"
 				>
-					<div class="font-semibold">
-						{dept.name}
-					</div>
-
-					<Badge>
-						{dept.employees.length}
-					</Badge>
+					<Badge>{group.departments.length}</Badge>
+					<span>{group.name}</span>
+					<span class="h-px flex-1 bg-muted-foreground/50"></span>
+					<ChevronDownIcon
+						class="size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-180"
+					/>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent class="border-y">
-					<div class="overflow-auto">
-						<ETable
-							data={dept.rows}
+				<CollapsibleContent class="flex flex-col gap-2 pt-1 pl-2">
+					{#each group.departments as dept}
+						<DepartmentCard
+							{dept}
 							{columns}
-							getRowId={(row) => row.id}
-							rowClass={(row) =>
-								row.type === 'mark' ? 'bg-muted/10 text-[11px]' : 'hover:bg-muted/20'}
-							onRowClick={(row) => {
-								if (row.type === 'hours') openEmployeeModal(row.empId);
-							}}
+							{dayMarks}
+							{calendarDays}
+							{schedulesById}
+							{showActual}
+							onOpenEmployee={openEmployeeModal}
 						/>
-					</div>
+					{/each}
 				</CollapsibleContent>
 			</Collapsible>
 		{/each}
@@ -801,7 +765,7 @@
 </div>
 
 <EmployeeEventsModal
-	show={showEmployeeModal}
+	bind:show={showEmployeeModal}
 	employeeId={modalEmployeeId}
 	{year}
 	{month}

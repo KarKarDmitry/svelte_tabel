@@ -2,6 +2,7 @@
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
+	import { Separator } from '$lib/components/ui/separator';
 
 	let { children }: { children: Snippet } = $props();
 

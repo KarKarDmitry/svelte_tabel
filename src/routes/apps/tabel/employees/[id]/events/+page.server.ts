@@ -10,8 +10,11 @@ export const load: PageServerLoad = async (event) => {
 
 	const periodStart = new Date(year, month - 1, 1);
 	const periodEnd = new Date(year, month, 0, 23, 59, 59);
-	const events = await turnstileEventTrackerService.getByPeriod(id, periodStart, periodEnd);
-	const eventTypes = await db.select().from(turnstileEvent);
+
+	const [events, eventTypes] = await Promise.all([
+		turnstileEventTrackerService.getByPeriodWithDetails(id, periodStart, periodEnd),
+		db.select().from(turnstileEvent)
+	]);
 
 	return { events, eventTypes, year, month };
 };

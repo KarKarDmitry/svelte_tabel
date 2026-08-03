@@ -2,7 +2,9 @@
 	import { Dialog, DialogContent, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Separator } from '$lib/components/ui/separator';
 	import ETable from '$lib/components/ETable/ETable.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let {
 		show = $bindable(false),
@@ -32,6 +34,7 @@
 		) => void;
 	} = $props();
 
+	let open = $state(false);
 	let loading = $state(false);
 	let saving = $state(false);
 	let employee: any = $state(null);
@@ -51,6 +54,14 @@
 	let shiftMarks: string[] = $state([]);
 	let calendarDays: any = $state({});
 	let empSchedule: any = $state(null);
+	let turnstileEvents = $state<
+		Array<{
+			datetime: string;
+			eventName: string;
+			passSeria: string | null;
+			passNumber: string;
+		}>
+	>([]);
 
 	function getCellStyle(day: any): string {
 		if (!day) return '';
@@ -166,8 +177,13 @@
 	);
 
 	$effect(() => {
-		if (!show || !employeeId) return;
-		loadData();
+		if (show && !open) {
+			open = true;
+			loadData();
+		}
+		if (!show && open) {
+			open = false;
+		}
 	});
 
 	async function loadData() {
@@ -185,6 +201,7 @@
 			markColorRules = data.markColorRules ?? {};
 			calendarDays = data.calendarDays ?? {};
 			empSchedule = data.empSchedule ?? null;
+			turnstileEvents = data.turnstileEvents ?? [];
 			shiftMarks = data.shiftMarks ?? [];
 		} catch (e) {
 			console.error('[WTT] load events error', e);
@@ -226,8 +243,10 @@
 			if (updated?.length && onSave) {
 				onSave(updated);
 			}
+			toast.success('Сохранено');
 		} catch (e) {
 			console.error('[WTT] save events error', e);
+			toast.error('Не удалось сохранить события');
 		} finally {
 			saving = false;
 		}
@@ -309,12 +328,21 @@
 	/>
 {/snippet}
 
-<Dialog bind:open={show}>
-	<DialogContent class="flex max-h-[calc(100dvh-2em)] w-full max-w-[calc(100dvw-2em)] flex-col">
+<Dialog
+	{open}
+	onOpenChange={(v) => {
+		open = v;
+		show = v;
+	}}
+>
+	<DialogContent
+		class="flex max-h-[calc(100dvh-2em)] flex-col overflow-hidden"
+		style="width: min(1100px, calc(100vw - 2rem)); max-width: min(1100px, calc(100vw - 2rem))"
+	>
 		<DialogHeader>
 			<DialogTitle class="space-y-1">
-				<p>События сотрудника:</p>
 				<p>
+					События сотрудника:
 					{employee?.lastName}
 					{employee?.firstName}
 					{employee?.middleName ?? ''}
@@ -322,72 +350,137 @@
 			</DialogTitle>
 		</DialogHeader>
 
-		<div class="flex flex-col gap-2 overflow-hidden">
+		<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
 			{#if loading}
 				<div class="flex items-center justify-center text-sm text-muted-foreground">
 					Загрузка...
 				</div>
 			{:else}
-				<div class="flex flex-wrap gap-2 overflow-hidden">
-					<div class="shrink-0">
-						<div class="space-y-1 text-sm">
-							<p><span class="font-medium">Табельный номер:</span> {employee?.number}</p>
-							<p><span class="font-medium">Должность:</span> {positionName || '—'}</p>
-							<p><span class="font-medium">Подразделение:</span> {departmentName || '—'}</p>
-						</div>
-						<div class="text-xs text-muted-foreground">
-							{months[month - 1]}
-							{year}
-						</div>
+				<div class="shrink-0">
+					<div class="space-y-1 text-sm">
+						<p><span class="font-medium">Табельный номер:</span> {employee?.number}</p>
+						<p><span class="font-medium">Должность:</span> {positionName || '—'}</p>
+						<p><span class="font-medium">Подразделение:</span> {departmentName || '—'}</p>
 					</div>
-
-					<div class="flex max-h-150 overflow-hidden rounded-xl border-2">
-						<ETable
-							data={rows}
-							getRowId={(r) => r.id}
-							columns={[
-								{ key: 'dayNum', label: 'День', width: 45, align: 'center' as const },
-								{
-									key: ['dayData', 'reportWorkTime'],
-									label: 'Часов',
-									width: 60,
-									align: 'center' as const,
-									render: hoursCell
-								},
-								{
-									key: ['dayData', 'reportNightWorkTime'],
-									label: 'Ночных',
-									width: 60,
-									align: 'center' as const,
-									render: nightCell
-								},
-								{
-									key: ['dayData', 'dayMarkCode'],
-									label: 'Метка',
-									width: 55,
-									align: 'center' as const,
-									render: markCell
-								},
-								{
-									key: ['dayData', 'extraMarkCode'],
-									label: 'Доп.метка',
-									width: 55,
-									align: 'center' as const,
-									render: extraMarkCell
-								},
-								{
-									key: ['dayData', 'extraMarkMinutes'],
-									label: 'Час.доп',
-									width: 55,
-									align: 'center' as const,
-									render: extraHoursCell
-								}
-							]}
-						/>
+					<Separator class="my-2" />
+					<div>
+						Данные за:
+						{months[month - 1]}
+						{year}
 					</div>
 				</div>
 
-				<div class="flex justify-end gap-2">
+				<!-- Горизонтально: события турникета | метки -->
+				<div class="flex min-h-0 flex-1 gap-3 overflow-hidden">
+					<!-- События турникета (read-only) -->
+					<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+						<p class="text-sm font-medium">События турникета</p>
+						{#if turnstileEvents.length === 0}
+							<div
+								class="rounded-xl border border-dashed px-3 py-4 text-center text-sm text-muted-foreground"
+							>
+								Нет событий турникета за этот месяц
+							</div>
+						{:else}
+							<div class="min-h-0 flex-1 overflow-hidden rounded-xl border">
+								<div class="h-full overflow-auto">
+									<ETable
+										data={turnstileEvents}
+										getRowId={(e, i) => i}
+										columns={[
+											{
+												key: 'datetime',
+												label: 'Дата и время',
+												width: 160,
+												cellClass: 'px-1 py-1.5 font-mono',
+												format: (v) =>
+													new Date(v).toLocaleString('ru-RU', {
+														day: '2-digit',
+														month: '2-digit',
+														year: 'numeric',
+														hour: '2-digit',
+														minute: '2-digit'
+													})
+											},
+											{
+												key: 'eventName',
+												label: 'Событие',
+												width: 200,
+												cellClass: 'px-1 py-1.5'
+											},
+											{
+												key: 'passNumber',
+												label: 'Пропуск',
+												width: 100,
+												cellClass: 'px-1 py-1.5',
+												format: (v, row) => {
+													const r = row as {
+														passSeria?: string | null;
+														passNumber: string;
+													};
+													return r.passSeria ? `${r.passSeria} ${r.passNumber}` : r.passNumber;
+												}
+											}
+										]}
+									/>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Метки по дням (редактируемые) -->
+					<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+						<p class="text-sm font-medium">Метки по дням</p>
+						<div class="min-h-0 flex-1 overflow-hidden rounded-xl border-2">
+							<div class="h-full overflow-auto">
+								<ETable
+									data={rows}
+									getRowId={(r) => r.id}
+									columns={[
+										{ key: 'dayNum', label: 'День', width: 45, align: 'center' as const },
+										{
+											key: ['dayData', 'reportWorkTime'],
+											label: 'Часов',
+											width: 60,
+											align: 'center' as const,
+											render: hoursCell
+										},
+										{
+											key: ['dayData', 'reportNightWorkTime'],
+											label: 'Ночных',
+											width: 60,
+											align: 'center' as const,
+											render: nightCell
+										},
+										{
+											key: ['dayData', 'dayMarkCode'],
+											label: 'Метка',
+											width: 55,
+											align: 'center' as const,
+											render: markCell
+										},
+										{
+											key: ['dayData', 'extraMarkCode'],
+											label: 'Доп.метка',
+											width: 55,
+											align: 'center' as const,
+											render: extraMarkCell
+										},
+										{
+											key: ['dayData', 'extraMarkMinutes'],
+											label: 'Час.доп',
+											width: 55,
+											align: 'center' as const,
+											render: extraHoursCell
+										}
+									]}
+								/>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="flex shrink-0 justify-end gap-2">
 					<Button variant="outline" onclick={() => (show = false)} disabled={saving}>Отмена</Button>
 					<Button onclick={save} disabled={saving}>
 						{saving ? 'Сохранение...' : 'Сохранить'}

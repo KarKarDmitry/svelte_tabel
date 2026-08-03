@@ -9,6 +9,7 @@
 	import type { PageServerData } from './$types';
 	import { page } from '$app/state';
 	import { Badge } from '$lib/components/ui/badge';
+	import { toast } from 'svelte-sonner';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -40,9 +41,11 @@
 		if (!deleteTarget) return;
 		const f = new FormData();
 		f.set('id', String(deleteTarget.id));
-		await fetch('/apps/tabel/calendar/list', { method: 'DELETE', body: f });
+		const res = await fetch('/apps/tabel/calendar/list', { method: 'DELETE', body: f });
 		deleteOpen = false;
 		deleteTarget = null;
+		if (res.ok) toast.success('Календарь удалён');
+		else toast.error('Не удалось удалить календарь');
 		await refresh();
 	}
 
@@ -161,7 +164,10 @@
 		method="post"
 		action="?/setDefault"
 		use:enhance={() => {
-			return async () => refresh();
+			return async ({ result }) => {
+				if (result.type === 'success') toast.success('Календарь установлен основным');
+				await refresh();
+			};
 		}}
 		class="hidden"
 	>

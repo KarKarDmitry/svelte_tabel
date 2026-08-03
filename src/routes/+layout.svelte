@@ -18,6 +18,11 @@
 
 	<div class="flex items-center gap-3">
 		{#if data.user}
+			{#if data.isAdmin}
+				<a href="/admin">
+					<Button variant="ghost" size="sm">Админ</Button>
+				</a>
+			{/if}
 			<span class="text-sm font-medium text-gray-700">{data.user.name}</span>
 			<form method="post" action="/auth?/signOut" use:enhance>
 				<Button variant="destructive" size="sm" type="submit">Выйти</Button>

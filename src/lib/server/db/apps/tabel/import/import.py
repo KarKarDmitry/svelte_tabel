@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Импорт данных из MSSQL (OPP_R) в PostgreSQL (tabel)"""
 
+import argparse
 import json
 import os
 from datetime import date, datetime, time
@@ -511,11 +512,11 @@ def import_worktime(ms, pg, emp_map):
     print(f"  OK: {count}")
 
 
-def import_turnstile_events(ms, pg, emp_map):
+def import_turnstile_events(ms, pg, emp_map, skip_events=False):
     """Импорт событий турникета.
     - Справочник событий: из MSSQL TurnstileEvents
     - Пропуска (связь сотрудник-пропуск): из Excel-файла employee_events.xls
-    - События: из MSSQL TurnstileEventTracker
+    - События: из MSSQL TurnstileEventTracker (если skip_events=False)
     """
     print("\n--- Импорт событий турникета ---")
 
@@ -553,6 +554,10 @@ def import_turnstile_events(ms, pg, emp_map):
         emp_to_pass = _load_passes_from_excel(pg)
         if emp_to_pass is None:
             return
+
+    if skip_events:
+        print("  Пропущено: события турникета (--no-data)")
+        return
 
     # 3. Импорт событий из MSSQL TurnstileEventTracker
     print("  Импорт событий из TurnstileEventTracker...")
@@ -754,6 +759,14 @@ def _load_passes_from_excel(pg):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Импорт из MSSQL в PostgreSQL")
+    parser.add_argument(
+        "--no-data",
+        action="store_true",
+        help="Импортировать только справочники и сотрудников (без worktime_tracker и событий турникета)",
+    )
+    args = parser.parse_args()
+
     print("=== Импорт из MSSQL в PostgreSQL ===\n")
     ms = connect_mssql()
     pg = connect_pg()
@@ -765,8 +778,12 @@ def main():
         sched_map = import_schedules(ms, pg)
         emp_map = import_employees(ms, pg, div_map, pos_map)
         import_employee_schedules(ms, pg, emp_map, sched_map)
-        import_worktime(ms, pg, emp_map)
-        import_turnstile_events(ms, pg, emp_map)
+        if not args.no_data:
+            import_worktime(ms, pg, emp_map)
+            import_turnstile_events(ms, pg, emp_map)
+        else:
+            print("\nПропущено: worktime_tracker (--no-data)")
+            import_turnstile_events(ms, pg, emp_map, skip_events=True)
         print("\n=== Импорт завершён успешно ===")
     except Exception as e:
         print(f"\nОШИБКА: {e}")

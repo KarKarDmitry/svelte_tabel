@@ -29,7 +29,7 @@
 	}
 
 	export interface Action {
-		label: string;
+		label: string | ((row: any) => string);
 		onclick: (row: any) => void;
 	}
 
@@ -49,6 +49,8 @@
 		filters = [] as Filter[],
 		rowActions = [] as Action[],
 		actions = [] as Action[],
+		variant = 'default' as 'default' | 'ghost',
+		class: className = '',
 		page = 1,
 		totalPages = 1,
 		onPageChange = (_page: number) => {},
@@ -58,11 +60,13 @@
 		onRowClick,
 		cell
 	}: {
-		data: any[];
-		columns: Column[];
+		data?: any[];
+		columns?: Column[];
 		filters?: Filter[];
 		rowActions?: Action[];
 		actions?: Action[];
+		variant?: 'default' | 'ghost';
+		class?: string;
 		page?: number;
 		totalPages?: number;
 		onPageChange?: (page: number) => void;
@@ -93,9 +97,13 @@
 	}
 </script>
 
-<div class="flex flex-col">
+<div class="flex flex-col {className}">
 	<!-- Фильтры -->
-	<div class="sticky top-0 z-10 -mx-6 bg-background/10 px-6 py-2 backdrop-blur-xs">
+	<div
+		class={variant === 'default'
+			? 'sticky top-0 z-10 -mx-6 bg-background/10 px-6 py-2 backdrop-blur-xs'
+			: ''}
+	>
 		<div class="flex items-start justify-between gap-4">
 			<!-- Фильтры: десктоп -->
 			{#if filters.length > 0}
@@ -161,7 +169,7 @@
 
 	<!-- Таблица -->
 	<div class="flex-1 overflow-auto">
-		<div class="rounded-lg border-2 bg-card">
+		<div class={variant === 'default' ? 'rounded-lg border-2 bg-card' : ''}>
 			<Table>
 				<TableHeader class="border-b-2">
 					<TableRow>
@@ -215,7 +223,7 @@
 										<DropdownMenuContent>
 											{#each rowActions as act}
 												<DropdownMenuItem onclick={() => act.onclick(row)}>
-													{act.label}
+													{typeof act.label === 'function' ? act.label(row) : act.label}
 												</DropdownMenuItem>
 											{/each}
 										</DropdownMenuContent>

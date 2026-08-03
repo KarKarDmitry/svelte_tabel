@@ -8,6 +8,7 @@
 	import type { PageServerData } from './$types';
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { page } from '$app/state';
+	import { toast } from 'svelte-sonner';
 
 	let { data }: { data: PageServerData } = $props();
 
@@ -36,9 +37,11 @@
 		if (!deleteTarget) return;
 		const f = new FormData();
 		f.set('id', String(deleteTarget.id));
-		await fetch('/apps/tabel/calendar/templates', { method: 'DELETE', body: f });
+		const res = await fetch('/apps/tabel/calendar/templates', { method: 'DELETE', body: f });
 		deleteOpen = false;
 		deleteTarget = null;
+		if (res.ok) toast.success('Шаблон удалён');
+		else toast.error('Не удалось удалить шаблон');
 		await refresh();
 	}
 

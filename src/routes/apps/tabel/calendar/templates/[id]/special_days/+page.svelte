@@ -5,7 +5,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
-	import { goto } from '$app/navigation';
+	import SpecialDaysCalendar from './SpecialDaysCalendar.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let rules = $derived($page.data.rules);
 	let allSchedules = $derived($page.data.allSchedules);
@@ -16,6 +17,12 @@
 	let isCreate = $state(false);
 	let deleteTarget = $state<any>(null);
 	let deleteOpen = $state(false);
+
+	// Мультивыбор дней для bulk-создания
+	let selectedDays = $state<Set<number>>(new Set());
+	let calMonth = $state(1);
+	let bulkOpen = $state(false);
+	let bulkSettings = $state({ autoTransfer: false, preHoliday: false, preScheduleId: '' });
 
 	const months = [
 		'Янв',
@@ -38,6 +45,7 @@
 			const j = await res.json();
 			rules = j.rules;
 		}
+		selectedDays = new Set();
 	}
 
 	function openCreate() {
@@ -50,6 +58,11 @@
 		isCreate = false;
 		editRule = { ...rule, preScheduleId: rule.preScheduleId ?? '' };
 		editOpen = true;
+	}
+
+	function openBulk() {
+		bulkSettings = { autoTransfer: false, preHoliday: false, preScheduleId: '' };
+		bulkOpen = true;
 	}
 
 	function confirmDelete(row: any) {
@@ -77,16 +90,43 @@
 		}
 	}
 
+	async function saveBulk() {
+		const days = [...selectedDays].map((day) => ({ month: calMonth, day }));
+		const res = await fetch(
+			`/apps/tabel/calendar/templates/${templateId}/special_days?action=bulk`,
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					days,
+					autoTransfer: bulkSettings.autoTransfer,
+					preHoliday: bulkSettings.preHoliday,
+					preScheduleId: bulkSettings.preScheduleId || null
+				})
+			}
+		);
+		if (res.ok) {
+			const j = await res.json();
+			bulkOpen = false;
+			await refresh();
+			toast.success(`Добавлено правил: ${j.count ?? days.length}`);
+		} else {
+			toast.error('Не удалось добавить правила');
+		}
+	}
+
 	async function doDelete() {
 		if (!deleteTarget) return;
 		const f = new FormData();
 		f.set('id', String(deleteTarget.id));
-		await fetch(`/apps/tabel/calendar/templates/${templateId}/special_days`, {
+		const res = await fetch(`/apps/tabel/calendar/templates/${templateId}/special_days`, {
 			method: 'DELETE',
 			body: f
 		});
 		deleteOpen = false;
 		deleteTarget = null;
+		if (res.ok) toast.success('Правило удалено');
+		else toast.error('Не удалось удалить правило');
 		await refresh();
 	}
 </script>
@@ -110,25 +150,44 @@
 
 <div class="flex items-center justify-between">
 	<h2 class="text-lg font-semibold">Особые дни ({rules.length})</h2>
-	<Button onclick={openCreate}>+ Добавить</Button>
+	<Button onclick={openCreate}>+ Добавить один</Button>
 </div>
 
-<DTable
-	data={rules}
-	{cell}
-	columns={[
-		{ key: 'date', label: 'Дата' },
-		{ key: 'autoTransfer', label: 'Перенос' },
-		{ key: 'preHoliday', label: 'Предпразд.' },
-		{ key: 'preSchedule', label: 'График' }
-	]}
-	rowActions={[
-		{ label: 'Редактировать', onclick: (row) => openEdit(row) },
-		{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
-	]}
-	onRowClick={(row) => openEdit(row)}
-/>
+<div class="mt-3 grid gap-4 lg:grid-cols-[320px_1fr]">
+	<!-- Календарь -->
+	<div class="flex flex-col gap-2">
+		<SpecialDaysCalendar
+			{rules}
+			bind:selected={selectedDays}
+			bind:month={calMonth}
+			onRuleClick={(rule) => openEdit(rule)}
+		/>
+		<Button onclick={openBulk} disabled={selectedDays.size === 0}>
+			Добавить выбранные ({selectedDays.size})
+		</Button>
+	</div>
 
+	<!-- Таблица -->
+	<div class="min-w-0">
+		<DTable
+			data={rules}
+			{cell}
+			columns={[
+				{ key: 'date', label: 'Дата' },
+				{ key: 'autoTransfer', label: 'Перенос' },
+				{ key: 'preHoliday', label: 'Предпразд.' },
+				{ key: 'preSchedule', label: 'График' }
+			]}
+			rowActions={[
+				{ label: 'Редактировать', onclick: (row) => openEdit(row) },
+				{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
+			]}
+			onRowClick={(row) => openEdit(row)}
+		/>
+	</div>
+</div>
+
+<!-- Диалог единичного создания/редактирования -->
 <Dialog bind:open={editOpen}>
 	<DialogContent>
 		<div class="flex flex-col gap-4">
@@ -189,6 +248,60 @@
 			{/if}
 
 			<Button onclick={save}>{isCreate ? 'Создать' : 'Сохранить'}</Button>
+		</div>
+	</DialogContent>
+</Dialog>
+
+<!-- Диалог bulk-создания -->
+<Dialog bind:open={bulkOpen}>
+	<DialogContent>
+		<div class="flex flex-col gap-4">
+			<p class="font-medium">
+				Добавить {selectedDays.size} дн. ({calMonth} месяц)
+			</p>
+
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={bulkSettings.autoTransfer}
+					onchange={(e) =>
+						(bulkSettings = {
+							...bulkSettings,
+							autoTransfer: (e.target as HTMLInputElement).checked
+						})}
+				/>
+				Переносить при выпадении на выходной
+			</label>
+
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					checked={bulkSettings.preHoliday}
+					onchange={(e) =>
+						(bulkSettings = {
+							...bulkSettings,
+							preHoliday: (e.target as HTMLInputElement).checked
+						})}
+				/>
+				Предпраздничный день
+			</label>
+
+			{#if bulkSettings.preHoliday}
+				<select
+					value={bulkSettings.preScheduleId}
+					onchange={(e) =>
+						(bulkSettings = {
+							...bulkSettings,
+							preScheduleId: (e.target as HTMLSelectElement).value
+						})}
+					class="rounded-md border border-input px-3 py-2 text-sm"
+				>
+					<option value="">Выберите график</option>
+					{#each allSchedules as s}<option value={s.id}>{s.name}</option>{/each}
+				</select>
+			{/if}
+
+			<Button onclick={saveBulk}>Создать</Button>
 		</div>
 	</DialogContent>
 </Dialog>

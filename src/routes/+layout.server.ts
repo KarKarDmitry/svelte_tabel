@@ -8,6 +8,7 @@ export const load: LayoutServerLoad = (event) => {
 					name: event.locals.user.name,
 					email: event.locals.user.email
 				}
-			: null
+			: null,
+		isAdmin: event.locals.user?.role === 'admin'
 	};
 };

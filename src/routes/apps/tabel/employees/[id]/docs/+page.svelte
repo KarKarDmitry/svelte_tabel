@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
+	import { toast } from 'svelte-sonner';
 
 	let isDismissed = $derived($page.data.isDismissed);
 	let lastDoc = $derived($page.data.lastDoc);
@@ -23,12 +24,53 @@
 	let dismissOpen = $state(false);
 	const today = new Date().toISOString().split('T')[0];
 
+	let transferDate = $state(today);
+	let transferDept = $state('');
+	let transferPos = $state('');
+	let dismissDate = $state(today);
+
+	function openTransfer() {
+		transferDate = today;
+		transferDept = String(departments[0]?.id ?? '');
+		transferPos = String(positions[0]?.id ?? '');
+		transferOpen = true;
+	}
+
+	async function doTransfer() {
+		const f = new FormData();
+		f.set('date', transferDate);
+		f.set('departmentId', String(transferDept));
+		f.set('positionId', String(transferPos));
+		const res = await fetch('?/transfer', { method: 'POST', body: f });
+		if (res.ok) {
+			transferOpen = false;
+			await invalidateAll();
+			toast.success('Сотрудник переведён');
+		} else {
+			toast.error('Не удалось перевести сотрудника');
+		}
+	}
+
+	async function doDismiss() {
+		const f = new FormData();
+		f.set('date', dismissDate);
+		const res = await fetch('?/dismiss', { method: 'POST', body: f });
+		if (res.ok) {
+			dismissOpen = false;
+			await invalidateAll();
+			toast.success('Сотрудник уволен');
+		} else {
+			toast.error('Не удалось уволить сотрудника');
+		}
+	}
+
 	async function cancelDoc(doc: any) {
 		if (!confirm(`Отменить документ "${typeLabels[doc.type] || doc.type}" от ${doc.date}?`)) return;
 		const form = new FormData();
 		form.set('id', String(doc.id));
 		await fetch('?/cancelDoc', { method: 'POST', body: form });
-		window.location.reload();
+		await invalidateAll();
+		toast.success('Документ отменён');
 	}
 </script>
 
@@ -53,11 +95,11 @@
 		<div class="flex gap-2">
 			<Dialog bind:open={transferOpen}>
 				<DialogContent>
-					<form method="post" action="?/transfer" class="flex flex-col gap-4" use:enhance>
+					<div class="flex flex-col gap-4">
 						<p class="font-medium">Перевод сотрудника</p>
-						<Input name="date" type="date" value={today} required />
+						<Input type="date" bind:value={transferDate} required />
 						<select
-							name="departmentId"
+							bind:value={transferDept}
 							required
 							class="rounded-md border border-input px-3 py-2 text-sm"
 						>
@@ -66,7 +108,7 @@
 							{/each}
 						</select>
 						<select
-							name="positionId"
+							bind:value={transferPos}
 							required
 							class="rounded-md border border-input px-3 py-2 text-sm"
 						>
@@ -74,19 +116,19 @@
 								<option value={p.id}>{p.name}</option>
 							{/each}
 						</select>
-						<Button type="submit">Сохранить</Button>
-					</form>
+						<Button onclick={doTransfer}>Сохранить</Button>
+					</div>
 				</DialogContent>
 			</Dialog>
-			<Button onclick={() => (transferOpen = true)} variant="outline">Перевести</Button>
+			<Button onclick={openTransfer} variant="outline">Перевести</Button>
 
 			<Dialog bind:open={dismissOpen}>
 				<DialogContent>
-					<form method="post" action="?/dismiss" use:enhance>
+					<div class="flex flex-col gap-4">
 						<p class="mb-4 font-medium">Подтвердите увольнение</p>
-						<Input name="date" type="date" value={today} required />
-						<Button variant="destructive" type="submit" class="mt-4">Подтвердить увольнение</Button>
-					</form>
+						<Input type="date" bind:value={dismissDate} required />
+						<Button variant="destructive" onclick={doDismiss}>Подтвердить увольнение</Button>
+					</div>
 				</DialogContent>
 			</Dialog>
 			<Button onclick={() => (dismissOpen = true)} variant="destructive">Уволить</Button>

@@ -3,6 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Dialog, DialogContent, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
+	import { Separator } from '$lib/components/ui/separator';
 	import { Checkbox } from '$lib/components/ui/checkbox';
 
 	let { data }: { data: any } = $props();
@@ -15,12 +16,12 @@
 	let checkedDepts = $state<Set<number>>(new Set());
 </script>
 
+<div class="flex items-center justify-between">
+	<h1 class="text-2xl font-bold tracking-tight">Группы подразделений</h1>
+	<Button onclick={() => (createOpen = true)}>+ Добавить группу</Button>
+</div>
+<Separator orientation="horizontal" />
 <div class="space-y-6">
-	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold tracking-tight">Группы подразделений</h1>
-		<Button onclick={() => (createOpen = true)}>+ Добавить группу</Button>
-	</div>
-
 	{#each data.groups as group (group.id)}
 		<div class="rounded-xl border bg-card p-4 shadow-sm">
 			<div class="mb-2 flex items-center justify-between">

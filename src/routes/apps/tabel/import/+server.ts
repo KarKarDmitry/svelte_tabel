@@ -13,6 +13,7 @@ import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstil
 import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
 import { and, between, desc, eq, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
+import { log, logError } from './logger';
 
 /* helpers */
 function excelSerialToDate(serial: number): string {
@@ -345,7 +346,7 @@ export const POST: RequestHandler = async ({ request }) => {
 						const key = `${seria}|${num}`;
 						const ep = passByKey.get(key);
 						if (!ep?.employeeId) {
-							console.log('  SKIP event: no employee for pass', seria, num, 'name:', r[0]);
+							log('  SKIP event: no employee for pass', seria, num, 'name:', r[0]);
 							continue;
 						}
 						events.push({
@@ -513,9 +514,9 @@ export const POST: RequestHandler = async ({ request }) => {
 					for (const [, evs] of byEmp)
 						evs.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-					console.log('  events to process:', newTurnstileEvents.length, 'employees:', byEmp.size);
+					log('  events to process:', newTurnstileEvents.length, 'employees:', byEmp.size);
 					for (const [eid, evs] of byEmp) {
-						console.log('    emp', eid, empNameMap.get(eid) || '?', 'events:', evs.length);
+						log('    emp', eid, empNameMap.get(eid) || '?', 'events:', evs.length);
 					}
 
 					tFlush({
@@ -567,7 +568,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 						const ename = empNameMap.get(empId) ?? String(empId);
 						for (const ev of evs) {
-							console.log(ename, ev.date, ev.time, ev.event, ':');
+							log(ename, ev.date, ev.time, ev.event, ':');
 							if (ev.event.includes('Вход')) {
 								last = ev;
 								continue;
@@ -661,7 +662,7 @@ export const POST: RequestHandler = async ({ request }) => {
 								const planE = parseTime(ep.time);
 								const leftB = planE - ep.leftBound;
 								const rightB = planE + ep.rightBound;
-								console.log(
+								log(
 									'  Entry:',
 									ename,
 									last.time,
@@ -675,7 +676,7 @@ export const POST: RequestHandler = async ({ request }) => {
 								);
 								if (enter >= leftB && enter <= rightB) {
 									roundedEnter = planE;
-									console.log('  arrival_time ->', ep.time);
+									log('  arrival_time ->', ep.time);
 								} else if (bp && bp.endTime) {
 									const bkStart = parseTime(bp.time);
 									const bkEnd = parseTime(bp.endTime);
@@ -683,7 +684,7 @@ export const POST: RequestHandler = async ({ request }) => {
 									const breakRight = bkEnd + (bp.rightBound || 0);
 									if (enter > breakLeft && enter < breakRight) {
 										roundedEnter = bkEnd;
-										console.log(
+										log(
 											'  arrival_time ->',
 											bp.endTime,
 											'(конец перерыва, границы:',
@@ -698,7 +699,7 @@ export const POST: RequestHandler = async ({ request }) => {
 								const planX = parseTime(xp.time);
 								const leftBX = planX - xp.leftBound;
 								const rightBX = planX + xp.rightBound;
-								console.log(
+								log(
 									'  Exit:',
 									ename,
 									ev.time,
@@ -712,7 +713,7 @@ export const POST: RequestHandler = async ({ request }) => {
 								);
 								if (exit >= leftBX && exit <= rightBX) {
 									roundedExit = planX;
-									console.log('  departure_time ->', xp.time);
+									log('  departure_time ->', xp.time);
 								} else if (bp && bp.endTime) {
 									const bkStart = parseTime(bp.time);
 									const bkEnd = parseTime(bp.endTime);
@@ -720,7 +721,7 @@ export const POST: RequestHandler = async ({ request }) => {
 									const breakRight = bkEnd + (bp.rightBound || 0);
 									if (exit > breakLeft && exit < breakRight) {
 										roundedExit = bkStart;
-										console.log(
+										log(
 											'  departure_time ->',
 											bp.time,
 											'(начало перерыва, границы:',
@@ -741,17 +742,17 @@ export const POST: RequestHandler = async ({ request }) => {
 									if (roundedEnter <= bkStart && roundedExit >= bkEnd) {
 										const breakLen = bkEnd - bkStart;
 										shift -= breakLen;
-										console.log('  with_break ->', ename, ev.date, 'вычет', breakLen, 'мин');
+										log('  with_break ->', ename, ev.date, 'вычет', breakLen, 'мин');
 									}
 								}
 
 								if (!bp) {
-									console.log('  without_break ->', ename, ev.date, 'shift:', formatTime(shift));
+									log('  without_break ->', ename, ev.date, 'shift:', formatTime(shift));
 								}
 							} else {
 								shift = exit - enter;
 								if (shift < 0) shift += 1440;
-								console.log('  without_schedules ->', ename, ev.date, 'shift:', formatTime(shift));
+								log('  without_schedules ->', ename, ev.date, 'shift:', formatTime(shift));
 							}
 
 							let night = 0;
@@ -781,7 +782,7 @@ export const POST: RequestHandler = async ({ request }) => {
 							a.scheduleId = bestScheduleId;
 							if (night > shift / 2) a.isNight = true;
 							last = null;
-							console.log(
+							log(
 								'  result ->',
 								ename,
 								ev.date,

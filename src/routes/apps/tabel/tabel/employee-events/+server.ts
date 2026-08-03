@@ -12,6 +12,9 @@ import { calendarDay } from '$lib/server/db/apps/tabel/tables/calendar-day';
 import { schedule } from '$lib/server/db/apps/tabel/tables/schedule';
 import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-schedule';
 import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
+import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstile-event-tracker';
+import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
+import { pass } from '$lib/server/db/apps/tabel/tables/pass';
 import { db } from '$lib/server/db';
 import { eq, and, or, gte, lte, isNull } from 'drizzle-orm';
 
@@ -56,6 +59,26 @@ export const GET: RequestHandler = async ({ url }) => {
 		departmentName = dept?.name ?? null;
 		positionName = pos?.name ?? null;
 	}
+
+	// События турникета за период (read-only)
+	const turnstileEvents = await db
+		.select({
+			datetime: turnstileEventTracker.datetime,
+			eventName: turnstileEvent.name,
+			passSeria: pass.seria,
+			passNumber: pass.number
+		})
+		.from(turnstileEventTracker)
+		.innerJoin(turnstileEvent, eq(turnstileEvent.id, turnstileEventTracker.eventId))
+		.leftJoin(pass, eq(pass.id, turnstileEventTracker.passId))
+		.where(
+			and(
+				eq(turnstileEventTracker.employeeId, employeeId),
+				gte(turnstileEventTracker.datetime, new Date(from)),
+				lte(turnstileEventTracker.datetime, new Date(to + 'T23:59:59'))
+			)
+		)
+		.orderBy(turnstileEventTracker.datetime);
 
 	// Загружаем справочники, цветовые правила, график и сменные отметки
 	const [allMarks, cellRow, markRow, empSchedule, shiftMarkRow] = await Promise.all([
@@ -179,6 +202,12 @@ export const GET: RequestHandler = async ({ url }) => {
 			])
 		),
 		empSchedule,
+		turnstileEvents: turnstileEvents.map((e) => ({
+			datetime: e.datetime,
+			eventName: e.eventName,
+			passSeria: e.passSeria,
+			passNumber: e.passNumber
+		})),
 		shiftMarks: shiftMarkValue
 			.split(',')
 			.map((s: string) => s.trim())

@@ -1,6 +1,7 @@
 import { db } from '$lib/server/db';
 import { turnstileEventTracker } from '../tables/turnstile-event-tracker';
 import { turnstileEvent } from '../tables/turnstile-event';
+import { pass } from '../tables/pass';
 import { employee } from '../tables/employee';
 import { eq, and, between, desc, like, or, asc, count, sql, gte, lte, ilike } from 'drizzle-orm';
 
@@ -30,6 +31,29 @@ export const turnstileEventTrackerService = {
 		db.insert(turnstileEventTracker).values(data),
 
 	remove: (id: number) => db.delete(turnstileEventTracker).where(eq(turnstileEventTracker.id, id)),
+
+	/** События за период с деталями (название события, номер пропуска) */
+	getByPeriodWithDetails: (employeeId: number, from: Date, to: Date) =>
+		db
+			.select({
+				id: turnstileEventTracker.id,
+				datetime: turnstileEventTracker.datetime,
+				eventId: turnstileEventTracker.eventId,
+				passId: turnstileEventTracker.passId,
+				eventName: turnstileEvent.name,
+				passSeria: pass.seria,
+				passNumber: pass.number
+			})
+			.from(turnstileEventTracker)
+			.innerJoin(turnstileEvent, eq(turnstileEvent.id, turnstileEventTracker.eventId))
+			.leftJoin(pass, eq(pass.id, turnstileEventTracker.passId))
+			.where(
+				and(
+					eq(turnstileEventTracker.employeeId, employeeId),
+					between(turnstileEventTracker.datetime, from, to)
+				)
+			)
+			.orderBy(turnstileEventTracker.datetime),
 
 	/** Очистить события за период */
 	removeByPeriod: (from: Date, to: Date) =>

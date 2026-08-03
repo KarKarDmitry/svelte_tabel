@@ -9,6 +9,27 @@ export const GET = async (event) => {
 
 export const POST = async (event) => {
 	const templateId = Number(event.params.id);
+
+	// Bulk-создание (JSON) вызывается через ?action=bulk
+	if (event.url.searchParams.get('action') === 'bulk') {
+		const body = await event.request.json();
+		const { days, autoTransfer, preHoliday, preScheduleId } = body;
+
+		if (!Array.isArray(days) || days.length === 0) {
+			return json({ success: false, error: 'No days' }, { status: 400 });
+		}
+
+		const rules = await calendarService.createRules({
+			templateId,
+			days,
+			autoTransfer: !!autoTransfer,
+			preHoliday: !!preHoliday,
+			preScheduleId: preScheduleId ? Number(preScheduleId) : null
+		});
+		return json({ success: true, count: rules.length });
+	}
+
+	// Одиночное создание (formData)
 	const f = await event.request.formData();
 	const rule = await calendarService.createRule({
 		templateId,

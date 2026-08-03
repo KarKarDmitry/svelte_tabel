@@ -2,9 +2,8 @@ import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
 import { auth } from '$lib/server/auth';
+import { toEmail } from '$lib/server/auth-utils';
 import { APIError } from 'better-auth/api';
-
-const toEmail = (login: string) => (login.includes('@') ? login : `${login}@mettem.com`);
 
 export const load: PageServerLoad = (event) => {
 	if (event.locals.user) {

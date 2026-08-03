@@ -1,9 +1,11 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { eq } from 'drizzle-orm';
 import * as schema from './schema';
 import { betterAuth } from 'better-auth/minimal';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { toEmail } from '../auth-utils';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
@@ -26,7 +28,7 @@ async function bootstrap() {
 
 	const login = process.env.BOOTSTRAP_LOGIN || 'admin';
 	const password = process.env.BOOTSTRAP_PASSWORD || 'admin';
-	const email = login.includes('@') ? login : `${login}@mettem.com`;
+	const email = toEmail(login);
 
 	const existing = await db.select().from(schema.user).limit(1);
 	if (existing.length > 0) {
@@ -37,6 +39,9 @@ async function bootstrap() {
 	await auth.api.signUpEmail({
 		body: { email, password, name: login }
 	});
+
+	// Назначаем роль администратора первому пользователю
+	await db.update(schema.user).set({ role: 'admin' }).where(eq(schema.user.email, email));
 
 	console.log(`  ✓ Администратор создан:`);
 	console.log(`    Логин: ${login}`);

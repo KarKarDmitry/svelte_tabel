@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
+	import { toast } from 'svelte-sonner';
 	import type { PageData } from './$types';
 	import * as Item from '$lib/components/ui/item';
 	import { Info } from '@lucide/svelte';
@@ -15,8 +17,10 @@
 	async function removeSchedule(id: number) {
 		const form = new FormData();
 		form.set('id', String(id));
-		await fetch('?/removeSchedule', { method: 'POST', body: form });
-		window.location.reload();
+		const res = await fetch('?/removeSchedule', { method: 'POST', body: form });
+		if (res.ok) toast.success('График снят');
+		else toast.error('Не удалось снять график');
+		await invalidateAll();
 	}
 </script>
 
