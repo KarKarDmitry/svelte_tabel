@@ -1,0 +1,5 @@
+# Скрипты и конфиги должны оставаться с LF (иначе bash ругается на \r)
+*.sh text eol=lf
+Dockerfile* text eol=lf
+pgbackrest.conf text eol=lf
+compose*.yaml text eol=lf

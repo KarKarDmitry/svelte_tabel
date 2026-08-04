@@ -10,8 +10,9 @@ import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-sche
 import { worktimeTracker } from '$lib/server/db/apps/tabel/tables/worktime-tracker';
 import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
 import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstile-event-tracker';
-import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
-import { and, between, desc, eq, sql } from 'drizzle-orm';
+	import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
+	import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
+	import { and, between, desc, eq, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
 import { log, logError } from './logger';
 
@@ -128,6 +129,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			(async () => {
 				try {
 					const buf = await file.arrayBuffer();
+
+					// Смещение времени источника (турникеты) — из app_constant, fallback МСК
+					const tzConst = await appConstantService.getByKey('TIMEZONE_OFFSET');
+					const tzOffset = tzConst?.value ?? '+03:00';
 					const wb = XLSX.read(buf, { type: 'array' });
 					const rows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
 						header: 1
@@ -427,8 +432,8 @@ export const POST: RequestHandler = async ({ request }) => {
 									.where(
 										between(
 											turnstileEventTracker.datetime,
-											new Date(minDate),
-											new Date(maxDate + 'T23:59:59')
+											new Date(minDate + 'T00:00:00' + tzOffset),
+											new Date(maxDate + 'T23:59:59' + tzOffset)
 										)
 									)
 							: [];
@@ -462,7 +467,7 @@ export const POST: RequestHandler = async ({ request }) => {
 							batch.push({
 								employeeId: ev.employeeId,
 								passId: ev.passId,
-								datetime: new Date(ev.date + 'T' + ev.time),
+								datetime: new Date(ev.date + 'T' + ev.time + tzOffset),
 								eventId
 							});
 							savedCount++;

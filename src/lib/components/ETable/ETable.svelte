@@ -150,7 +150,7 @@
 
 						<TableCell
 							class={cn(
-								'relative border-r p-0 text-[13px] leading-none whitespace-nowrap',
+								'relative border-r p-0 text-[13px] leading-normal whitespace-nowrap',
 								getAlignClass(col.align),
 								col.mono && 'font-mono tabular-nums',
 								col.cellClass,

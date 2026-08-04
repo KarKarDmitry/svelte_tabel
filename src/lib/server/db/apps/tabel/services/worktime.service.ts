@@ -52,10 +52,18 @@ export const worktimeService = {
 	getMonthGrouped: async (
 		year: number,
 		month: number,
-		params?: { page?: number; pageSize?: number }
+		params?: {
+			page?: number;
+			pageSize?: number;
+			calendarId?: number;
+			onStage?: (stage: string) => void;
+		}
 	) => {
 		const page = params?.page ?? 1;
 		const pageSize = params?.pageSize ?? 500;
+		const onStage = params?.onStage;
+
+		onStage?.('Загрузка сотрудников…');
 
 		const from = `${year}-${String(month).padStart(2, '0')}-01`;
 		const lastDay = new Date(year, month, 0).getDate();
@@ -86,6 +94,7 @@ export const worktimeService = {
 		}
 
 		// --- Справочники ---
+		onStage?.('Загрузка справочников…');
 		const allDepts = await db.select().from(department);
 		const allPositions = await db.select().from(position);
 		const deptById = new Map(allDepts.map((d) => [d.id, d]));
@@ -145,6 +154,7 @@ export const worktimeService = {
 		const pagedEntries = expanded.slice(offset, offset + pageSize);
 
 		// --- Получаем записи табеля за месяц ---
+		onStage?.('Загрузка табеля…');
 		const records = await db
 			.select()
 			.from(worktimeTracker)
@@ -155,6 +165,7 @@ export const worktimeService = {
 		for (const r of records) recordMap.set(`${r.employeeId}-${r.date}`, r);
 
 		// --- Загружаем графики сотрудников ---
+		onStage?.('Загрузка графиков…');
 		const empSchedules = await db
 			.select({
 				employeeId: employeeSchedule.employeeId,
@@ -186,11 +197,16 @@ export const worktimeService = {
 		}
 
 		// --- Загружаем данные календаря ---
+		onStage?.('Загрузка календаря…');
 		let calendarDayMap = new Map<string, { dayType: string; workTime: number | null }>();
 		const cal = await db
 			.select({ id: calendar.id })
 			.from(calendar)
-			.where(and(eq(calendar.year, year), eq(calendar.isDefault, true)))
+			.where(
+				params?.calendarId
+					? and(eq(calendar.id, params.calendarId), eq(calendar.year, year))
+					: and(eq(calendar.year, year), eq(calendar.isDefault, true))
+			)
 			.limit(1)
 			.then((r) => r[0]);
 

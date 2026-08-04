@@ -120,6 +120,24 @@ async function seed() {
 		},
 		{ key: 'NIGHT_SHIFT_END', value: '06:00', isJson: false, hint: 'Конец ночной смены (ЧЧ:ММ)' },
 		{
+			key: 'TIMEZONE_OFFSET',
+			value: '+03:00',
+			isJson: false,
+			hint: 'Смещение времени источника данных (турникеты) относительно UTC, например +03:00 для МСК'
+		},
+		{
+			key: 'ROUNDING_RULES',
+			isJson: true,
+			hint: 'Правила округления часов в экспорте Т-12: roundingPoint/roundingFrom/roundingTo (часы), standardLeft/standardRight (часы, смещение к стандарту графика)',
+			value: JSON.stringify({
+				roundingPoint: null,
+				roundingFrom: null,
+				roundingTo: null,
+				standardLeft: 0,
+				standardRight: 0
+			})
+		},
+		{
 			key: 'SHIFT_MARK_SHORTNAMES',
 			value: 'Я,Н',
 			isJson: false,
@@ -150,7 +168,7 @@ async function seed() {
 			})
 		}
 	]);
-	console.log('  ✓ app_constants: 5');
+	console.log('  ✓ app_constants: 6');
 
 	// --- department_group ---
 	const groups = await db

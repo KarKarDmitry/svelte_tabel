@@ -14,14 +14,27 @@ services:
       - ./dnsmasq.conf:/etc/dnsmasq.conf
 
   db:
-    image: postgres:18
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+    image: tabel-db:latest
     container_name: tabel-db
     restart: always
     ports:
       - ${POSTGRES_PORT:-5432}:5432
     env_file: .env
+    command:
+      - postgres
+      - -c
+      - archive_mode=on
+      - -c
+      - 'archive_command=pgbackrest --stanza=tabel archive-push %p'
+      - -c
+      - archive_timeout=60
     volumes:
       - pgdata:/var/lib/postgresql
+      - pgbackups:/var/lib/pgbackrest
+      - ./pgbackrest.conf:/etc/pgbackrest.conf:ro
     # Указываем адрес нашего нового рабочего DNS-сервера
     dns:
       - 192.168.1.242
@@ -50,3 +63,9 @@ volumes:
       type: none
       o: bind
       device: D:/pg/tabel/pgdata
+  pgbackups:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: D:/pg/tabel/pgbackups

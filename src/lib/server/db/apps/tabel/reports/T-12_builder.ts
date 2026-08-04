@@ -1,5 +1,30 @@
 import Excel from 'exceljs';
 
+// --- Временный профилировщик (для замера узких мест buildT12) ---
+const __prof = new Map<string, { count: number; ms: number }>();
+function time<T>(name: string, fn: () => T): T {
+	const t0 = performance.now();
+	try {
+		return fn();
+	} finally {
+		const d = performance.now() - t0;
+		const e = __prof.get(name);
+		if (e) {
+			e.count++;
+			e.ms += d;
+		} else {
+			__prof.set(name, { count: 1, ms: d });
+		}
+	}
+}
+function printProfileSummary() {
+	const rows = [...__prof.entries()]
+		.map(([name, v]) => ({ name, count: v.count, ms: Math.round(v.ms * 10) / 10 }))
+		.sort((a, b) => b.ms - a.ms);
+	console.log('\n=== ПРОФИЛЬ buildT12 ===');
+	console.table(rows);
+}
+
 type GroupInfo = { name: string; departments: { departmentId: number }[] };
 type DayData = {
 	date: string;
@@ -30,6 +55,24 @@ interface RoundingConfig {
 	// стандартное время для текущего сотрудника (заполняется в writeEmployee)
 	scheduleStandardTime: number | null; // минуты
 }
+
+/** Флаги вывода итоговых колонок в Т-12 */
+export interface ExportOptions {
+	showNight?: boolean;
+	showOvertime?: boolean;
+	showHoliday?: boolean;
+	showAbsence?: boolean;
+	// Автоматически проставлять прогулы «ПР» на пустых рабочих днях
+	autoAbsence?: boolean;
+}
+
+const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
+	showNight: true,
+	showOvertime: false,
+	showHoliday: true,
+	showAbsence: true,
+	autoAbsence: false
+};
 
 const FONT = { name: 'Times New Roman', size: 6 };
 const E_FONT = { name: 'Times New Roman', size: 9 };
@@ -166,8 +209,10 @@ export async function buildT12(
 	holidays?: Set<number>,
 	roundingConfig?: Omit<RoundingConfig, 'scheduleStandardTime'> | null,
 	calendarDays?: Record<string, { dayType: string; workTime: number | null }>,
-	shiftMarkShortnames?: string[]
+	shiftMarkShortnames?: string[],
+	options?: ExportOptions
 ): Promise<Buffer> {
+	const opts: ExportOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
 	const wb = new Excel.Workbook();
 	wb.creator = 'mettem';
 
@@ -243,42 +288,54 @@ export async function buildT12(
 		const sheet = sheets.get(groupName)!;
 
 		// Если есть сотрудники — пишем шапку подразделения
-		if (dept.employees?.length) {
-			onProgress?.(dept.name, `${dept.employees.length} сотрудников`);
+	if (dept.employees?.length) {
+		// Информационное событие: «Отдел — n сотрудников»
+		onProgress?.(`${dept.name} — ${dept.employees.length} сотрудников`, '');
 
-			// Полная шапка с названием подразделения (как Python _construct_header)
-			sheet.row = writeDivisionHeader(sheet.ws, sheet.row, dept.name, dateLabel, lastDay, half1);
+		// Полная шапка с названием подразделения (как Python _construct_header)
+		sheet.row = time('writeDivisionHeader', () =>
+			writeDivisionHeader(sheet.ws, sheet.row, dept.name, dateLabel, lastDay, half1)
+		);
 
-			let empIndex = 0;
-			for (const emp of dept.employees) {
-				empIndex++;
-				const rounding: RoundingConfig | null = roundingConfig
-					? { ...roundingConfig, scheduleStandardTime: emp.schedule?.standardWorkTime ?? null }
-					: null;
+		let empIndex = 0;
+		for (const emp of dept.employees) {
+			empIndex++;
+			// ФИО текущего сотрудника для прогресса
+			const fullName = `${emp.lastName ?? ''} ${emp.firstName ?? ''} ${emp.middleName ?? ''}`.trim();
+			onProgress?.(dept.name, fullName);
+			const rounding: RoundingConfig | null = roundingConfig
+				? { ...roundingConfig, scheduleStandardTime: emp.schedule?.standardWorkTime ?? null }
+				: null;
 
-				sheet.row = writeEmployee(
+			sheet.row = time('writeEmployee', () =>
+				writeEmployee(
 					sheet.ws,
 					sheet.row,
-					buildEmpRow(emp, calendarDays, shiftMarkCodes, markByCodeObj),
+					time('buildEmpRow', () =>
+						buildEmpRow(emp, calendarDays, shiftMarkCodes, markByCodeObj)
+					),
 					lastDay,
 					half1,
 					markByCodeObj,
 					holidays ?? new Set(),
 					rounding,
 					empIndex,
-					workDayIndices
-				);
+					workDayIndices,
+					shiftMarkCodes,
+					opts
+				)
+			);
+
+				// Даём event loop отправить прогресс (SSE) — иначе события копятся до конца генерации
+				if (empIndex) {
+					await new Promise((r) => setImmediate(r));
+				}
 
 				// Каждые 9 сотрудников — разрыв страницы и повтор шапки
 				if (empIndex % 9 === 0 && empIndex < dept.employees.length) {
 					sheet.row = writeBottomHeader(sheet.ws, sheet.row);
-					sheet.row = writeDivisionHeader(
-						sheet.ws,
-						sheet.row,
-						dept.name,
-						dateLabel,
-						lastDay,
-						half1
+					sheet.row = time('writeDivisionHeader', () =>
+						writeDivisionHeader(sheet.ws, sheet.row, dept.name, dateLabel, lastDay, half1)
 					);
 				}
 			}
@@ -286,17 +343,21 @@ export async function buildT12(
 			// Добиваем до кратности 9 (как в Python: while fmod(index, 9) != 0)
 			while (empIndex % 9 !== 0) {
 				empIndex++;
-				sheet.row = writeEmployee(
-					sheet.ws,
-					sheet.row,
-					null,
-					lastDay,
-					half1,
-					markByCodeObj,
-					new Set(),
-					null,
-					empIndex,
-					new Set()
+				sheet.row = time('writeEmployee', () =>
+					writeEmployee(
+						sheet.ws,
+						sheet.row,
+						null,
+						lastDay,
+						half1,
+						markByCodeObj,
+						holidays ?? new Set(),
+						null,
+						empIndex,
+						workDayIndices,
+						shiftMarkCodes,
+						opts
+					)
 				);
 			}
 
@@ -305,7 +366,9 @@ export async function buildT12(
 		}
 	}
 
-	return wb.xlsx.writeBuffer() as unknown as Promise<Buffer>;
+	const buffer = await time('build:writeBuffer', () => wb.xlsx.writeBuffer() as unknown as Promise<Buffer>);
+	printProfileSummary();
+	return buffer;
 }
 
 function buildEmpRow(
@@ -370,23 +433,27 @@ function buildEmpRow(
 }
 
 function setColWidths(ws: Excel.Worksheet) {
-	for (const [key, width] of COL_WIDTHS) {
-		if (Array.isArray(key)) {
-			for (let c = key[0]; c <= key[1]; c++) ws.getColumn(c).width = width;
-		} else {
-			ws.getColumn(key).width = width;
+	time('setColWidths', () => {
+		for (const [key, width] of COL_WIDTHS) {
+			if (Array.isArray(key)) {
+				for (let c = key[0]; c <= key[1]; c++) ws.getColumn(c).width = width;
+			} else {
+				ws.getColumn(key).width = width;
+			}
 		}
-	}
+	});
 }
 
 function setRowHeights(ws: Excel.Worksheet, row: number) {
-	for (const [key, height] of HEADER_HEIGHTS) {
-		if (Array.isArray(key)) {
-			for (let r = key[0]; r <= key[1]; r++) ws.getRow(row + r).height = height;
-		} else {
-			ws.getRow(row + key).height = height;
+	time('setRowHeights', () => {
+		for (const [key, height] of HEADER_HEIGHTS) {
+			if (Array.isArray(key)) {
+				for (let r = key[0]; r <= key[1]; r++) ws.getRow(row + r).height = height;
+			} else {
+				ws.getRow(row + key).height = height;
+			}
 		}
-	}
+	});
 }
 
 /**
@@ -635,19 +702,23 @@ function writeEmployee(
 	holidays: Set<number>,
 	rounding: RoundingConfig | null,
 	empIndex: number,
-	workDayIndices: Set<number>
+	workDayIndices: Set<number>,
+	shiftMarkCodes: Set<string>,
+	options: ExportOptions
 ): number {
 	const hr = row + 1;
 	const d = emp?.days ?? [];
 
 	// helper: merge 2 rows, then set value + style
 	function mc(c: number, v: any, f: any, a: any, b: any) {
-		ws.mergeCells(row, c, hr, c);
-		const cl = ws.getCell(row, c);
-		setCellValue(cl, v);
-		cl.font = f;
-		cl.alignment = a;
-		if (b) cl.border = b;
+		time('mc:merge', () => ws.mergeCells(row, c, hr, c));
+		time('mc:cell', () => {
+			const cl = ws.getCell(row, c);
+			setCellValue(cl, v);
+			cl.font = f;
+			cl.alignment = a;
+			if (b) cl.border = b;
+		});
 	}
 	function dc(c: number, mark: string, hoursVal: any) {
 		cell(ws, row, c, mark, { name: 'Times New Roman', size: 8 }, ALIGN_CENTER, {
@@ -682,14 +753,22 @@ function writeEmployee(
 			const day = d[dayIdx] ?? null;
 			const dayOfMonth = dayIdx + 1;
 			const mark = day?.dayMarkCode ?? '';
-			const markObj = mark ? markByCode.get(mark) : null;
-			const isWorkMark = markObj?.category === 'work';
-			const isHoliday = isWorkMark && holidays.has(dayOfMonth);
-			const hoursVal =
-				day?.reportWorkTime != null
-					? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
-					: '';
-			dc(c, mark, hoursVal);
+			let displayMark = mark;
+			let hoursVal: string | number | null = '';
+
+			if (mark) {
+				// Часы выводятся только для сменных отметок (SHIFT_MARK_SHORTNAMES: Я, Н)
+				const isShift = shiftMarkCodes.has(mark);
+				const isHoliday = isShift && holidays.has(dayOfMonth);
+				hoursVal =
+					isShift && day?.reportWorkTime != null
+						? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
+						: '';
+			} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
+				// Автопрогул: пустой рабочий день → «ПР»
+				displayMark = 'ПР';
+			}
+			dc(c, displayMark, hoursVal);
 			c++;
 		}
 
@@ -714,14 +793,22 @@ function writeEmployee(
 				const day = d[dayIdx] ?? null;
 				const dayOfMonth = dayIdx + 1;
 				const mark = day?.dayMarkCode ?? '';
-				const markObj = mark ? markByCode.get(mark) : null;
-				const isWorkMark = markObj?.category === 'work';
-				const isHoliday = isWorkMark && holidays.has(dayOfMonth);
-				const hoursVal =
-					day?.reportWorkTime != null
-						? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
-						: '';
-				dc(c, mark, hoursVal);
+				let displayMark = mark;
+				let hoursVal: string | number | null = '';
+
+				if (mark) {
+					// Часы выводятся только для сменных отметок (SHIFT_MARK_SHORTNAMES: Я, Н)
+					const isShift = shiftMarkCodes.has(mark);
+					const isHoliday = isShift && holidays.has(dayOfMonth);
+					hoursVal =
+						isShift && day?.reportWorkTime != null
+							? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
+							: '';
+				} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
+					// Автопрогул: пустой рабочий день → «ПР»
+					displayMark = 'ПР';
+				}
+				dc(c, displayMark, hoursVal);
 				c++;
 			}
 		}
@@ -756,15 +843,21 @@ function writeEmployee(
 		c++;
 
 		// сверхурочных (col 39)
-		mc(c, emp.overtimeHours || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(c, (options.showOvertime ? emp.overtimeHours : '') || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
 		c++;
 
 		// ночных (col 40)
-		mc(c, emp.nightHours || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(c, (options.showNight ? emp.nightHours : '') || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
 		c++;
 
 		// выходных/праздничных (col 41)
-		mc(c, emp.weekendHolidayHours || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			(options.showHoliday ? emp.weekendHolidayHours : '') || '',
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// пусто (col 42)
@@ -773,29 +866,33 @@ function writeEmployee(
 
 		// Собираем неявки + прогулы
 		const skippedDays: Map<string, { cnt: number; hours: number; cols: number[] }> = new Map();
-		for (let dayIdx = 0; dayIdx < lastDay; dayIdx++) {
-			const day = d[dayIdx];
-			const dayOfMonth = dayIdx + 1;
+		if (options.showAbsence) {
+			for (let dayIdx = 0; dayIdx < lastDay; dayIdx++) {
+				const day = d[dayIdx];
+				const dayOfMonth = dayIdx + 1;
 
-			if (!day?.dayMarkCode) {
-				// Пустой код на рабочий день — прогул
-				if (workDayIndices.has(dayOfMonth)) {
-					if (!skippedDays.has('ПР')) skippedDays.set('ПР', { cnt: 0, hours: 0, cols: [] });
-					const sd = skippedDays.get('ПР')!;
+				// Пустой код (нет отметки)
+				if (!day?.dayMarkCode) {
+					// Автопрогул: пустой рабочий день → «ПР» в кодах неявок
+					if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
+						if (!skippedDays.has('ПР')) skippedDays.set('ПР', { cnt: 0, hours: 0, cols: [] });
+						const sd = skippedDays.get('ПР')!;
+						sd.cnt++;
+						sd.cols.push(dayIdx < 15 ? 4 + dayIdx : 20 + (dayIdx - 15));
+					}
+					continue;
+				}
+
+				const markObj = markByCode.get(day.dayMarkCode);
+				const reportCode = markObj?.reportCode;
+				if (reportCode) {
+					if (!skippedDays.has(reportCode))
+						skippedDays.set(reportCode, { cnt: 0, hours: 0, cols: [] });
+					const sd = skippedDays.get(reportCode)!;
 					sd.cnt++;
+					sd.hours += day.reportWorkTime ?? 0;
 					sd.cols.push(dayIdx < 15 ? 4 + dayIdx : 20 + (dayIdx - 15));
 				}
-				continue;
-			}
-			const markObj = markByCode.get(day.dayMarkCode);
-			const reportCode = markObj?.reportCode;
-			if (reportCode) {
-				if (!skippedDays.has(reportCode))
-					skippedDays.set(reportCode, { cnt: 0, hours: 0, cols: [] });
-				const sd = skippedDays.get(reportCode)!;
-				sd.cnt++;
-				sd.hours += day.reportWorkTime ?? 0;
-				sd.cols.push(dayIdx < 15 ? 4 + dayIdx : 20 + (dayIdx - 15));
 			}
 		}
 
@@ -854,22 +951,28 @@ function writeEmployee(
 		}
 	}
 
-	ws.getRow(row).height = ROW_HEIGHT;
-	ws.getRow(hr).height = ROW_HEIGHT;
+	time('rowHeight', () => {
+		ws.getRow(row).height = ROW_HEIGHT;
+		ws.getRow(hr).height = ROW_HEIGHT;
+	});
 	return row + 2;
 }
 
 function writeBottomHeader(ws: Excel.Worksheet, row: number): number {
-	(ws as any).rowBreaks.push({ id: row, max: 16383, min: 0, man: true });
-	return row + 1;
+	return time('writeBottomHeader', () => {
+		(ws as any).rowBreaks.push({ id: row, max: 16383, min: 0, man: true });
+		return row + 1;
+	});
 }
 
 function setCellValue(cl: any, value: any) {
-	if (typeof value === 'string' && value.startsWith('=')) {
-		cl.value = { formula: value.substring(1) };
-	} else {
-		cl.value = value;
-	}
+	time('setCellValue', () => {
+		if (typeof value === 'string' && value.startsWith('=')) {
+			cl.value = { formula: value.substring(1) };
+		} else {
+			cl.value = value;
+		}
+	});
 }
 
 function cell(
@@ -881,11 +984,13 @@ function cell(
 	alignment: any,
 	border?: any
 ) {
-	const cl = ws.getCell(r, c);
-	setCellValue(cl, value);
-	cl.font = font;
-	cl.alignment = alignment;
-	if (border) cl.border = border;
+	return time('cell', () => {
+		const cl = ws.getCell(r, c);
+		setCellValue(cl, value);
+		cl.font = font;
+		cl.alignment = alignment;
+		if (border) cl.border = border;
+	});
 }
 
 function getColumnLetter(col: number): string {

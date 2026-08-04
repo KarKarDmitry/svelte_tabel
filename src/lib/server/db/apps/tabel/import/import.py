@@ -561,6 +561,13 @@ def import_turnstile_events(ms, pg, emp_map, skip_events=False):
 
     # 3. Импорт событий из MSSQL TurnstileEventTracker
     print("  Импорт событий из TurnstileEventTracker...")
+
+    # Смещение времени источника (МСК) из app_constant, fallback +03:00
+    with pg.cursor() as cur:
+        cur.execute("SELECT value FROM app_constant WHERE key = 'TIMEZONE_OFFSET'")
+        _row = cur.fetchone()
+        tz_offset = _row[0] if _row and _row[0] else "+03:00"
+
     with ms.cursor(as_dict=True) as cur:
         cur.execute("""
             SELECT Employee, Date, Time, Event
@@ -598,7 +605,7 @@ def import_turnstile_events(ms, pg, emp_map, skip_events=False):
             ts = t[:8]
         else:
             ts = str(t)[:8]
-        dt_str = f"{ds}T{ts}"
+        dt_str = f"{ds}T{ts}{tz_offset}"
 
         # Ищем event_id — row["Event"] это числовой ID из MSSQL (1, 2, 3...)
         event_id = event_id_map.get(row["Event"])

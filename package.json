@@ -22,6 +22,12 @@
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
+		"db:stanza-create": "bash scripts/db-backup.sh stanza-create",
+		"db:backup": "bash scripts/db-backup.sh full",
+		"db:backup:diff": "bash scripts/db-backup.sh diff",
+		"db:backup:incr": "bash scripts/db-backup.sh incr",
+		"db:backup:list": "bash scripts/db-backup.sh list",
+		"db:restore": "bash scripts/db-backup.sh restore",
 		"auth:schema": "better-auth generate --config src/lib/server/auth.ts --output src/lib/server/db/auth.schema.ts --yes"
 	},
 	"devDependencies": {
@@ -68,6 +74,7 @@
 		"dotenv": "^17.4.2",
 		"exceljs": "^4.4.0",
 		"mssql": "^12.5.4",
-		"xlsx": "^0.18.5"
+		"xlsx": "^0.18.5",
+		"xlsx-populate": "^1.21.0"
 	}
 }
