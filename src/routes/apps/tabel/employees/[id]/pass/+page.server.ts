@@ -1,5 +1,6 @@
 import type { PageServerLoad, Actions } from './$types';
 import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
+import { denyIfCannotEditEmployee, denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const id = Number(event.params.id);
@@ -18,6 +19,8 @@ export const load: PageServerLoad = async (event) => {
 export const actions: Actions = {
 	assignPass: async (event) => {
 		const employeeId = Number(event.params.id);
+		const denied = await denyIfCannotEditEmployee(event.locals.user, employeeId);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		const passId = Number(f.get('passId'));
 		const dateFrom = f.get('dateFrom')?.toString() || new Date().toISOString().split('T')[0];
@@ -38,6 +41,11 @@ export const actions: Actions = {
 	},
 	removePass: async (event) => {
 		const id = Number((await event.request.formData()).get('id'));
+		const rec = await passService.getEmployeePassById(id);
+		const denied = rec
+			? await denyIfCannotEditEmployee(event.locals.user, rec.employeeId)
+			: denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const today = new Date().toISOString().split('T')[0];
 		await passService.closeEmployeePass(id, today);
 		return { success: true };

@@ -11,10 +11,12 @@
 	} from '$lib/components/ui/collapsible';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import DepartmentCard from './DepartmentCard.svelte';
 	import EmployeeEventsModal from './EmployeeEventsModal.svelte';
 	import ExportProgress from './ExportProgress.svelte';
-	import MonthYearPicker from '$lib/components/MonthYearPicker.svelte';
+	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 
 	import { Input } from '$lib/components/ui/input';
 	import { Select, SelectTrigger, SelectContent, SelectItem } from '$lib/components/ui/select';
@@ -46,15 +48,15 @@
 		data = page.data;
 	});
 
+	// Право на редактирование (корневой layout: admin | timekeeper)
+	let canEdit = $derived(page.data.canEdit ?? false);
+
 	// Всё остальное — производные от data
 	let departments = $derived(data.departments);
 	let dayMarks = $derived(data.dayMarks);
 	let year = $derived(data.year);
 	let month = $derived(data.month);
 	let lastDay = $derived(data.lastDay);
-	let total = $derived(data.total);
-	let currentPage = $derived(data.page);
-	let totalPages = $derived(data.totalPages);
 	let cellColorRules = $derived(data.cellColorRules ?? {});
 	let markColorRules = $derived(data.markColorRules ?? {});
 	let calendarDays = $derived<Record<string, { dayType: string; workTime: number | null }>>(
@@ -159,7 +161,9 @@
 
 		const isShift =
 			shiftMarks.includes(day.dayMarkCode) || day.dayMarkCode === 'I' || day.dayMarkCode === 'N';
-		const hasHours = day.reportWorkTime != null;
+		// Отчётные часы приоритетны; если табельщик их ещё не проставил — берём сменные из импорта
+		const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
+		const hasHours = workMinutes != null;
 		const calDay = calendarDays[day.date];
 
 		// Собираем CSS-стили
@@ -178,10 +182,10 @@
 			if (day.scheduleId && schedulesById[day.scheduleId]) {
 				return schedulesById[day.scheduleId].standardWorkTime;
 			}
-			// Если scheduleId нет — пытаемся подобрать по reportWorkTime
-			if (day.reportWorkTime && !day.scheduleId) {
+			// Если scheduleId нет — пытаемся подобрать по рабочим часам
+			if (workMinutes && !day.scheduleId) {
 				const matched = Object.values(schedulesById).find(
-					(s) => s.standardWorkTime === day.reportWorkTime
+					(s) => s.standardWorkTime === workMinutes
 				);
 				if (matched) return matched.standardWorkTime;
 			}
@@ -197,13 +201,13 @@
 
 		// Кейс: переработка / недоработка (с допуском 3 мин на погрешность)
 		if (isShift && hasHours && expectedMinutes) {
-			const diff = Math.abs(day.reportWorkTime - expectedMinutes);
+			const diff = Math.abs(workMinutes - expectedMinutes);
 			if (diff > 3) {
-				if (day.reportWorkTime > expectedMinutes && cellColorRules.overwork?.bg) {
+				if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
 					styles.push(`background-color:${cellColorRules.overwork.bg}`);
 					return styles.join(';');
 				}
-				if (day.reportWorkTime < expectedMinutes && cellColorRules.underwork?.bg) {
+				if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
 					styles.push(`background-color:${cellColorRules.underwork.bg}`);
 					return styles.join(';');
 				}
@@ -402,13 +406,6 @@
 		const params = new URLSearchParams(page.url.searchParams);
 		params.set('year', String(y));
 		params.set('month', String(m));
-		params.set('page', '1');
-		goto(`/apps/tabel/tabel?${params.toString()}`, { invalidateAll: true });
-	}
-
-	function goToPage(p: number) {
-		const params = new URLSearchParams(page.url.searchParams);
-		params.set('page', String(p));
 		goto(`/apps/tabel/tabel?${params.toString()}`, { invalidateAll: true });
 	}
 
@@ -447,7 +444,8 @@
 
 	const yearCalendars = $derived(calendars.filter((c: any) => c.year === year));
 	const calendarLabel = $derived(
-		yearCalendars.find((c: any) => String(c.id) === exportSettings.calendarId)?.name ?? 'Без календаря'
+		yearCalendars.find((c: any) => String(c.id) === exportSettings.calendarId)?.name ??
+			'Без календаря'
 	);
 
 	function openExportDialog() {
@@ -614,9 +612,7 @@
 
 {#snippet employeeCell(_: any, row: TabelRow)}
 	{#if row.type === 'mark'}
-		<div class="border-muted-foreground h-9 px-1 text-muted-foreground">
-		    отметки
-		</div>
+		<div class="h-9 border-muted-foreground px-1 text-muted-foreground">отметки</div>
 	{:else}
 		<div class="flex h-7 min-w-0 items-center gap-1 px-1">
 			<div class="font-mono font-bold tabular-nums">
@@ -644,12 +640,27 @@
 	{#if row.type === 'mark'}
 		{#if value?.blocked}
 			<div
-				class="border-muted-foreground border-b-1 m-0 h-9 w-full bg-[linear-gradient(to_bottom_right,transparent_48%,var(--muted-foreground)_48%,var(--muted-foreground)_52%,transparent_51%)]"
+				class="m-0 h-9 w-full border-b-1 border-muted-foreground bg-[linear-gradient(to_bottom_right,transparent_48%,var(--muted-foreground)_48%,var(--muted-foreground)_52%,transparent_51%)]"
 			></div>
+		{:else if !canEdit}
+			<div
+				class="relative flex h-9 w-full items-center justify-center border-b-1 border-muted-foreground"
+				style={styleStr ?? ''}
+				title={value?.missingMinutes
+					? `Недостача: ${formatHours(value.missingMinutes)}ч`
+					: undefined}
+			>
+				<span class="truncate px-1">{value?.value ?? ''}</span>
+				{#if value?.missingMinutes}
+					<div class="pointer-events-none absolute right-0.5 bottom-0.5 text-[8px] text-amber-500">
+						{'\u25BC'}
+					</div>
+				{/if}
+			</div>
 		{:else}
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 			<div
-				class="relative border-muted-foreground border-b-1"
+				class="relative border-b-1 border-muted-foreground"
 				onclick={(e) => {
 					if (value?.missingMinutes) {
 						const r = e.currentTarget.getBoundingClientRect();
@@ -682,7 +693,7 @@
 	{/if}
 {/snippet}
 
-{#if cellPopup}
+{#if cellPopup && canEdit}
 	{@const cp = cellPopup}
 	<!-- svelte-ignore a11y_no_dynamic_element_interactions a11y_click_events_have_key_events -->
 	<div
@@ -735,7 +746,12 @@
 					if (!res.ok) {
 						const text = await res.text();
 						console.error('[WTT] save failed', res.status, text.substring(0, 200));
-						toast.error('Не удалось сохранить доп. метку');
+						let msg: string | null = null;
+						try {
+							const j = JSON.parse(text);
+							msg = j?.data?.message ?? j?.message ?? null;
+						} catch {}
+						toast.error(msg ?? 'Не удалось сохранить доп. метку');
 					} else {
 						toast.success('Доп. метка сохранена');
 					}
@@ -755,9 +771,7 @@
 				Табель
 				<div class="flex items-center gap-2">
 					<Switch bind:checked={showActual} id="show-actual" />
-					<label for="show-actual" class="cursor-pointer text-sm font-medium select-none">
-						Фактическое время
-					</label>
+					<Label for="show-actual" class="cursor-pointer select-none">Фактическое время</Label>
 				</div>
 			</h1>
 			<p class="text-sm text-muted-foreground">
@@ -768,7 +782,7 @@
 		<!-- Навигация по месяцу/году -->
 		<div class="flex items-center gap-1">
 			<Button class="text-center" variant="outline" size="sm" onclick={() => goToMonth(-1)}>
-				←
+				<ArrowLeft class="size-4" />
 			</Button>
 
 			<MonthYearPicker
@@ -778,13 +792,12 @@
 					const params = new URLSearchParams(page.url.searchParams);
 					params.set('year', String(y));
 					params.set('month', String(m));
-					params.set('page', '1');
 					goto(`/apps/tabel/tabel?${params.toString()}`, { invalidateAll: true });
 				}}
 			/>
 
 			<Button class="text-center" variant="outline" size="sm" onclick={() => goToMonth(1)}>
-				→
+				<ArrowRight class="size-4" />
 			</Button>
 		</div>
 
@@ -820,51 +833,6 @@
 				</CollapsibleContent>
 			</Collapsible>
 		{/each}
-
-		<!-- Пагинация -->
-		{#if totalPages > 1}
-			<div class="flex items-center justify-center gap-2 py-4">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={currentPage <= 1}
-					onclick={() => goToPage(currentPage - 1)}
-				>
-					← Назад
-				</Button>
-
-				<div class="flex items-center gap-1">
-					{#each { length: totalPages } as _, i}
-						{@const p = i + 1}
-						{#if p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2}
-							<Button
-								variant={p === currentPage ? 'default' : 'outline'}
-								size="sm"
-								class="min-w-8"
-								onclick={() => goToPage(p)}
-							>
-								{p}
-							</Button>
-						{:else if p === currentPage - 3 || p === currentPage + 3}
-							<span class="px-1 text-muted-foreground">...</span>
-						{/if}
-					{/each}
-				</div>
-
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={currentPage >= totalPages}
-					onclick={() => goToPage(currentPage + 1)}
-				>
-					Вперед →
-				</Button>
-			</div>
-
-			<div class="text-center text-xs text-muted-foreground">
-				Страница {currentPage} из {totalPages} · Всего сотрудников: {total}
-			</div>
-		{/if}
 	</div>
 </div>
 
@@ -875,6 +843,7 @@
 	{month}
 	departmentName={modalDeptName}
 	positionName={modalPosName}
+	readonly={!canEdit}
 	onSave={onModalSave}
 />
 
@@ -883,118 +852,117 @@
 		<div class="flex flex-col gap-4">
 			<p class="font-medium">Параметры экспорта</p>
 
-				<!-- Календарь -->
-				<div class="flex flex-col gap-1">
-					<Label>Календарь</Label>
-					<Select type="single" bind:value={exportSettings.calendarId}>
-						<SelectTrigger class="w-full">
-							<span>{calendarLabel}</span>
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="0">Без календаря</SelectItem>
-							{#each yearCalendars as c (c.id)}
-								<SelectItem value={String(c.id)}>
-									{c.name}{c.isDefault ? ' (основной)' : ''}
-								</SelectItem>
-							{/each}
-						</SelectContent>
-					</Select>
-				</div>
-
-				<!-- Округление -->
-				<div class="flex flex-col gap-1">
-					<div class="flex items-center gap-2">
-						<Label class="flex flex-row items-center gap-2 text-sm">
-							<Checkbox bind:checked={exportSettings.rounding} />
-							Округлять часы
-						</Label>
-						<Popover>
-							<PopoverTrigger>
-								{#snippet child({ props })}
-									<button
-										type="button"
-										class="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-										aria-label="Подсказка по округлению"
-										{...props}
-									>
-										<CircleQuestionMarkIcon class="size-4" />
-									</button>
-								{/snippet}
-							</PopoverTrigger>
-							<PopoverContent class="w-80 text-xs" align="start">
-								<div class="space-y-2">
-									<p class="text-sm font-medium">Параметры округления</p>
-									<p>
-										Если фактическое время попало в интервал — показывается якорь, иначе —
-										простое округление до целого часа.
-									</p>
-									<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
-										roundingFrom &lt; факт &lt; roundingTo → roundingPoint
-									</div>
-									<p>
-										<b>Точка округления</b> — абсолютное значение в часах, к которому
-										«притягивается» время. <b>От / До</b> — границы интервала (ч).
-									</p>
-									<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
-										стандарт + standardLeft &lt; факт &lt; стандарт + standardRight →
-										стандарт
-									</div>
-									<p>
-										<b>Сдвиг влево / вправо</b> — границы интервала относительно
-										стандарта графика сотрудника (у каждого свой стандарт).
-									</p>
-								</div>
-							</PopoverContent>
-						</Popover>
-					</div>
-					<Collapsible open={exportSettings.rounding}>
-						<CollapsibleContent>
-							<div class="mt-2 grid grid-cols-2 items-center gap-2 rounded-md border p-3">
-								<Label class="text-xs">Точка округления (ч)</Label>
-								<Input type="number" step="0.1" bind:value={roundingParams.roundingPoint} />
-								<Label class="text-xs">От (ч)</Label>
-								<Input type="number" step="0.1" bind:value={roundingParams.roundingFrom} />
-								<Label class="text-xs">До (ч)</Label>
-								<Input type="number" step="0.1" bind:value={roundingParams.roundingTo} />
-								<Separator/><Separator/>
-								<Label class="text-xs">Сдвиг влево к стандарту (ч)</Label>
-								<Input type="number" step="0.1" bind:value={roundingParams.standardLeft} />
-								<Label class="text-xs">Сдвиг вправо к стандарту (ч)</Label>
-								<Input type="number" step="0.1" bind:value={roundingParams.standardRight} />
-							</div>
-						</CollapsibleContent>
-					</Collapsible>
-				</div>
-
-				<!-- Флаги колонок -->
-				<div class="flex flex-col gap-1 border-t pt-3">
-					<span class="text-sm font-medium">Колонки отчёта</span>
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.showNight} />
-						Выводить ночные
-					</Label>
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.showOvertime} />
-						Выводить сверхурочные
-					</Label>
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.showHoliday} />
-						Выводить праздничные
-					</Label>
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.showAbsence} />
-						Выводить коды неявок
-					</Label>
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.autoAbsence} />
-						Автоматически выводить пропуска
-					</Label>
-				</div>
-
-				<div class="flex justify-end gap-2">
-					<Button variant="outline" onclick={() => (exportOpen = false)}>Отмена</Button>
-					<Button onclick={exportExcel}>Экспортировать</Button>
-				</div>
+			<!-- Календарь -->
+			<div class="flex flex-col gap-1">
+				<Label>Календарь</Label>
+				<Select type="single" bind:value={exportSettings.calendarId}>
+					<SelectTrigger class="w-full">
+						<span>{calendarLabel}</span>
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="0">Без календаря</SelectItem>
+						{#each yearCalendars as c (c.id)}
+							<SelectItem value={String(c.id)}>
+								{c.name}{c.isDefault ? ' (основной)' : ''}
+							</SelectItem>
+						{/each}
+					</SelectContent>
+				</Select>
 			</div>
-		</DialogContent>
-	</Dialog>
+
+			<!-- Округление -->
+			<div class="flex flex-col gap-1">
+				<div class="flex items-center gap-2">
+					<Label class="flex flex-row items-center gap-2 text-sm">
+						<Checkbox bind:checked={exportSettings.rounding} />
+						Округлять часы
+					</Label>
+					<Popover>
+						<PopoverTrigger>
+							{#snippet child({ props })}
+								<button
+									type="button"
+									class="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+									aria-label="Подсказка по округлению"
+									{...props}
+								>
+									<CircleQuestionMarkIcon class="size-4" />
+								</button>
+							{/snippet}
+						</PopoverTrigger>
+						<PopoverContent class="w-80 text-xs" align="start">
+							<div class="space-y-2">
+								<p class="text-sm font-medium">Параметры округления</p>
+								<p>
+									Если фактическое время попало в интервал — показывается якорь, иначе — простое
+									округление до целого часа.
+								</p>
+								<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
+									roundingFrom &lt; факт &lt; roundingTo → roundingPoint
+								</div>
+								<p>
+									<b>Точка округления</b> — абсолютное значение в часах, к которому «притягивается»
+									время. <b>От / До</b> — границы интервала (ч).
+								</p>
+								<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
+									стандарт + standardLeft &lt; факт &lt; стандарт + standardRight → стандарт
+								</div>
+								<p>
+									<b>Сдвиг влево / вправо</b> — границы интервала относительно стандарта графика сотрудника
+									(у каждого свой стандарт).
+								</p>
+							</div>
+						</PopoverContent>
+					</Popover>
+				</div>
+				<Collapsible open={exportSettings.rounding}>
+					<CollapsibleContent>
+						<div class="mt-2 grid grid-cols-2 items-center gap-2 rounded-md border p-3">
+							<Label class="text-xs">Точка округления (ч)</Label>
+							<Input type="number" step="0.1" bind:value={roundingParams.roundingPoint} />
+							<Label class="text-xs">От (ч)</Label>
+							<Input type="number" step="0.1" bind:value={roundingParams.roundingFrom} />
+							<Label class="text-xs">До (ч)</Label>
+							<Input type="number" step="0.1" bind:value={roundingParams.roundingTo} />
+							<Separator /><Separator />
+							<Label class="text-xs">Сдвиг влево к стандарту (ч)</Label>
+							<Input type="number" step="0.1" bind:value={roundingParams.standardLeft} />
+							<Label class="text-xs">Сдвиг вправо к стандарту (ч)</Label>
+							<Input type="number" step="0.1" bind:value={roundingParams.standardRight} />
+						</div>
+					</CollapsibleContent>
+				</Collapsible>
+			</div>
+
+			<!-- Флаги колонок -->
+			<div class="flex flex-col gap-1 border-t pt-3">
+				<span class="text-sm font-medium">Колонки отчёта</span>
+				<Label class="flex flex-row items-center gap-2 text-sm">
+					<Checkbox bind:checked={exportSettings.showNight} />
+					Выводить ночные
+				</Label>
+				<Label class="flex flex-row items-center gap-2 text-sm">
+					<Checkbox bind:checked={exportSettings.showOvertime} />
+					Выводить сверхурочные
+				</Label>
+				<Label class="flex flex-row items-center gap-2 text-sm">
+					<Checkbox bind:checked={exportSettings.showHoliday} />
+					Выводить праздничные
+				</Label>
+				<Label class="flex flex-row items-center gap-2 text-sm">
+					<Checkbox bind:checked={exportSettings.showAbsence} />
+					Выводить коды неявок
+				</Label>
+				<Label class="flex flex-row items-center gap-2 text-sm">
+					<Checkbox bind:checked={exportSettings.autoAbsence} />
+					Автоматически выводить пропуска
+				</Label>
+			</div>
+
+			<div class="flex justify-end gap-2">
+				<Button variant="outline" onclick={() => (exportOpen = false)}>Отмена</Button>
+				<Button onclick={exportExcel}>Экспортировать</Button>
+			</div>
+		</div>
+	</DialogContent>
+</Dialog>

@@ -5,8 +5,12 @@
 	import { Dialog, DialogContent, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Label } from '$lib/components/ui/label';
+	import { cn } from '$lib/utils';
+	import { page } from '$app/state';
 
 	let { data }: { data: any } = $props();
+	let canEdit = $derived(page.data.canEdit ?? false);
 	let createOpen = $state(false);
 	let editOpen = $state(false);
 	let editId = $state<number | null>(null);
@@ -18,7 +22,9 @@
 
 <div class="flex items-center justify-between">
 	<h1 class="text-2xl font-bold tracking-tight">Группы подразделений</h1>
-	<Button onclick={() => (createOpen = true)}>+ Добавить группу</Button>
+	{#if canEdit}
+		<Button onclick={() => (createOpen = true)}>+ Добавить группу</Button>
+	{/if}
 </div>
 <Separator orientation="horizontal" />
 <div class="space-y-6">
@@ -26,47 +32,53 @@
 		<div class="rounded-xl border bg-card p-4 shadow-sm">
 			<div class="mb-2 flex items-center justify-between">
 				<h3 class="font-semibold">{group.name}</h3>
-				<div class="flex gap-1">
-					<Button
-						variant="outline"
-						size="sm"
-						onclick={() => {
-							editId = group.id;
-							editName = group.name;
-							editOpen = true;
-						}}>✎</Button
-					>
-					<form method="post" action="?/remove" use:enhance>
-						<input type="hidden" name="id" value={group.id} />
-						<Button variant="outline" size="sm" type="submit">×</Button>
-					</form>
-				</div>
+				{#if canEdit}
+					<div class="flex gap-1">
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={() => {
+								editId = group.id;
+								editName = group.name;
+								editOpen = true;
+							}}>✎</Button
+						>
+						<form method="post" action="?/remove" use:enhance>
+							<input type="hidden" name="id" value={group.id} />
+							<Button variant="outline" size="sm" type="submit">×</Button>
+						</form>
+					</div>
+				{/if}
 			</div>
 
 			<div class="space-y-1">
 				{#each group.departments as dept}
 					<div class="flex items-center justify-between rounded-md bg-muted/30 px-3 py-1 text-sm">
 						<span>{dept.departmentName}</span>
-						<form method="post" action="?/removeDept" use:enhance>
-							<input type="hidden" name="groupId" value={group.id} />
-							<input type="hidden" name="departmentId" value={dept.departmentId} />
-							<button type="submit" class="text-xs text-muted-foreground hover:text-destructive"
-								>×</button
-							>
-						</form>
+						{#if canEdit}
+							<form method="post" action="?/removeDept" use:enhance>
+								<input type="hidden" name="groupId" value={group.id} />
+								<input type="hidden" name="departmentId" value={dept.departmentId} />
+								<button type="submit" class="text-xs text-muted-foreground hover:text-destructive"
+									>×</button
+								>
+							</form>
+						{/if}
 					</div>
 				{/each}
 
-				<Button
-					variant="ghost"
-					size="sm"
-					class="text-xs text-muted-foreground"
-					onclick={() => {
-						addDeptGroupId = group.id;
-						checkedDepts = new Set(group.departments.map((d: any) => d.departmentId));
-						addDeptOpen = true;
-					}}>+ Добавить отдел</Button
-				>
+				{#if canEdit}
+					<Button
+						variant="ghost"
+						size="sm"
+						class="text-xs text-muted-foreground"
+						onclick={() => {
+							addDeptGroupId = group.id;
+							checkedDepts = new Set(group.departments.map((d: any) => d.departmentId));
+							addDeptOpen = true;
+						}}>+ Добавить отдел</Button
+					>
+				{/if}
 			</div>
 		</div>
 	{/each}
@@ -109,8 +121,8 @@
 		{#if addDeptGroupId}
 			{@const busyDeptIds = new Set(
 				data.groups
-					.filter((g) => g.id !== addDeptGroupId)
-					.flatMap((g) => g.departments.map((d) => d.departmentId))
+					.filter((g: any) => g.id !== addDeptGroupId)
+					.flatMap((g: any) => g.departments.map((d: any) => d.departmentId))
 			)}
 
 			<form
@@ -125,12 +137,12 @@
 					{#each data.allDepts as d}
 						{@const isChecked = checkedDepts.has(d.id)}
 						{@const isDisabled = busyDeptIds.has(d.id)}
-						<label
-							class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
-							class:bg-green-100={isChecked && !isDisabled}
-							class:bg-gray-300={isDisabled}
-							class:border-green-700={isChecked && !isDisabled}
-							class:border-gray-700={isDisabled}
+						<Label
+							class={cn(
+								'flex-row items-center gap-2 rounded-md border px-3 py-2 text-sm',
+								isChecked && !isDisabled && 'border-green-700 bg-green-100',
+								isDisabled && 'border-gray-700 bg-gray-300'
+							)}
 						>
 							<Checkbox
 								name="departmentIds"
@@ -149,7 +161,7 @@
 							{#if isDisabled}
 								<span class="ml-auto text-xs text-muted-foreground">занят</span>
 							{/if}
-						</label>
+						</Label>
 					{/each}
 				</div>
 

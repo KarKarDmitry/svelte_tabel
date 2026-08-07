@@ -84,26 +84,26 @@ npm run db:import
 
 ### Команды
 
-| Команда | Действие |
-|---|---|
-| `npm run db:stanza-create` | инициализация репозитория (один раз после развёртывания) |
-| `npm run db:backup` | полный бэкап |
-| `npm run db:backup:diff` | дифф-бэкап (разница с последним полным) |
-| `npm run db:backup:incr` | инкремент (разница с последним любым) |
-| `npm run db:backup:list` | список точек восстановления / проверка статуса (`status: ok`) |
-| `npm run db:restore` | восстановление (интерактивно или `db:restore -- <label>`) |
+| Команда                    | Действие                                                      |
+| -------------------------- | ------------------------------------------------------------- |
+| `npm run db:stanza-create` | инициализация репозитория (один раз после развёртывания)      |
+| `npm run db:backup`        | полный бэкап                                                  |
+| `npm run db:backup:diff`   | дифф-бэкап (разница с последним полным)                       |
+| `npm run db:backup:incr`   | инкремент (разница с последним любым)                         |
+| `npm run db:backup:list`   | список точек восстановления / проверка статуса (`status: ok`) |
+| `npm run db:restore`       | восстановление (интерактивно: список точек + PITR)            |
 
 Бэкапы выполняются на работающей БД (остановка не нужна).
 
 ### Расписание (Task Scheduler)
 
-В планировщик ставится прямой вызов `bash`, без npm:
+В планировщик ставится прямой вызов python, без npm:
 
 1. `Win+R` → `taskschd.msc` → «Создать задачу».
 2. **Триггеры**: ежедневно в 08:00 и 16:00 (два триггера в одном задании).
 3. **Действие**:
-   - Программа: `C:\Program Files\Git\bin\bash.exe` (путь к Git Bash, проверяется `where bash`)
-   - Аргументы: `C:\Users\user\repos\svelte_tabel\scripts\db-backup.sh scheduled`
+   - Программа: путь к `python.exe` (проверяется `where python`, напр. `C:\python312\python.exe`)
+   - Аргументы: `C:\Users\user\repos\svelte_tabel\scripts\db.py scheduled`
    - Рабочая папка: `C:\Users\user\repos\svelte_tabel`
 4. **Условия**: снять «Запускать только при питании от электросети».
 5. **Параметры**: включить «Выполнить задачу как можно скорее после пропущенного планового запуска».
@@ -117,10 +117,13 @@ npm run db:import
 npm run db:restore
 ```
 
-1. Показывается список точек (полные `F`, диффы `D`).
-2. Выбирается точка (или сразу: `npm run db:restore -- 20260807-160000F`).
-3. Подтверждение (`yes`) — скрипт **останавливает** `app` и `db`, выполняет
-   `pgbackrest restore --delta`, затем запускает сервисы обратно.
+1. Показывается список точек (полные `F`, диффы `D`, время локальное).
+2. Точка выбирается стрелками (PgUp/PgDn/Home/End), Enter — подтвердить.
+3. Для точек с PITR можно указать время (поля Год/Месяц/День/Час/Минута,
+   стрелки ↑/↓ — ±1, ←/→ — поле) или оставить «конец бэкапа» (Enter).
+4. Подтверждение (`yes`) — скрипт **останавливает** `app` и `db`, выполняет
+   `pgbackrest restore --delta` (`--type=immediate` или `--type=time`), затем
+   запускает сервисы обратно.
 
 Восстановление **всегда требует остановки БД** — планируйте окно простоя.
 При неудаче скрипт оставляет БД остановленной и указывает на логи pgBackRest.
@@ -128,11 +131,22 @@ npm run db:restore
 ### PITR (восстановление на момент времени)
 
 ```sh
-docker exec -u postgres tabel-db pgbackrest --stanza=tabel \
-  --type=time --target="2026-08-03 14:30:00" --delta restore
+npm run db:restore
 ```
 
-(БД при этом должна быть остановлена — см. шаги из `scripts/db-backup.sh`.)
+При выборе точки скрипт показывает PITR-окно (от конца бэкапа до последнего WAL)
+и позволяет указать время интерактивно (стрелки по полям даты/времени).
+Ручной вариант (БД должна быть остановлена `docker compose stop db`):
+
+```sh
+docker exec -u postgres tabel-db pgbackrest --stanza=tabel \
+  --type=time --target="2026-08-03 14:30:00" --target-action=promote --delta restore
+```
+
+`--target-action=promote` обязателен: без него PostgreSQL останавливается в конце
+recovery и работает только на чтение (`pausing at the end of recovery`), ожидая
+ручного `pg_wal_replay_resume()` — бэкапы при этом падают с
+`unable to find primary cluster`.
 
 ---
 
@@ -171,11 +185,13 @@ npm run db:stanza-create
 
 ## 6. Устранение неполадок
 
-| Проблема | Решение |
-|---|---|
-| `bash: set: pipefail: invalid option` / `$'\r': command not found` | Файл скрипта сохранён в CRLF. Конвертировать в LF: `tr -d '\r' < scripts/db-backup.sh > tmp && mv tmp scripts/db-backup.sh`. Правило закреплено в `.gitattributes` (`*.sh text eol=lf`). |
-| Порт 8080 не открывается при деплое | Docker Desktop держит порт 80/8080 — освободить порт или сменить маппинг в `compose.yaml`. |
-| Браузер не открывает сайт, а curl работает | DNS-кеш браузера/системы — сбросить (`ipconfig /flushdns`) или проверить `ORIGIN`. |
-| `pgbackrest: role "postgres" does not exist` | Кластер создан с `POSTGRES_USER` из `.env` — в `pgbackrest.conf` задан `pg1-user`. |
-| `stanza-create` как root | Скрипты выполняют pgBackRest от пользователя `postgres` (`docker exec -u postgres`). |
-| Статус stanza `error (no valid backups)` | Ещё не сделан ни один бэкап — выполнить `npm run db:backup`. |
+| Проблема                                                                    | Решение                                                                                                                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bash: set: pipefail: invalid option` / `$'\r': command not found`          | Раньше: скрипт сохранён в CRLF. Сейчас скрипты переведены на python (`scripts/db.py`) — для python CRLF не проблема. Правило LF для `*.sh`/`*.py` закреплено в `.gitattributes`.                                                                                                                         |
+| Порт 8080 не открывается при деплое                                         | Docker Desktop держит порт 80/8080 — освободить порт или сменить маппинг в `compose.yaml`.                                                                                                                                                                                                               |
+| Браузер не открывает сайт, а curl работает                                  | DNS-кеш браузера/системы — сбросить (`ipconfig /flushdns`) или проверить `ORIGIN`.                                                                                                                                                                                                                       |
+| `pgbackrest: role "postgres" does not exist`                                | Кластер создан с `POSTGRES_USER` из `.env` — в `pgbackrest.conf` задан `pg1-user`.                                                                                                                                                                                                                       |
+| `stanza-create` как root                                                    | Скрипты выполняют pgBackRest от пользователя `postgres` (`docker exec -u postgres`).                                                                                                                                                                                                                     |
+| Статус stanza `error (no valid backups)`                                    | Ещё не сделан ни один бэкап — выполнить `npm run db:backup`.                                                                                                                                                                                                                                             |
+| Бэкап: `unable to find primary cluster`                                     | Кластер застрял в recovery после restore (без `--target-action=promote`). Вывести из паузы: `docker exec tabel-db sh -c 'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select pg_wal_replay_resume()"'`. Сейчас скрипт restore сам добавляет `--target-action=promote`. |
+| PITR: `FATAL: recovery ended before configured recovery target was reached` | Не хватает WAL до целевого времени на timeline точки (кластер мог уйти на новый timeline). Контейнер с `restart: always` уходит в crash-loop. Решение: `docker compose stop db`, затем `npm run db:restore` → «конец бэкапа» (Enter) или время раньше.                                                   |

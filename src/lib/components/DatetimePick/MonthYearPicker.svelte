@@ -19,8 +19,18 @@
 	let selMonth = $state(month);
 
 	const months = [
-		'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-		'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+		'Январь',
+		'Февраль',
+		'Март',
+		'Апрель',
+		'Май',
+		'Июнь',
+		'Июль',
+		'Август',
+		'Сентябрь',
+		'Октябрь',
+		'Ноябрь',
+		'Декабрь'
 	];
 
 	const currentYear = new Date().getFullYear();
@@ -54,7 +64,7 @@
 		{/snippet}
 	</PopoverTrigger>
 
-	<PopoverContent class="w-72 p-0" align="start">
+	<PopoverContent class="w-72 border p-0 shadow-xl" align="start">
 		<div class="flex">
 			<!-- Месяцы -->
 			<div class="flex-1 border-r">
@@ -62,11 +72,11 @@
 					Месяц
 				</div>
 				<ScrollArea class="h-64">
-					<div class="flex flex-col">
+					<div class="flex flex-col px-1">
 						{#each months as mName, i}
 							<button
 								class={cn(
-									'w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
+									'w-full rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
 									i + 1 === selMonth && 'bg-accent font-medium text-accent-foreground'
 								)}
 								onclick={() => selectMonth(i + 1)}
@@ -84,11 +94,11 @@
 					Год
 				</div>
 				<ScrollArea class="h-64">
-					<div class="flex flex-col">
+					<div class="flex flex-col px-1">
 						{#each years as y}
 							<button
 								class={cn(
-									'w-full px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
+									'w-full rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
 									y === selYear && 'bg-accent font-medium text-accent-foreground'
 								)}
 								onclick={() => selectYear(y)}

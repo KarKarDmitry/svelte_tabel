@@ -13,6 +13,7 @@
 		month,
 		departmentName = '',
 		positionName = '',
+		readonly = false,
 		onSave
 	}: {
 		show: boolean;
@@ -21,6 +22,8 @@
 		month: number;
 		departmentName?: string;
 		positionName?: string;
+		/** Только просмотр (нет права на редактирование) */
+		readonly?: boolean;
 		onSave?: (
 			updates: Array<{
 				employeeId: number;
@@ -43,6 +46,8 @@
 			date: string;
 			reportWorkTime: number | null;
 			reportNightWorkTime: number | null;
+			shiftWorkTime: number | null;
+			shiftNightWorkTime: number | null;
 			dayMarkCode: string;
 			extraMarkCode: string | null;
 			extraMarkMinutes: number | null;
@@ -79,7 +84,9 @@
 
 		const isShift =
 			shiftMarks.includes(day.dayMarkCode) || day.dayMarkCode === 'I' || day.dayMarkCode === 'N';
-		const hasHours = day.reportWorkTime != null;
+		// Отчётные часы приоритетны; если табельщик их ещё не проставил — берём сменные из импорта
+		const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
+		const hasHours = workMinutes != null;
 		const expectedMinutes = calDay?.workTime ?? empSchedule?.standardWorkTime;
 
 		// Сменная отметка без часов
@@ -90,13 +97,13 @@
 
 		// Переработка / недоработка (с допуском 3 мин)
 		if (isShift && hasHours && expectedMinutes) {
-			const diff = Math.abs(day.reportWorkTime - expectedMinutes);
+			const diff = Math.abs(workMinutes - expectedMinutes);
 			if (diff > 3) {
-				if (day.reportWorkTime > expectedMinutes && cellColorRules.overwork?.bg) {
+				if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
 					style.push(`background-color:${cellColorRules.overwork.bg}`);
 					return style.join(';');
 				}
-				if (day.reportWorkTime < expectedMinutes && cellColorRules.underwork?.bg) {
+				if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
 					style.push(`background-color:${cellColorRules.underwork.bg}`);
 					return style.join(';');
 				}
@@ -236,7 +243,10 @@
 				body: JSON.stringify({ employeeId, year, month, days: body })
 			});
 
-			if (!res.ok) throw new Error('Failed to save');
+			if (!res.ok) {
+				const j = await res.json().catch(() => null);
+				throw new Error(j?.message ?? 'Failed to save');
+			}
 			const result = await res.json();
 			const updated = result?.data?.updated ?? result?.updated;
 
@@ -269,63 +279,95 @@
 </script>
 
 {#snippet hoursCell(_value: any, row: DayRow)}
-	<Input
-		type="number"
-		step="0.1"
-		class="h-7 w-full rounded-none text-center text-xs"
-		value={fmt(row.dayData?.reportWorkTime ?? null)}
-		oninput={(e) => {
-			row.dayData.reportWorkTime = parseHours((e.target as HTMLInputElement).value);
-		}}
-	/>
+	{#if readonly}
+		<div class="flex h-7 w-full items-center justify-center text-xs">
+			{fmt(row.dayData?.reportWorkTime ?? null)}
+		</div>
+	{:else}
+		<Input
+			type="number"
+			step="0.1"
+			class="h-7 w-full rounded-none text-center text-xs"
+			value={fmt(row.dayData?.reportWorkTime ?? null)}
+			oninput={(e) => {
+				row.dayData.reportWorkTime = parseHours((e.target as HTMLInputElement).value);
+			}}
+		/>
+	{/if}
 {/snippet}
 
 {#snippet nightCell(_value: any, row: DayRow)}
-	<Input
-		type="number"
-		step="0.1"
-		class="h-7 w-full rounded-none text-center text-xs"
-		value={fmt(row.dayData?.reportNightWorkTime ?? null)}
-		oninput={(e) => {
-			row.dayData.reportNightWorkTime = parseHours((e.target as HTMLInputElement).value);
-		}}
-	/>
+	{#if readonly}
+		<div class="flex h-7 w-full items-center justify-center text-xs">
+			{fmt(row.dayData?.reportNightWorkTime ?? null)}
+		</div>
+	{:else}
+		<Input
+			type="number"
+			step="0.1"
+			class="h-7 w-full rounded-none text-center text-xs"
+			value={fmt(row.dayData?.reportNightWorkTime ?? null)}
+			oninput={(e) => {
+				row.dayData.reportNightWorkTime = parseHours((e.target as HTMLInputElement).value);
+			}}
+		/>
+	{/if}
 {/snippet}
 
 {#snippet markCell(_value: any, row: DayRow)}
 	{@const cellStyle = getCellStyle(row.dayData)}
-	<Input
-		class="m-0 h-7 w-full rounded-none p-0 text-center text-xs uppercase"
-		style={cellStyle}
-		value={row.dayData?.dayMarkCode ?? ''}
-		oninput={(e) => {
-			row.dayData.dayMarkCode = (e.target as HTMLInputElement).value.toUpperCase();
-		}}
-	/>
+	{#if readonly}
+		<div class="flex h-7 w-full items-center justify-center text-xs uppercase" style={cellStyle}>
+			{row.dayData?.dayMarkCode ?? ''}
+		</div>
+	{:else}
+		<Input
+			class="m-0 h-7 w-full rounded-none p-0 text-center text-xs uppercase"
+			style={cellStyle}
+			value={row.dayData?.dayMarkCode ?? ''}
+			oninput={(e) => {
+				row.dayData.dayMarkCode = (e.target as HTMLInputElement).value.toUpperCase();
+			}}
+		/>
+	{/if}
 {/snippet}
 
 {#snippet extraMarkCell(_value: any, row: DayRow)}
-	<Input
-		class="m-0 h-7 w-full rounded-none p-0 text-center text-xs text-muted-foreground uppercase italic"
-		value={row.dayData?.extraMarkCode ?? ''}
-		placeholder="—"
-		oninput={(e) => {
-			row.dayData.extraMarkCode = (e.target as HTMLInputElement).value.toUpperCase() || null;
-		}}
-	/>
+	{#if readonly}
+		<div
+			class="flex h-7 w-full items-center justify-center text-xs text-muted-foreground uppercase italic"
+		>
+			{row.dayData?.extraMarkCode ?? ''}
+		</div>
+	{:else}
+		<Input
+			class="m-0 h-7 w-full rounded-none p-0 text-center text-xs text-muted-foreground uppercase italic"
+			value={row.dayData?.extraMarkCode ?? ''}
+			placeholder="—"
+			oninput={(e) => {
+				row.dayData.extraMarkCode = (e.target as HTMLInputElement).value.toUpperCase() || null;
+			}}
+		/>
+	{/if}
 {/snippet}
 
 {#snippet extraHoursCell(_value: any, row: DayRow)}
-	<Input
-		type="number"
-		step="0.1"
-		class="h-7 w-full rounded-none text-center text-xs text-muted-foreground italic"
-		value={fmt(row.dayData?.extraMarkMinutes ?? null)}
-		placeholder="ч"
-		oninput={(e) => {
-			row.dayData.extraMarkMinutes = parseHours((e.target as HTMLInputElement).value);
-		}}
-	/>
+	{#if readonly}
+		<div class="flex h-7 w-full items-center justify-center text-xs text-muted-foreground italic">
+			{fmt(row.dayData?.extraMarkMinutes ?? null)}
+		</div>
+	{:else}
+		<Input
+			type="number"
+			step="0.1"
+			class="h-7 w-full rounded-none text-center text-xs text-muted-foreground italic"
+			value={fmt(row.dayData?.extraMarkMinutes ?? null)}
+			placeholder="ч"
+			oninput={(e) => {
+				row.dayData.extraMarkMinutes = parseHours((e.target as HTMLInputElement).value);
+			}}
+		/>
+	{/if}
 {/snippet}
 
 <Dialog
@@ -481,10 +523,14 @@
 				</div>
 
 				<div class="flex shrink-0 justify-end gap-2">
-					<Button variant="outline" onclick={() => (show = false)} disabled={saving}>Отмена</Button>
-					<Button onclick={save} disabled={saving}>
-						{saving ? 'Сохранение...' : 'Сохранить'}
+					<Button variant="outline" onclick={() => (show = false)} disabled={saving}>
+						{readonly ? 'Закрыть' : 'Отмена'}
 					</Button>
+					{#if !readonly}
+						<Button onclick={save} disabled={saving}>
+							{saving ? 'Сохранение...' : 'Сохранить'}
+						</Button>
+					{/if}
 				</div>
 			{/if}
 		</div>

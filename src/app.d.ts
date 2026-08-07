@@ -10,6 +10,8 @@ declare global {
 		interface Locals {
 			user?: AppUser;
 			session?: Session;
+			/** Клиент в «нативном» режиме (XP-совместимые страницы) */
+			nativeOnly?: boolean;
 		}
 
 		// interface Error {}

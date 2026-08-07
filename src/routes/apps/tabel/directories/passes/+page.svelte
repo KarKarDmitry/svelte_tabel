@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
@@ -9,6 +10,8 @@
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let isAdmin = $derived($page.data.isAdmin ?? false);
 
 	let fetched = $state<{ passes?: any[]; seriaSearch?: string; numberSearch?: string }>({});
 	let passes = $derived(fetched.passes ?? data.passes);
@@ -104,12 +107,14 @@
 			}
 		}
 	]}
-	actions={[{ label: 'Добавить', onclick: () => openCreate() }]}
-	rowActions={[
-		{ label: 'Редактировать', onclick: (row) => openEdit(row) },
-		{ label: 'Удалить', onclick: (row) => deletePass(row.pass.id) }
-	]}
-	onRowClick={(row) => openEdit(row)}
+	actions={isAdmin ? [{ label: 'Добавить', onclick: () => openCreate() }] : []}
+	rowActions={isAdmin
+		? [
+				{ label: 'Редактировать', onclick: (row) => openEdit(row) },
+				{ label: 'Удалить', onclick: (row) => deletePass(row.pass.id) }
+			]
+		: []}
+	onRowClick={isAdmin ? (row) => openEdit(row) : undefined}
 />
 
 <Dialog bind:open={editOpen}>
@@ -128,11 +133,11 @@
 			<input type="hidden" name="id" value={editRow?.pass?.id ?? ''} />
 			<p class="font-medium">{action === 'create' ? 'Новый' : 'Редактировать'} пропуск</p>
 			<div>
-				<label for="seria" class="text-sm font-medium text-gray-700">Серия</label>
+				<Label for="seria">Серия</Label>
 				<Input id="seria" name="seria" value={editRow?.pass?.seria ?? ''} placeholder="Серия" />
 			</div>
 			<div>
-				<label for="number" class="text-sm font-medium text-gray-700">Номер</label>
+				<Label for="number">Номер</Label>
 				<Input
 					id="number"
 					name="number"

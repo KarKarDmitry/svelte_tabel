@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
+import { requireAdmin } from '$lib/server/permissions';
 
 export const GET = async (event) => {
 	const seriaSearch = event.url.searchParams.get('seria') || '';
@@ -17,6 +18,7 @@ export const GET = async (event) => {
 };
 
 export const POST = async (event) => {
+	requireAdmin(event.locals.user);
 	const f = await event.request.formData();
 	const seria = f.get('seria')?.toString() || null;
 	const number = f.get('number')?.toString();
@@ -26,6 +28,7 @@ export const POST = async (event) => {
 };
 
 export const PATCH = async (event) => {
+	requireAdmin(event.locals.user);
 	const f = await event.request.formData();
 	const id = Number(f.get('id'));
 	const seria = f.get('seria')?.toString() || null;
@@ -36,6 +39,7 @@ export const PATCH = async (event) => {
 };
 
 export const DELETE = async (event) => {
+	requireAdmin(event.locals.user);
 	const id = Number((await event.request.formData()).get('id'));
 	await passService.remove(id);
 	return json({ success: true });

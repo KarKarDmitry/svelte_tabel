@@ -99,11 +99,7 @@
 
 <div class="flex flex-col {className}">
 	<!-- Фильтры -->
-	<div
-		class={variant === 'default'
-			? 'sticky top-0 z-10 -mx-6 bg-background/10 px-6 py-2 backdrop-blur-xs'
-			: ''}
-	>
+	<div class={variant === 'default' ? `sticky top-0 z-10 bg-background/10 backdrop-blur-xs` : ''}>
 		<div class="flex items-start justify-between gap-4">
 			<!-- Фильтры: десктоп -->
 			{#if filters.length > 0}
@@ -168,7 +164,7 @@
 	</Dialog>
 
 	<!-- Таблица -->
-	<div class="flex-1 overflow-auto">
+	<div class="flex-1 overflow-auto pt-2">
 		<div class={variant === 'default' ? 'rounded-lg border-2 bg-card' : ''}>
 			<Table>
 				<TableHeader class="border-b-2">

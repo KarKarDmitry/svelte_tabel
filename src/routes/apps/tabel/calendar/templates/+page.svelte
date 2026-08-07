@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import { goto } from '$app/navigation';
@@ -11,6 +12,8 @@
 	import { toast } from 'svelte-sonner';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let canEdit = $derived(page.data.canEdit ?? false);
 
 	let fetched = $state<{ templates?: any[] }>({});
 	let templates = $derived(fetched.templates ?? data.templates);
@@ -32,6 +35,14 @@
 		deleteTarget = row;
 		deleteOpen = true;
 	}
+
+	const rowActions = $derived([
+		{
+			label: 'Открыть',
+			onclick: (row: any) => goto(`/apps/tabel/calendar/templates/${row.id}/main`)
+		},
+		...(canEdit ? [{ label: 'Удалить', onclick: (row: any) => confirmDelete(row) }] : [])
+	]);
 
 	async function doDelete() {
 		if (!deleteTarget) return;
@@ -71,11 +82,13 @@
 <div>
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-900">Шаблоны календаря</h1>
-		<Button
-			onclick={() => {
-				createOpen = true;
-			}}>Добавить</Button
-		>
+		{#if canEdit}
+			<Button
+				onclick={() => {
+					createOpen = true;
+				}}>Добавить</Button
+			>
+		{/if}
 	</div>
 
 	<Tabs value={page.url.pathname}>
@@ -93,10 +106,7 @@
 	<DTable
 		data={templates}
 		columns={[{ key: 'name', label: 'Название' }]}
-		rowActions={[
-			{ label: 'Открыть', onclick: (row) => goto(`/apps/tabel/calendar/templates/${row.id}/main`) },
-			{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
-		]}
+		{rowActions}
 		onRowClick={(row) => goto(`/apps/tabel/calendar/templates/${row.id}/main`)}
 	/>
 
@@ -105,7 +115,7 @@
 			<p class="font-bold">Новый шаблон календаря</p>
 			<div class="flex flex-col gap-4">
 				<div class="flex flex-col gap-1">
-					<label for="name" class="text-sm font-medium">Название</label>
+					<Label for="name">Название</Label>
 					<Input
 						id="name"
 						name="name"

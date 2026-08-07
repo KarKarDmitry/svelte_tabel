@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
 import { error } from '@sveltejs/kit';
+import { denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const id = Number(event.params.id);
@@ -11,6 +12,8 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	update: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const id = Number(event.params.id);
 		const f = await event.request.formData();
 		const name = f.get('name')?.toString();

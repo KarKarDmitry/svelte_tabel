@@ -7,6 +7,7 @@ import { positionService } from '$lib/server/db/apps/tabel/services/position.ser
 import { dayMarkService } from '$lib/server/db/apps/tabel/services/day-mark.service';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
 import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
+import { getControlledDepartmentIds, isAdmin } from '$lib/server/permissions';
 
 export const load: LayoutServerLoad = async (event) => {
 	const id = Number(event.params.id);
@@ -17,6 +18,34 @@ export const load: LayoutServerLoad = async (event) => {
 
 	const departments = await departmentService.list();
 	const positions = await positionService.list();
+
+	// Не-админ видит в диалогах только подконтрольные отделы;
+	// полный список отделён в allDepartments для отображения
+	const controlled = await getControlledDepartmentIds(event.locals.user);
+	let controlledDepartments = departments;
+	if (controlled !== null) {
+		const set = new Set(controlled);
+		controlledDepartments = departments.filter((d) => set.has(d.id));
+	}
+	const allDepartments = departments;
+
+	// Право на редактирование именно этого сотрудника
+	// (timekeeper — только если его отдел в подконтрольных)
+	let canEditEmployee = false;
+	if (isAdmin(event.locals.user)) {
+		canEditEmployee = true;
+	} else if (controlled !== null) {
+		const controlledSet = new Set(controlled);
+		let empDeptId: number | undefined;
+		if (lastDoc && lastDoc.type !== 'dismissal') {
+			empDeptId = lastDoc.departmentId;
+		} else {
+			// Уволенный — проверяем последний отдел из истории (до увольнения)
+			const lastNonDismissal = docs.find((d) => d.type !== 'dismissal');
+			empDeptId = lastNonDismissal?.departmentId;
+		}
+		canEditEmployee = !!empDeptId && controlledSet.has(empDeptId);
+	}
 	const dayMarks = await dayMarkService.list();
 	const docs = await documentService.getByEmployee(id);
 	const today = new Date();
@@ -28,8 +57,10 @@ export const load: LayoutServerLoad = async (event) => {
 
 	return {
 		employee: emp,
-		departments,
+		departments: controlledDepartments,
+		allDepartments,
 		positions,
+		canEditEmployee,
 		dayMarks,
 		documents: docs,
 		lastDoc,

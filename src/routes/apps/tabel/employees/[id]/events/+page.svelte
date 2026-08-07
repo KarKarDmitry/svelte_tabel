@@ -4,7 +4,7 @@
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import { Separator } from '$lib/components/ui/separator';
 	import DTable from '$lib/components/DTable/DTable.svelte';
-	import MonthYearPicker from '$lib/components/MonthYearPicker.svelte';
+	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 
 	let events = $derived($page.data.events);
 	let year = $derived($page.data.year);

@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const GET = async (event) => {
 	const templateId = Number(event.params.id);
@@ -8,6 +9,7 @@ export const GET = async (event) => {
 };
 
 export const POST = async (event) => {
+	requireEdit(event.locals.user);
 	const templateId = Number(event.params.id);
 
 	// Bulk-создание (JSON) вызывается через ?action=bulk
@@ -43,6 +45,7 @@ export const POST = async (event) => {
 };
 
 export const PATCH = async (event) => {
+	requireEdit(event.locals.user);
 	const f = await event.request.formData();
 	const rule = await calendarService.updateRule(Number(f.get('id')), {
 		month: Number(f.get('month')),
@@ -55,6 +58,7 @@ export const PATCH = async (event) => {
 };
 
 export const DELETE = async (event) => {
+	requireEdit(event.locals.user);
 	const id = Number((await event.request.formData()).get('id'));
 	await calendarService.removeRule(id);
 	return json({ success: true });

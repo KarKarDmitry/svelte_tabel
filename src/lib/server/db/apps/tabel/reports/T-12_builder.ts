@@ -288,43 +288,44 @@ export async function buildT12(
 		const sheet = sheets.get(groupName)!;
 
 		// Если есть сотрудники — пишем шапку подразделения
-	if (dept.employees?.length) {
-		// Информационное событие: «Отдел — n сотрудников»
-		onProgress?.(`${dept.name} — ${dept.employees.length} сотрудников`, '');
+		if (dept.employees?.length) {
+			// Информационное событие: «Отдел — n сотрудников»
+			onProgress?.(`${dept.name} — ${dept.employees.length} сотрудников`, '');
 
-		// Полная шапка с названием подразделения (как Python _construct_header)
-		sheet.row = time('writeDivisionHeader', () =>
-			writeDivisionHeader(sheet.ws, sheet.row, dept.name, dateLabel, lastDay, half1)
-		);
-
-		let empIndex = 0;
-		for (const emp of dept.employees) {
-			empIndex++;
-			// ФИО текущего сотрудника для прогресса
-			const fullName = `${emp.lastName ?? ''} ${emp.firstName ?? ''} ${emp.middleName ?? ''}`.trim();
-			onProgress?.(dept.name, fullName);
-			const rounding: RoundingConfig | null = roundingConfig
-				? { ...roundingConfig, scheduleStandardTime: emp.schedule?.standardWorkTime ?? null }
-				: null;
-
-			sheet.row = time('writeEmployee', () =>
-				writeEmployee(
-					sheet.ws,
-					sheet.row,
-					time('buildEmpRow', () =>
-						buildEmpRow(emp, calendarDays, shiftMarkCodes, markByCodeObj)
-					),
-					lastDay,
-					half1,
-					markByCodeObj,
-					holidays ?? new Set(),
-					rounding,
-					empIndex,
-					workDayIndices,
-					shiftMarkCodes,
-					opts
-				)
+			// Полная шапка с названием подразделения (как Python _construct_header)
+			sheet.row = time('writeDivisionHeader', () =>
+				writeDivisionHeader(sheet.ws, sheet.row, dept.name, dateLabel, lastDay, half1)
 			);
+
+			let empIndex = 0;
+			for (const emp of dept.employees) {
+				empIndex++;
+				// ФИО текущего сотрудника для прогресса
+				const fullName =
+					`${emp.lastName ?? ''} ${emp.firstName ?? ''} ${emp.middleName ?? ''}`.trim();
+				onProgress?.(dept.name, fullName);
+				const rounding: RoundingConfig | null = roundingConfig
+					? { ...roundingConfig, scheduleStandardTime: emp.schedule?.standardWorkTime ?? null }
+					: null;
+
+				sheet.row = time('writeEmployee', () =>
+					writeEmployee(
+						sheet.ws,
+						sheet.row,
+						time('buildEmpRow', () =>
+							buildEmpRow(emp, calendarDays, shiftMarkCodes, markByCodeObj)
+						),
+						lastDay,
+						half1,
+						markByCodeObj,
+						holidays ?? new Set(),
+						rounding,
+						empIndex,
+						workDayIndices,
+						shiftMarkCodes,
+						opts
+					)
+				);
 
 				// Даём event loop отправить прогресс (SSE) — иначе события копятся до конца генерации
 				if (empIndex) {
@@ -366,7 +367,10 @@ export async function buildT12(
 		}
 	}
 
-	const buffer = await time('build:writeBuffer', () => wb.xlsx.writeBuffer() as unknown as Promise<Buffer>);
+	const buffer = await time(
+		'build:writeBuffer',
+		() => wb.xlsx.writeBuffer() as unknown as Promise<Buffer>
+	);
 	printProfileSummary();
 	return buffer;
 }
@@ -843,7 +847,13 @@ function writeEmployee(
 		c++;
 
 		// сверхурочных (col 39)
-		mc(c, (options.showOvertime ? emp.overtimeHours : '') || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			(options.showOvertime ? emp.overtimeHours : '') || '',
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// ночных (col 40)

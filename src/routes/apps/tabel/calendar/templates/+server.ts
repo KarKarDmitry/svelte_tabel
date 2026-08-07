@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const GET = async () => {
 	const templates = await calendarService.listTemplates();
@@ -7,6 +8,7 @@ export const GET = async () => {
 };
 
 export const POST = async (event) => {
+	requireEdit(event.locals.user);
 	const f = await event.request.formData();
 	const name = f.get('name')?.toString() || '';
 	const defaultWorkDays = JSON.stringify([1, 2, 3, 4, 5]);
@@ -21,6 +23,7 @@ export const POST = async (event) => {
 };
 
 export const DELETE = async (event) => {
+	requireEdit(event.locals.user);
 	const id = Number((await event.request.formData()).get('id'));
 	await calendarService.removeTemplate(id);
 	return json({ success: true });

@@ -1,0 +1,20 @@
+import type { PageServerLoad } from './$types';
+import { turnstileEventTrackerService } from '$lib/server/db/apps/tabel/services/turnstile-event-tracker.service';
+import { db } from '$lib/server/db';
+import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
+
+export const load: PageServerLoad = async (event) => {
+	const id = Number(event.params.id);
+	const year = Number(event.url.searchParams.get('year')) || new Date().getFullYear();
+	const month = Number(event.url.searchParams.get('month')) || new Date().getMonth() + 1;
+
+	const periodStart = new Date(year, month - 1, 1);
+	const periodEnd = new Date(year, month, 0, 23, 59, 59);
+
+	const [events, eventTypes] = await Promise.all([
+		turnstileEventTrackerService.getByPeriodWithDetails(id, periodStart, periodEnd),
+		db.select().from(turnstileEvent)
+	]);
+
+	return { events, eventTypes, year, month };
+};

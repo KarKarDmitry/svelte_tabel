@@ -10,9 +10,10 @@ import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-sche
 import { worktimeTracker } from '$lib/server/db/apps/tabel/tables/worktime-tracker';
 import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
 import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstile-event-tracker';
-	import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
-	import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-	import { and, between, desc, eq, sql } from 'drizzle-orm';
+import { requireAdmin } from '$lib/server/permissions';
+import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
+import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
+import { and, between, desc, eq, gte, inArray, lte, lt, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
 import { log, logError } from './logger';
 
@@ -97,7 +98,8 @@ function makeThrottle(intervalMs = 200) {
 }
 
 /** ФАЗА 1 + импорт — SSE stream */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
+	requireAdmin(locals.user);
 	const fd = await request.formData();
 	const file = fd.get('file') as File | null;
 	if (!file) return json({ error: 'No file' });
@@ -133,6 +135,11 @@ export const POST: RequestHandler = async ({ request }) => {
 					// Смещение времени источника (турникеты) — из app_constant, fallback МСК
 					const tzConst = await appConstantService.getByKey('TIMEZONE_OFFSET');
 					const tzOffset = tzConst?.value ?? '+03:00';
+					const tzMatch = /([+-])(\d{2}):(\d{2})/.exec(tzOffset);
+					const tzOffsetMs = tzMatch
+						? (tzMatch[1] === '-' ? -1 : 1) * (Number(tzMatch[2]) * 60 + Number(tzMatch[3])) * 60000
+						: 3 * 60 * 60000;
+					log('  TIMEZONE_OFFSET:', tzOffset);
 					const wb = XLSX.read(buf, { type: 'array' });
 					const rows: any[][] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {
 						header: 1
@@ -354,14 +361,19 @@ export const POST: RequestHandler = async ({ request }) => {
 							log('  SKIP event: no employee for pass', seria, num, 'name:', r[0]);
 							continue;
 						}
+						const t = normTime(r[2]);
+						if (events.length < 5) {
+							log('  FILE raw:', JSON.stringify(r.slice(0, 8)), '→ date:', nd, 'time:', t);
+						}
 						events.push({
 							employeeId: ep.employeeId,
 							passId: ep.passId,
 							date: nd,
-							time: normTime(r[2]),
+							time: t,
 							event: String(r[4]).trim()
 						});
 					}
+					log('  FILE events parsed:', events.length);
 
 					// Загружаем справочники
 					const schedRows = await db.select().from(schedule);
@@ -446,17 +458,47 @@ export const POST: RequestHandler = async ({ request }) => {
 						const normalized = d.substring(0, 19);
 						existingSet.add(ee.employeeId + '|' + normalized + '|' + ee.eventId);
 					}
+					log(
+						'  DB existing events count:',
+						existingEvents.length,
+						'(период',
+						minDate,
+						'…',
+						maxDate,
+						')'
+					);
+					for (const ee of existingEvents.slice(0, 5)) {
+						const d = ee.datetime instanceof Date ? ee.datetime.toISOString() : String(ee.datetime);
+						log('    DB datetime:', {
+							raw: ee.datetime,
+							iso: d,
+							normalized: d.substring(0, 19),
+							employeeId: ee.employeeId,
+							eventId: ee.eventId
+						});
+					}
+					log('  existingSet keys (sample):', [...existingSet].slice(0, 5));
 
 					// Отбираем новые события
 					const newTurnstileEvents: typeof events = [];
+					let keySampleLogged = 0;
 					for (const ev of events) {
 						const eventId = eventByName.get(ev.event);
 						if (!eventId) continue;
-						const key = ev.employeeId + '|' + ev.date + 'T' + ev.time + '|' + eventId;
+						// Ключ в UTC — как хранится в БД (datetime = local + tzOffset)
+						const dtUtc = new Date(ev.date + 'T' + ev.time + tzOffset)
+							.toISOString()
+							.substring(0, 19);
+						const key = ev.employeeId + '|' + dtUtc + '|' + eventId;
+						if (keySampleLogged < 5) {
+							keySampleLogged++;
+							log('  FILE key:', key, '| in existingSet:', existingSet.has(key));
+						}
 						if (!existingSet.has(key)) {
 							newTurnstileEvents.push(ev);
 						}
 					}
+					log('  NEW events after dedup:', newTurnstileEvents.length, '/', events.length);
 
 					// Сохраняем батчами
 					if (newTurnstileEvents.length > 0) {
@@ -510,16 +552,59 @@ export const POST: RequestHandler = async ({ request }) => {
 						});
 					}
 
-					// Группируем по сотруднику, сортируем
+					// Затронутые сотрудники — те, у кого в этом файле появились новые события.
+					// Для них пересчитываем период целиком из событий трекера (включая уже обработанные
+					// пары из прошлых прогонов), чтобы часы за день не затирали друг друга при
+					// инкрементальном импорте.
+					const affectedEmpIds = new Set(newTurnstileEvents.map((e) => e.employeeId));
+
+					// Период пересчёта по локальному времени: с 00:00 дня, предшествующего minDate,
+					// до 23:59 maxDate — захватывает ночные смены и висячие входы.
+					const recalcFromLocal = new Date(minDate + 'T00:00:00' + tzOffset);
+					recalcFromLocal.setHours(recalcFromLocal.getHours() - 24);
+					const recalcToLocal = new Date(maxDate + 'T23:59:59' + tzOffset);
+
+					let trackerRows: { employeeId: number; datetime: Date | string; eventId: number }[] = [];
+					if (affectedEmpIds.size > 0) {
+						trackerRows = await db
+							.select({
+								employeeId: turnstileEventTracker.employeeId,
+								datetime: turnstileEventTracker.datetime,
+								eventId: turnstileEventTracker.eventId
+							})
+							.from(turnstileEventTracker)
+							.where(
+								and(
+									inArray(turnstileEventTracker.employeeId, [...affectedEmpIds]),
+									gte(
+										turnstileEventTracker.datetime,
+										new Date(recalcFromLocal.getTime() - tzOffsetMs)
+									),
+									lte(
+										turnstileEventTracker.datetime,
+										new Date(recalcToLocal.getTime() - tzOffsetMs)
+									)
+								)
+							);
+					}
+
 					const byEmp = new Map<number, typeof events>();
-					for (const e of newTurnstileEvents) {
-						if (!byEmp.has(e.employeeId)) byEmp.set(e.employeeId, []);
-						byEmp.get(e.employeeId)!.push(e);
+					for (const tr of trackerRows) {
+						const dt = tr.datetime instanceof Date ? tr.datetime : new Date(tr.datetime);
+						const local = new Date(dt.getTime() + tzOffsetMs);
+						const et = eventTypeRows.find((et) => et.id === tr.eventId);
+						if (!et) continue;
+						const date = local.toISOString().split('T')[0];
+						const time = local.toISOString().split('T')[1].substring(0, 8);
+						if (!byEmp.has(tr.employeeId)) byEmp.set(tr.employeeId, []);
+						byEmp
+							.get(tr.employeeId)!
+							.push({ employeeId: tr.employeeId, passId: 0, date, time, event: et.name });
 					}
 					for (const [, evs] of byEmp)
 						evs.sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-					log('  events to process:', newTurnstileEvents.length, 'employees:', byEmp.size);
+					log('  events to process:', trackerRows.length, 'employees:', byEmp.size);
 					for (const [eid, evs] of byEmp) {
 						log('    emp', eid, empNameMap.get(eid) || '?', 'events:', evs.length);
 					}
@@ -543,31 +628,48 @@ export const POST: RequestHandler = async ({ request }) => {
 						empIdx++;
 						let last: (typeof evs)[0] | null = null;
 
-						// Ищем последний незакрытый вход из БД (событие могло быть до периода файла)
-						const [lastTrackerEvent] = await db
-							.select({
-								datetime: turnstileEventTracker.datetime,
-								eventId: turnstileEventTracker.eventId
-							})
-							.from(turnstileEventTracker)
-							.where(eq(turnstileEventTracker.employeeId, empId))
-							.orderBy(desc(turnstileEventTracker.datetime))
-							.limit(1);
+						// Ищем последний незакрытый вход из БД (событие могло быть до периода пересчёта).
+						// Берём только события строго раньше первого события сотрудника в периоде —
+						// иначе в last может попасть «висячий» вход из этого же периода (последний вход без
+						// выхода), и он будет неправильно спарен с более ранним выходом.
+						const firstEv = evs[0];
+						const firstUtc = firstEv
+							? new Date(firstEv.date + 'T' + firstEv.time + tzOffset)
+							: null;
 
-						if (lastTrackerEvent) {
-							const eventType = eventTypeRows.find((et) => et.id === lastTrackerEvent.eventId);
-							if (eventType && eventType.name.includes('Вход')) {
-								const dt =
-									lastTrackerEvent.datetime instanceof Date
-										? lastTrackerEvent.datetime
-										: new Date(lastTrackerEvent.datetime);
-								last = {
-									employeeId: empId,
-									passId: 0,
-									date: dt.toISOString().split('T')[0],
-									time: dt.toISOString().split('T')[1].substring(0, 8),
-									event: eventType.name
-								};
+						if (firstUtc && !isNaN(firstUtc.getTime())) {
+							const [lastTrackerEvent] = await db
+								.select({
+									datetime: turnstileEventTracker.datetime,
+									eventId: turnstileEventTracker.eventId
+								})
+								.from(turnstileEventTracker)
+								.where(
+									and(
+										eq(turnstileEventTracker.employeeId, empId),
+										lt(turnstileEventTracker.datetime, firstUtc)
+									)
+								)
+								.orderBy(desc(turnstileEventTracker.datetime))
+								.limit(1);
+
+							if (lastTrackerEvent) {
+								const eventType = eventTypeRows.find((et) => et.id === lastTrackerEvent.eventId);
+								if (eventType && eventType.name.includes('Вход')) {
+									const dt =
+										lastTrackerEvent.datetime instanceof Date
+											? lastTrackerEvent.datetime
+											: new Date(lastTrackerEvent.datetime);
+									// В БД время в UTC, события файла — в локальном (tzOffset): приводим к локальному
+									const local = new Date(dt.getTime() + tzOffsetMs);
+									last = {
+										employeeId: empId,
+										passId: 0,
+										date: local.toISOString().split('T')[0],
+										time: local.toISOString().split('T')[1].substring(0, 8),
+										event: eventType.name
+									};
+								}
 							}
 						}
 
@@ -739,7 +841,10 @@ export const POST: RequestHandler = async ({ request }) => {
 								}
 
 								shift = roundedExit - roundedEnter;
-								if (shift < 0) shift += 1440;
+								// Отрицательный результат после «снаппинга» к плановым точкам графика (напр., короткая
+								// пара: вход округлился вперёд к плану, а выход остался реальным) — это не ночная
+								// смена, а ошибка округления. Ночной перенос уже учтён в raw (raw += 1440 выше).
+								if (shift < 0) shift = raw;
 
 								if (bp && bp.endTime) {
 									const bkStart = parseTime(bp.time);
@@ -763,8 +868,9 @@ export const POST: RequestHandler = async ({ request }) => {
 							let night = 0;
 							if (isNext || exit > nightStartMin || enter < nightEndMin) {
 								if (isNext) {
+									// Ночь: [00:00 → 06:00] + [22:00 → 24:00]. Время до 22:00 ночью не является.
 									night += Math.min(exit, nightEndMin);
-									if (enter < nightStartMin) night += nightStartMin - Math.max(enter, 0);
+									night += Math.max(0, 1440 - Math.max(enter, nightStartMin));
 								} else {
 									if (enter < nightEndMin && exit > nightEndMin)
 										night += Math.min(exit, nightEndMin) - enter;
@@ -773,7 +879,7 @@ export const POST: RequestHandler = async ({ request }) => {
 							}
 							night = Math.round(night);
 
-							const key = `${empId}|${ev.date}`;
+							const key = `${empId}|${last.date}`;
 							if (!agg.has(key))
 								agg.set(key, {
 									minutes: 0,
@@ -833,8 +939,6 @@ export const POST: RequestHandler = async ({ request }) => {
 							rawNightWorkTime: a.night,
 							shiftWorkTime: a.minutes,
 							shiftNightWorkTime: a.night,
-							reportWorkTime: a.minutes,
-							reportNightWorkTime: a.night,
 							scheduleId: a.scheduleId
 						});
 						saved++;
@@ -846,12 +950,11 @@ export const POST: RequestHandler = async ({ request }) => {
 								.onConflictDoUpdate({
 									target: [worktimeTracker.employeeId, worktimeTracker.date],
 									set: {
+										// report_* не трогаем: отчётные часы заполняет только табельщик вручную
 										rawWorkTime: sql`EXCLUDED.raw_work_time`,
 										rawNightWorkTime: sql`EXCLUDED.raw_night_work_time`,
 										shiftWorkTime: sql`EXCLUDED.shift_work_time`,
 										shiftNightWorkTime: sql`EXCLUDED.shift_night_work_time`,
-										reportWorkTime: sql`EXCLUDED.report_work_time`,
-										reportNightWorkTime: sql`EXCLUDED.report_night_work_time`,
 										isNightShift: sql`EXCLUDED.is_night_shift`,
 										dayMarkCode: sql`EXCLUDED.day_mark_code`
 									}
@@ -873,12 +976,11 @@ export const POST: RequestHandler = async ({ request }) => {
 							.onConflictDoUpdate({
 								target: [worktimeTracker.employeeId, worktimeTracker.date],
 								set: {
+									// report_* не трогаем: отчётные часы заполняет только табельщик вручную
 									rawWorkTime: sql`EXCLUDED.raw_work_time`,
 									rawNightWorkTime: sql`EXCLUDED.raw_night_work_time`,
 									shiftWorkTime: sql`EXCLUDED.shift_work_time`,
 									shiftNightWorkTime: sql`EXCLUDED.shift_night_work_time`,
-									reportWorkTime: sql`EXCLUDED.report_work_time`,
-									reportNightWorkTime: sql`EXCLUDED.report_night_work_time`,
 									isNightShift: sql`EXCLUDED.is_night_shift`,
 									dayMarkCode: sql`EXCLUDED.day_mark_code`
 								}
@@ -923,7 +1025,8 @@ export const POST: RequestHandler = async ({ request }) => {
 };
 
 /** ФАЗА 2: создание пропусков (быстрая операция, без SSE) */
-export const PUT: RequestHandler = async ({ request }) => {
+export const PUT: RequestHandler = async ({ request, locals }) => {
+	requireAdmin(locals.user);
 	try {
 		const { unresolved } = (await request.json()) as {
 			unresolved: { seria: string; number: string; employeeId: number }[];

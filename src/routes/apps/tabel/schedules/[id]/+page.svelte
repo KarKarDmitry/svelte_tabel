@@ -1,14 +1,21 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
+	import TimeInput from '$lib/components/DatetimePick/TimeInput.svelte';
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { enhance } from '$app/forms';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import type { PageServerData } from './$types';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let canEdit = $derived(page.data.canEdit ?? false);
 
 	let schedule = $derived(data.schedule);
 	let points: any[] = $derived(data.schedule.points ?? []);
@@ -190,7 +197,7 @@
 	<!-- Шапка -->
 	<div class="flex items-center gap-4">
 		<a href="/apps/tabel/schedules" class="text-sm text-gray-500 hover:text-gray-700">
-			← Назад к списку
+			<ArrowLeft class="mr-1 inline size-4" />Назад к списку
 		</a>
 		<h1 class="text-2xl font-bold text-gray-900">{schedule.name}</h1>
 	</div>
@@ -205,57 +212,66 @@
 		<TabsContent value="main">
 			<Card>
 				<CardContent>
-					<form method="post" action="?/update" class="flex flex-col gap-4" use:enhance>
-						<input type="hidden" name="weekDays" value={weekDays.join(',')} />
-						<input type="hidden" name="hours" value={hoursMinutes} />
+					{#if canEdit}
+						<form method="post" action="?/update" class="flex flex-col gap-4" use:enhance>
+							<input type="hidden" name="weekDays" value={weekDays.join(',')} />
+							<input type="hidden" name="hours" value={hoursMinutes} />
 
-						<div class="flex flex-col gap-1">
-							<label class="text-sm font-medium"
-								>Название
-								<Input
-									name="name"
-									value={nameVal}
-									oninput={(e) => (nameVal = (e.target as HTMLInputElement).value)}
-									required
-								/>
-							</label>
+							<div class="flex flex-col gap-1">
+								<Label
+									>Название
+									<Input
+										name="name"
+										value={nameVal}
+										oninput={(e) => (nameVal = (e.target as HTMLInputElement).value)}
+										required
+									/>
+								</Label>
+							</div>
+
+							<div class="flex flex-col gap-1">
+								<Label
+									>Норма (часов в день)
+									<TimeInput
+										name="hours"
+										value={hoursMinutes}
+										onchange={(v) => (hoursMinutes = v)}
+									/>
+								</Label>
+							</div>
+
+							<div class="flex flex-col gap-1">
+								<Label
+									>Рабочие дни
+									<div class="flex flex-wrap gap-2">
+										{#each dayNames as name, i}
+											<Button
+												type="button"
+												variant={weekDays.includes(i + 1) ? 'default' : 'outline'}
+												size="sm"
+												onclick={() => {
+													const idx = weekDays.indexOf(i + 1);
+													if (idx >= 0) weekDays = weekDays.filter((d) => d !== i + 1);
+													else weekDays = [...weekDays, i + 1].sort();
+												}}>{name}</Button
+											>
+										{/each}
+									</div>
+								</Label>
+							</div>
+
+							<Button type="button" onclick={saveMain}>Сохранить</Button>
+						</form>
+					{:else}
+						<div class="space-y-2 text-sm">
+							<p><span class="text-xs text-gray-500">Название</span><br />{schedule.name}</p>
+							<p>
+								<span class="text-xs text-gray-500">Норма</span><br />
+								{hoursMinutes} · {dayNames.filter((_, i) => weekDays.includes(i + 1)).join(', ') ||
+									'—'}
+							</p>
 						</div>
-
-						<div class="flex flex-col gap-1">
-							<label class="text-sm font-medium"
-								>Норма (часов в день)
-								<Input
-									name="hours"
-									type="time"
-									value={hoursMinutes}
-									oninput={(e) => (hoursMinutes = (e.target as HTMLInputElement).value)}
-									required
-								/>
-							</label>
-						</div>
-
-						<div class="flex flex-col gap-1">
-							<label class="text-sm font-medium"
-								>Рабочие дни
-								<div class="flex flex-wrap gap-2">
-									{#each dayNames as name, i}
-										<Button
-											type="button"
-											variant={weekDays.includes(i + 1) ? 'default' : 'outline'}
-											size="sm"
-											onclick={() => {
-												const idx = weekDays.indexOf(i + 1);
-												if (idx >= 0) weekDays = weekDays.filter((d) => d !== i + 1);
-												else weekDays = [...weekDays, i + 1].sort();
-											}}>{name}</Button
-										>
-									{/each}
-								</div>
-							</label>
-						</div>
-
-						<Button type="button" onclick={saveMain}>Сохранить</Button>
-					</form>
+					{/if}
 				</CardContent>
 			</Card>
 		</TabsContent>
@@ -284,7 +300,7 @@
 								<button
 									class="absolute top-1/2 z-10 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center"
 									style="left: {pct}%"
-									onclick={() => openEdit(pt)}
+									onclick={canEdit ? () => openEdit(pt) : undefined}
 								>
 									<span
 										class="text-lg {pt.type === 'Break'
@@ -322,18 +338,20 @@
 				<!-- Список точек -->
 				<div class="flex items-center justify-between pt-6 pb-4">
 					<h2 class="text-lg font-semibold">Точки графика ({points.length})</h2>
-					<Button size="sm" onclick={openAdd}>+ Добавить точку</Button>
+					{#if canEdit}
+						<Button size="sm" onclick={openAdd}>+ Добавить точку</Button>
+					{/if}
 				</div>
 
 				<div class="space-y-2">
 					{#each sortedPoints as pt, i}
 						<Card
 							class="cursor-pointer p-0 transition-shadow hover:shadow-md"
-							onclick={() => openEdit(pt)}
+							onclick={canEdit ? () => openEdit(pt) : undefined}
 						>
 							<CardContent class="flex items-center justify-between gap-4 p-3">
-								<div class="flex items-center gap-3">
-									<div class="flex flex-col gap-0.5">
+								<div class="flex items-center gap-0.5">
+									{#if canEdit}
 										<Button
 											variant="ghost"
 											size="sm"
@@ -354,30 +372,32 @@
 												movePoint(i, 1);
 											}}>▼</Button
 										>
-									</div>
-									<div class="h-3 w-3 rounded-full {pointColors[pt.type]}"></div>
-									<div>
-										<span class="font-medium">{pointLabels[pt.type]}</span>
-										<span class="ml-2 text-gray-500">
-											{pt.type === 'Break' ? `${pt.time} — ${pt.endTime}` : pt.time}
-										</span>
-									</div>
+									{/if}
+								</div>
+								<div class="h-3 w-3 rounded-full {pointColors[pt.type]}"></div>
+								<div>
+									<span class="font-medium">{pointLabels[pt.type]}</span>
+									<span class="ml-2 text-gray-500">
+										{pt.type === 'Break' ? `${pt.time} — ${pt.endTime}` : pt.time}
+									</span>
 								</div>
 								<div class="flex items-center gap-4 text-sm text-gray-500">
 									<span title="Можно раньше / Можно позже"
 										>−{formatBound(pt.leftBound)} / +{formatBound(pt.rightBound)}</span
 									>
-									<Button
-										variant="ghost"
-										size="sm"
-										class="text-red-500 hover:text-red-700"
-										onclick={(e) => {
-											e.stopPropagation();
-											deletePoint(pt.id);
-										}}
-									>
-										✕
-									</Button>
+									{#if canEdit}
+										<Button
+											variant="ghost"
+											size="sm"
+											class="text-red-500 hover:text-red-700"
+											onclick={(e) => {
+												e.stopPropagation();
+												deletePoint(pt.id);
+											}}
+										>
+											✕
+										</Button>
+									{/if}
 								</div>
 							</CardContent>
 						</Card>
@@ -396,50 +416,50 @@
 				<p class="font-bold">{addMode ? 'Добавить точку' : 'Редактировать точку'}</p>
 
 				<div class="flex flex-col gap-1">
-					<label class="text-sm font-medium">
+					<Label>
 						Тип
-						<select
-							class="w-full rounded-md border border-input px-3 py-2 text-sm"
+						<Select
+							type="single"
 							value={editPoint?.type ?? 'Entry'}
-							onchange={(e) =>
-								(editPoint = { ...editPoint, type: (e.target as HTMLSelectElement).value })}
+							onValueChange={(v) => (editPoint = { ...editPoint, type: v ?? 'Entry' })}
 						>
-							{#each Object.entries(pointLabels) as [type, label]}
-								<option value={type}>{label}</option>
-							{/each}
-						</select>
-					</label>
+							<SelectTrigger class="w-full">
+								<span>{pointLabels[editPoint?.type ?? 'Entry']}</span>
+							</SelectTrigger>
+							<SelectContent>
+								{#each Object.entries(pointLabels) as [type, label]}
+									<SelectItem value={type}>{label}</SelectItem>
+								{/each}
+							</SelectContent>
+						</Select>
+					</Label>
 				</div>
 
 				<div class="flex flex-col gap-1">
-					<label class="text-sm font-medium">
+					<Label>
 						Время
-						<Input
-							type="time"
+						<TimeInput
 							value={editPoint?.time ?? '08:00'}
-							oninput={(e) =>
-								(editPoint = { ...editPoint, time: (e.target as HTMLInputElement).value })}
+							onchange={(v) => (editPoint = { ...editPoint, time: v })}
 						/>
-					</label>
+					</Label>
 				</div>
 
 				{#if editPoint?.type === 'Break'}
 					<div class="flex flex-col gap-1">
-						<label class="text-sm font-medium">
+						<Label>
 							Конец перерыва
-							<Input
-								type="time"
+							<TimeInput
 								value={editPoint?.endTime ?? ''}
-								oninput={(e) =>
-									(editPoint = { ...editPoint, endTime: (e.target as HTMLInputElement).value })}
+								onchange={(v) => (editPoint = { ...editPoint, endTime: v })}
 							/>
-						</label>
+						</Label>
 					</div>
 				{/if}
 
 				<div class="grid grid-cols-2 gap-4">
 					<div class="flex flex-col gap-1">
-						<label class="text-sm font-medium">
+						<Label>
 							Можно раньше (мин)
 							<Input
 								type="number"
@@ -451,10 +471,10 @@
 										leftBound: Number((e.target as HTMLInputElement).value)
 									})}
 							/>
-						</label>
+						</Label>
 					</div>
 					<div class="flex flex-col gap-1">
-						<label class="text-sm font-medium">
+						<Label>
 							Можно позже (мин)
 							<Input
 								type="number"
@@ -466,7 +486,7 @@
 										rightBound: Number((e.target as HTMLInputElement).value)
 									})}
 							/>
-						</label>
+						</Label>
 					</div>
 				</div>
 

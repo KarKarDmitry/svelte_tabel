@@ -3,6 +3,7 @@ import { departmentGroupService } from '$lib/server/db/apps/tabel/services/depar
 import { department } from '$lib/server/db/apps/tabel/tables/department';
 import { db } from '$lib/server/db';
 import { asc } from 'drizzle-orm';
+import { denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async () => {
 	const groups = await departmentGroupService.listWithDepartments();
@@ -12,6 +13,8 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	create: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.create({
 			name: f.get('name')?.toString() || '',
@@ -20,16 +23,22 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	update: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.update(Number(f.get('id')), { name: f.get('name')?.toString() });
 		return { success: true };
 	},
 	remove: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.remove(Number(f.get('id')));
 		return { success: true };
 	},
 	addDept: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.addDepartment(
 			Number(f.get('groupId')),
@@ -38,6 +47,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	removeDept: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.removeDepartment(
 			Number(f.get('groupId')),
@@ -46,6 +57,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	saveDepts: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		const groupId = Number(f.get('groupId'));
 		const deptIds = f.getAll('departmentIds').map(Number);

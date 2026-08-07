@@ -2,8 +2,11 @@
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import SpecialDaysCalendar from './SpecialDaysCalendar.svelte';
 	import { toast } from 'svelte-sonner';
@@ -11,6 +14,7 @@
 	let rules = $derived($page.data.rules);
 	let allSchedules = $derived($page.data.allSchedules);
 	let templateId = $derived($page.params.id);
+	let canEdit = $derived($page.data.canEdit ?? false);
 
 	let editOpen = $state(false);
 	let editRule = $state<any>(null);
@@ -150,22 +154,26 @@
 
 <div class="flex items-center justify-between">
 	<h2 class="text-lg font-semibold">Особые дни ({rules.length})</h2>
-	<Button onclick={openCreate}>+ Добавить один</Button>
+	{#if canEdit}
+		<Button onclick={openCreate}>+ Добавить один</Button>
+	{/if}
 </div>
 
 <div class="mt-3 grid gap-4 lg:grid-cols-[320px_1fr]">
-	<!-- Календарь -->
-	<div class="flex flex-col gap-2">
-		<SpecialDaysCalendar
-			{rules}
-			bind:selected={selectedDays}
-			bind:month={calMonth}
-			onRuleClick={(rule) => openEdit(rule)}
-		/>
-		<Button onclick={openBulk} disabled={selectedDays.size === 0}>
-			Добавить выбранные ({selectedDays.size})
-		</Button>
-	</div>
+	{#if canEdit}
+		<!-- Календарь -->
+		<div class="flex flex-col gap-2">
+			<SpecialDaysCalendar
+				{rules}
+				bind:selected={selectedDays}
+				bind:month={calMonth}
+				onRuleClick={(rule) => openEdit(rule)}
+			/>
+			<Button onclick={openBulk} disabled={selectedDays.size === 0}>
+				Добавить выбранные ({selectedDays.size})
+			</Button>
+		</div>
+	{/if}
 
 	<!-- Таблица -->
 	<div class="min-w-0">
@@ -178,11 +186,13 @@
 				{ key: 'preHoliday', label: 'Предпразд.' },
 				{ key: 'preSchedule', label: 'График' }
 			]}
-			rowActions={[
-				{ label: 'Редактировать', onclick: (row) => openEdit(row) },
-				{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
-			]}
-			onRowClick={(row) => openEdit(row)}
+			rowActions={canEdit
+				? [
+						{ label: 'Редактировать', onclick: (row) => openEdit(row) },
+						{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
+					]
+				: []}
+			onRowClick={canEdit ? (row) => openEdit(row) : undefined}
 		/>
 	</div>
 </div>
@@ -194,15 +204,18 @@
 			<p class="font-medium">{isCreate ? 'Новое' : 'Редактировать'} правило</p>
 
 			<div class="grid grid-cols-2 gap-2">
-				<select
-					name="month"
-					value={editRule?.month}
-					onchange={(e) =>
-						(editRule = { ...editRule, month: Number((e.target as HTMLSelectElement).value) })}
-					class="rounded-md border border-input px-3 py-2 text-sm"
+				<Select
+					type="single"
+					value={String(editRule?.month ?? 1)}
+					onValueChange={(v) => (editRule = { ...editRule, month: Number(v ?? 1) })}
 				>
-					{#each months as m, i}<option value={i + 1}>{m}</option>{/each}
-				</select>
+					<SelectTrigger class="w-full">
+						<span>{months[(editRule?.month ?? 1) - 1]}</span>
+					</SelectTrigger>
+					<SelectContent>
+						{#each months as m, i}<SelectItem value={String(i + 1)}>{m}</SelectItem>{/each}
+					</SelectContent>
+				</Select>
 				<Input
 					name="day"
 					type="number"
@@ -215,36 +228,40 @@
 				/>
 			</div>
 
-			<label class="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
+			<Label class="flex-row items-center gap-2">
+				<Checkbox
 					checked={editRule?.autoTransfer}
-					onchange={(e) =>
-						(editRule = { ...editRule, autoTransfer: (e.target as HTMLInputElement).checked })}
+					onCheckedChange={(c) => (editRule = { ...editRule, autoTransfer: c === true })}
 				/>
 				Переносить при выпадении на выходной
-			</label>
+			</Label>
 
-			<label class="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
+			<Label class="flex-row items-center gap-2">
+				<Checkbox
 					checked={editRule?.preHoliday}
-					onchange={(e) =>
-						(editRule = { ...editRule, preHoliday: (e.target as HTMLInputElement).checked })}
+					onCheckedChange={(c) => (editRule = { ...editRule, preHoliday: c === true })}
 				/>
 				Предпраздничный день
-			</label>
+			</Label>
 
 			{#if editRule?.preHoliday}
-				<select
-					value={editRule?.preScheduleId ?? ''}
-					onchange={(e) =>
-						(editRule = { ...editRule, preScheduleId: (e.target as HTMLSelectElement).value })}
-					class="rounded-md border border-input px-3 py-2 text-sm"
+				<Select
+					type="single"
+					value={String(editRule?.preScheduleId ?? '')}
+					onValueChange={(v) => (editRule = { ...editRule, preScheduleId: v ?? '' })}
 				>
-					<option value="">Выберите график</option>
-					{#each allSchedules as s}<option value={s.id}>{s.name}</option>{/each}
-				</select>
+					<SelectTrigger class="w-full">
+						<span
+							>{allSchedules.find(
+								(s: any) => String(s.id) === String(editRule?.preScheduleId ?? '')
+							)?.name ?? 'Выберите график'}</span
+						>
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="">Выберите график</SelectItem>
+						{#each allSchedules as s}<SelectItem value={String(s.id)}>{s.name}</SelectItem>{/each}
+					</SelectContent>
+				</Select>
 			{/if}
 
 			<Button onclick={save}>{isCreate ? 'Создать' : 'Сохранить'}</Button>
@@ -260,45 +277,39 @@
 				Добавить {selectedDays.size} дн. ({calMonth} месяц)
 			</p>
 
-			<label class="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
+			<Label class="flex-row items-center gap-2">
+				<Checkbox
 					checked={bulkSettings.autoTransfer}
-					onchange={(e) =>
-						(bulkSettings = {
-							...bulkSettings,
-							autoTransfer: (e.target as HTMLInputElement).checked
-						})}
+					onCheckedChange={(c) => (bulkSettings = { ...bulkSettings, autoTransfer: c === true })}
 				/>
 				Переносить при выпадении на выходной
-			</label>
+			</Label>
 
-			<label class="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
+			<Label class="flex-row items-center gap-2">
+				<Checkbox
 					checked={bulkSettings.preHoliday}
-					onchange={(e) =>
-						(bulkSettings = {
-							...bulkSettings,
-							preHoliday: (e.target as HTMLInputElement).checked
-						})}
+					onCheckedChange={(c) => (bulkSettings = { ...bulkSettings, preHoliday: c === true })}
 				/>
 				Предпраздничный день
-			</label>
+			</Label>
 
 			{#if bulkSettings.preHoliday}
-				<select
+				<Select
+					type="single"
 					value={bulkSettings.preScheduleId}
-					onchange={(e) =>
-						(bulkSettings = {
-							...bulkSettings,
-							preScheduleId: (e.target as HTMLSelectElement).value
-						})}
-					class="rounded-md border border-input px-3 py-2 text-sm"
+					onValueChange={(v) => (bulkSettings = { ...bulkSettings, preScheduleId: v ?? '' })}
 				>
-					<option value="">Выберите график</option>
-					{#each allSchedules as s}<option value={s.id}>{s.name}</option>{/each}
-				</select>
+					<SelectTrigger class="w-full">
+						<span
+							>{allSchedules.find((s: any) => String(s.id) === bulkSettings.preScheduleId)?.name ??
+								'Выберите график'}</span
+						>
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="">Выберите график</SelectItem>
+						{#each allSchedules as s}<SelectItem value={String(s.id)}>{s.name}</SelectItem>{/each}
+					</SelectContent>
+				</Select>
 			{/if}
 
 			<Button onclick={saveBulk}>Создать</Button>

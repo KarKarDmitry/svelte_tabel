@@ -1,6 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
 import { redirect } from '@sveltejs/kit';
+import { denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async () => {
 	const calendars = await calendarService.listCalendars();
@@ -10,6 +11,8 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	generate: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		const name = f.get('name')?.toString() || '';
 		const templateId = Number(f.get('templateId'));
@@ -24,12 +27,16 @@ export const actions: Actions = {
 	},
 
 	delete: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await calendarService.removeCalendar(id);
 		return { success: true };
 	},
 
 	setDefault: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await calendarService.setDefaultCalendar(id);
 		return { success: true };

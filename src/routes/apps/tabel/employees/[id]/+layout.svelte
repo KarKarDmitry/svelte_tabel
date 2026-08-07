@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { Badge } from '$lib/components/ui/badge';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -39,8 +40,8 @@
 <div class="space-y-6">
 	<div class="flex items-start justify-between">
 		<div>
-			<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700"
-				>← Назад к списку</a
+			<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700">
+				<ArrowLeft class="mr-1 inline size-4" />Назад к списку</a
 			>
 			<h1 class="mt-1 text-2xl font-bold text-gray-900">
 				{emp.lastName}

@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const GET = async (event) => {
 	const id = Number(event.params.id);
@@ -9,6 +10,7 @@ export const GET = async (event) => {
 };
 
 export const PATCH = async (event) => {
+	requireEdit(event.locals.user);
 	const id = Number(event.params.id);
 	const f = await event.request.formData();
 	const name = f.get('name')?.toString();

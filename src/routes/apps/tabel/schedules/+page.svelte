@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent, DialogHeader } from '$lib/components/ui/dialog';
+	import TimeInput from '$lib/components/DatetimePick/TimeInput.svelte';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import { goto, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
@@ -10,6 +12,8 @@
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let canEdit = $derived(page.data.canEdit ?? false);
 
 	const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
@@ -55,15 +59,17 @@
 <div class="space-y-2">
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-900">Графики работы</h1>
-		<Button
-			onclick={() => {
-				weekDays = [1, 2, 3, 4, 5];
-				hoursTime = '08:00';
-				createOpen = true;
-			}}
-		>
-			Добавить график
-		</Button>
+		{#if canEdit}
+			<Button
+				onclick={() => {
+					weekDays = [1, 2, 3, 4, 5];
+					hoursTime = '08:00';
+					createOpen = true;
+				}}
+			>
+				Добавить график
+			</Button>
+		{/if}
 	</div>
 
 	{#snippet renderCell(value: any, row: any, col: any)}
@@ -119,25 +125,18 @@
 				<input type="hidden" name="weekDays" value={weekDays.join(',')} />
 
 				<div class="flex flex-col gap-1">
-					<label for="name" class="text-sm font-medium">Название</label>
+					<Label for="name">Название</Label>
 					<Input id="name" name="name" placeholder="Например: Стандартный 8:00–17:00" required />
 				</div>
 
 				<div class="flex flex-col gap-1">
-					<label for="hours" class="text-sm font-medium">Норма (часов в день)</label>
-					<Input
-						id="hours"
-						name="hours"
-						type="time"
-						value={hoursTime}
-						oninput={(e) => (hoursTime = (e.target as HTMLInputElement).value)}
-						required
-					/>
+					<Label for="hours">Норма (часов в день)</Label>
+					<TimeInput name="hours" value={hoursTime} onchange={(v) => (hoursTime = v)} />
 				</div>
 
 				<div class="flex flex-col gap-1">
-					<label class="text-sm font-medium"
-						>Рабочие дни
+					<Label>
+						Рабочие дни
 						<div class="flex flex-wrap gap-2">
 							{#each dayNames as name, i}
 								<Button
@@ -150,7 +149,7 @@
 								</Button>
 							{/each}
 						</div>
-					</label>
+					</Label>
 				</div>
 
 				<Button type="submit">Создать и перейти к точкам</Button>

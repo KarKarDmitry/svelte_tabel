@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Label } from '$lib/components/ui/label';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
+	import TimeInput from '$lib/components/DatetimePick/TimeInput.svelte';
+	import DatePicker from '$lib/components/DatetimePick/DatePicker.svelte';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 
 	let days = $derived($page.data.days);
 	let cal = $derived($page.data.calendar);
 	let schedules = $derived($page.data.allSchedules);
+	let canEdit = $derived($page.data.canEdit ?? false);
 
 	let editDay = $state<any>(null);
 	let editOpen = $state(false);
@@ -133,9 +138,28 @@
 		{ key: 'transferFrom', label: 'Перенос с' }
 	]}
 	{cell}
-	rowActions={[{ label: 'Редактировать', onclick: (row) => openEdit(row) }]}
-	onRowClick={(row) => openEdit(row)}
+	rowActions={canEdit ? [{ label: 'Редактировать', onclick: (row) => openEdit(row) }] : []}
+	onRowClick={canEdit ? (row) => openEdit(row) : undefined}
 />
+
+{#snippet scheduleSelect()}
+	<Select
+		type="single"
+		value={String(editDay?.preScheduleId ?? '')}
+		onValueChange={(v) => (editDay = { ...editDay, preScheduleId: v ?? '' })}
+	>
+		<SelectTrigger class="w-full">
+			<span
+				>{schedules.find((s: any) => String(s.id) === String(editDay?.preScheduleId ?? ''))?.name ??
+					'Выберите график'}</span
+			>
+		</SelectTrigger>
+		<SelectContent>
+			<SelectItem value="">Выберите график</SelectItem>
+			{#each schedules as s}<SelectItem value={String(s.id)}>{s.name}</SelectItem>{/each}
+		</SelectContent>
+	</Select>
+{/snippet}
 
 <Dialog bind:open={editOpen}>
 	<DialogContent>
@@ -143,83 +167,60 @@
 			<p class="font-medium">{editDay?.date} — {allDayTypeLabels[editDay?.dayType] || ''}</p>
 
 			<div class="flex flex-col gap-1">
-				<label for="dayType" class="text-sm font-medium">Тип дня</label>
-				<select
-					id="dayType"
-					value={editDay?.dayType}
-					onchange={(e) => onTypeChange((e.target as HTMLSelectElement).value)}
-					class="rounded-md border border-input px-3 py-2 text-sm"
-				>
-					{#each Object.entries(allDayTypeLabels) as [key, label]}<option value={key}
-							>{label}</option
-						>{/each}
-				</select>
+				<Label for="dayType">Тип дня</Label>
+				<Select type="single" value={editDay?.dayType} onValueChange={(v) => onTypeChange(v ?? '')}>
+					<SelectTrigger class="w-full">
+						<span>{allDayTypeLabels[editDay?.dayType] || ''}</span>
+					</SelectTrigger>
+					<SelectContent>
+						{#each Object.entries(allDayTypeLabels) as [key, label]}
+							<SelectItem value={key}>{label}</SelectItem>
+						{/each}
+					</SelectContent>
+				</Select>
 			</div>
 
 			<div class="flex flex-col gap-1">
-				<label for="workTimeStr" class="text-sm font-medium">Норма времени</label>
-				<Input
-					id="workTimeStr"
-					type="time"
+				<Label for="workTimeStr">Норма времени</Label>
+				<TimeInput
 					value={editDay?.workTimeStr ?? '08:00'}
-					oninput={(e) =>
-						(editDay = { ...editDay, workTimeStr: (e.target as HTMLInputElement).value })}
+					onchange={(v) => (editDay = { ...editDay, workTimeStr: v })}
 				/>
 			</div>
 
 			{#if editDay?.dayType === 'preholiday'}
 				<div class="flex flex-col gap-1">
-					<label for="preScheduleId" class="text-sm font-medium">График</label>
-					<select
-						id="preScheduleId"
-						bind:value={editDay.preScheduleId}
-						class="rounded-md border border-input px-3 py-2 text-sm"
-					>
-						<option value="">Выберите график</option>
-						{#each schedules as s}<option value={s.id}>{s.name}</option>{/each}
-					</select>
+					<Label for="preScheduleId">График</Label>
+					{@render scheduleSelect()}
 				</div>
 			{/if}
 
 			{#if editDay?.dayType === 'holiday'}
-				<label class="flex items-center gap-2 text-sm">
-					<input
-						type="checkbox"
+				<Label class="flex-row items-center gap-2">
+					<Checkbox
 						checked={editDay?.autoTransfer ?? true}
-						onchange={(e) =>
-							(editDay = { ...editDay, autoTransfer: (e.target as HTMLInputElement).checked })}
+						onCheckedChange={(c) => (editDay = { ...editDay, autoTransfer: c === true })}
 					/>
 					Переносить при выпадении на выходной
-				</label>
-				<label class="flex items-center gap-2 text-sm">
-					<input
-						type="checkbox"
+				</Label>
+				<Label class="flex-row items-center gap-2">
+					<Checkbox
 						checked={editDay?.preHoliday ?? true}
-						onchange={(e) =>
-							(editDay = { ...editDay, preHoliday: (e.target as HTMLInputElement).checked })}
+						onCheckedChange={(c) => (editDay = { ...editDay, preHoliday: c === true })}
 					/>
 					Предпраздничный день
-				</label>
+				</Label>
 				{#if editDay?.preHoliday}
-					<select
-						bind:value={editDay.preScheduleId}
-						class="rounded-md border border-input px-3 py-2 text-sm"
-					>
-						<option value="">Выберите график</option>
-						{#each schedules as s}<option value={s.id}>{s.name}</option>{/each}
-					</select>
+					{@render scheduleSelect()}
 				{/if}
 			{/if}
 
 			{#if editDay?.dayType === 'transferred_workday'}
 				<div class="flex flex-col gap-1">
-					<label for="transferFrom" class="text-sm font-medium">Перенос с</label>
-					<Input
-						id="transferFrom"
-						type="date"
+					<Label for="transferFrom">Перенос с</Label>
+					<DatePicker
 						value={editDay?.transferFrom ?? ''}
-						oninput={(e) =>
-							(editDay = { ...editDay, transferFrom: (e.target as HTMLInputElement).value })}
+						onchange={(v) => (editDay = { ...editDay, transferFrom: v })}
 					/>
 				</div>
 			{/if}

@@ -1,0 +1,377 @@
+/* Общие стили нативных (XP-совместимых) страниц /native/apps/... */
+
+.native-page {
+	min-height: 100vh;
+	background: #ffffff;
+	color: #232323;
+	padding: 16px;
+	font-family: Arial, sans-serif;
+	font-size: 14px;
+}
+.native-nav {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px;
+	border-bottom: 1px solid #d0d0d0;
+	padding-bottom: 8px;
+	margin-bottom: 16px;
+}
+.native-brand {
+	font-weight: bold;
+}
+.native-link {
+	color: #383838;
+	text-decoration: underline;
+}
+.native-link.active {
+	color: #232323;
+	text-decoration: none;
+}
+.native-spacer {
+	flex: 1;
+}
+.native-exit {
+	color: #888888;
+	text-decoration: underline;
+}
+
+.native-title {
+	font-size: 20px;
+	font-weight: bold;
+	color: #232323;
+	margin: 0 0 10px;
+}
+.native-note {
+	color: #888888;
+	margin: 0 0 10px;
+}
+
+.native-navlinks {
+	margin-bottom: 14px;
+}
+.native-navlinks a {
+	color: #383838;
+	margin-right: 12px;
+}
+.native-sep {
+	margin-right: 12px;
+	color: #d0d0d0;
+}
+
+/* Collapsible (группы/подразделения) */
+.xp-collapsible {
+	margin-top: 10px;
+}
+.xp-header {
+	background-color: #383838;
+	color: #fafafa;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 13px;
+	font-weight: bold;
+	padding: 6px 10px;
+	cursor: pointer;
+	border: 1px solid #383838;
+	border-radius: 8px 8px 0 0;
+}
+.xp-indicator {
+	font-weight: normal;
+}
+.xp-content {
+	background-color: #ffffff;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+	padding: 4px;
+	border-left: 1px solid #9d9d9d;
+	border-right: 1px solid #9d9d9d;
+	border-bottom: 1px solid #9d9d9d;
+	border-radius: 0 0 8px 8px;
+	display: none;
+}
+.xp-sub-header {
+	background-color: #c2c2c2;
+	color: #232323;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+	font-weight: bold;
+	padding: 4px 8px;
+	cursor: pointer;
+	border: 1px solid #9d9d9d;
+	border-radius: 6px 6px 0 0;
+}
+.xp-sub-content {
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+	padding-bottom: 4px;
+	border-left: 1px solid #9d9d9d;
+	border-right: 1px solid #9d9d9d;
+	border-bottom: 1px solid #9d9d9d;
+	border-radius: 0 0 6px 6px;
+	display: block;
+}
+.xp-subheader {
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+	padding: 4px 8px;
+	background: #ffffff;
+	border-left: 1px solid #9d9d9d;
+	border-right: 1px solid #9d9d9d;
+	border-bottom: 1px solid #9d9d9d;
+	border-radius: 0 0 8px 8px;
+}
+
+/* Таблица табеля */
+.native-table {
+	border-collapse: collapse;
+	width: 100%;
+	font-size: 12px;
+}
+.cell {
+	border: 1px solid #c3c3c3 !important;
+	padding: 1px 1px 1px 1px;
+	text-align: center;
+	height: 20px;
+}
+.cell-head {
+	background: #f5f5f5;
+	font-weight: normal;
+	color: #232323;
+}
+.cell-left {
+	text-align: left;
+}
+.cell-mono {
+	font-family: monospace;
+}
+.cell-day {
+	max-width: 24px;
+	max-height: 20px;
+}
+.cell-num {
+	max-width: 24px;
+}
+.cell-fio {
+	max-width: 220px;
+}
+.cell-total {
+	max-width: 42px;
+}
+.cell-mark {
+	padding: 0 !important;
+	border-bottom: 2px solid #9d9d9d !important;
+}
+.native-input {
+	width: 100%;
+	height: 100%;
+	border: 0px;
+	text-align: center;
+	font-size: 12px;
+	padding: 0px;
+	background: transparent;
+}
+.native-blocked {
+	color: #b0b0b0;
+}
+
+/* Формы (импорт и т.п.) */
+.native-form {
+	margin-top: 6px;
+	max-width: 480px;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	align-items: flex-start;
+}
+.native-filters {
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.native-input-text {
+	border: 1px solid #b3b3b3;
+	padding: 4px 6px;
+	font-size: 14px;
+	background: #ffffff;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	width: 100%;
+	max-width: 320px;
+	box-sizing: border-box;
+}
+.native-filters .native-input-text {
+	width: 200px;
+}
+.native-file {
+	border: 1px solid #b3b3b3;
+	padding: 4px;
+}
+.native-btn {
+	padding: 6px 28px;
+	border: 1px solid #d0d0d0;
+	border-radius: 8px;
+	background: #383838;
+	color: #fafafa;
+	font-size: 14px;
+	cursor: pointer;
+	text-decoration: none;
+	display: inline-block;
+}
+.native-msg {
+	border: 1px solid #d0d0d0;
+	padding: 8px 12px;
+	margin-bottom: 12px;
+}
+.native-msg.ok {
+	border-color: #16a34a;
+	background: #f0fdf4;
+}
+.native-msg.err {
+	border-color: #dc2626;
+	background: #fef2f2;
+}
+
+/* Прогресс импорта */
+.native-progress-wrap {
+	width: 100%;
+	max-width: 480px;
+	height: 18px;
+	border: 1px solid #9d9d9d;
+	background: #f5f5f5;
+	margin: 8px 0 4px;
+}
+.native-progress {
+	height: 100%;
+	background: #383838;
+	width: 0%;
+}
+.native-ur {
+	border: 1px solid #9d9d9d;
+	border-radius: 4px;
+	padding: 6px 10px 8px;
+	margin: 0 0 10px;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+}
+.native-ur legend {
+	font-weight: bold;
+	padding: 0 4px;
+}
+.native-ur-row {
+	display: block;
+	padding: 2px 4px;
+	cursor: pointer;
+}
+
+.native-redirect {
+	padding: 16px;
+	font-family: Arial, sans-serif;
+	font-size: 14px;
+}
+.native-redirect a {
+	color: #383838;
+}
+
+/* Пагинация */
+.native-pager {
+	margin-top: 10px;
+}
+.native-pager .native-btn-small {
+	margin-right: 4px;
+}
+.native-pager-info {
+	margin: 0 10px;
+	font-size: 13px;
+}
+
+/* Табы карточки сотрудника */
+.native-tabs {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 6px 0 12px;
+}
+.native-tab {
+	border: 1px solid #c3c3c3;
+	background: #f5f5f5;
+	padding: 0;
+	text-align: center;
+}
+.native-tab a {
+	display: block;
+	padding: 5px 10px;
+	text-decoration: none;
+	color: #232323;
+	font-size: 13px;
+}
+.native-tab.active {
+	background: #e8e8e8;
+}
+.native-tab.active a {
+	font-weight: bold;
+}
+
+/* Блоки карточки */
+.native-box {
+	border: 1px solid #d0d0d0;
+	border-radius: 6px;
+	padding: 8px 12px;
+	margin-bottom: 12px;
+	max-width: 480px;
+}
+.native-subtitle-small {
+	font-size: 13px;
+	font-weight: bold;
+	margin: 4px 0 8px;
+}
+.native-btn-danger {
+	background: #b91c1c;
+	border-color: #b91c1c;
+}
+
+/* Верхняя панель (аналог современной шапки, на таблице — XP не понимает flex) */
+.native-topbar {
+	width: 100%;
+	border-collapse: collapse;
+	border-bottom: 1px solid #d0d0d0;
+	background: #ffffff;
+	margin-bottom: 8px;
+}
+.native-topbar-brand {
+	padding: 4px 16px 4px 0;
+}
+.native-topbar-brand a {
+	font-size: 18px;
+	font-weight: bold;
+	color: #1d4ed8;
+	text-decoration: none;
+}
+.native-topbar-right {
+	text-align: right;
+	white-space: nowrap;
+	padding: 4px 0 4px 16px;
+}
+.native-topbar-user {
+	margin-left: 12px;
+	font-size: 14px;
+}
+.native-topbar-form {
+	display: inline;
+	margin-left: 12px;
+}
+.native-btn-small {
+	padding: 2px 12px;
+	font-size: 12px;
+	border-radius: 4px;
+}
+
+/* Двухколоночная раскладка (турникет | метки) — теперь через компонент Grid (native/ui) */
+.native-subtitle {
+	font-size: 15px;
+	font-weight: bold;
+	color: #232323;
+	margin: 16px 0 6px;
+}
+.native-table-employee {
+	margin-bottom: 12px;
+}
+.native-actions {
+	margin-top: 10px;
+}

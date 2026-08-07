@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Checkbox } from '$lib/components/ui/checkbox';
+	import { Label } from '$lib/components/ui/label';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import { page } from '$app/stores';
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let isAdmin = $derived($page.data.isAdmin ?? false);
 	let fetched = $state<{ dayMarks?: any[]; search?: string }>({});
 	let dayMarks = $derived(fetched.dayMarks ?? data.dayMarks);
 	let search = $derived(fetched.search ?? data.search);
@@ -26,6 +31,7 @@
 	let editOpen = $state(false);
 	let editRow = $state<any>(null);
 	let action = $state('create');
+	let category = $state('');
 	const categories = [
 		{ v: 'work', l: 'Работа' },
 		{ v: 'paid_absence', l: 'Оплач.' },
@@ -36,11 +42,13 @@
 	function openCreate() {
 		action = 'create';
 		editRow = null;
+		category = '';
 		editOpen = true;
 	}
 	function openEdit(row: any) {
 		action = 'update';
 		editRow = row;
+		category = row.category ?? '';
 		editOpen = true;
 	}
 </script>
@@ -78,12 +86,14 @@
 	]}
 	cell={renderCell}
 	filters={[{ key: 'search', placeholder: 'Поиск...', type: 'string', value: search, onSearch }]}
-	actions={[{ label: 'Добавить', onclick: () => openCreate() }]}
-	rowActions={[
-		{ label: 'Редактировать', onclick: (row) => openEdit(row) },
-		{ label: 'Удалить', onclick: (row) => {} }
-	]}
-	onRowClick={(row) => openEdit(row)}
+	actions={isAdmin ? [{ label: 'Добавить', onclick: () => openCreate() }] : []}
+	rowActions={isAdmin
+		? [
+				{ label: 'Редактировать', onclick: (row) => openEdit(row) },
+				{ label: 'Удалить', onclick: (row) => {} }
+			]
+		: []}
+	onRowClick={isAdmin ? (row) => openEdit(row) : undefined}
 />
 
 <Dialog bind:open={editOpen}>
@@ -92,7 +102,7 @@
 			<input type="hidden" name="id" value={editRow?.id ?? ''} />
 			<p class="font-medium">{action === 'create' ? 'Новая метка' : 'Редактировать метку'}</p>
 			<div>
-				<label for="name" class="text-sm font-medium text-gray-700">Название</label>
+				<Label for="name">Название</Label>
 				<Input
 					id="name"
 					name="name"
@@ -102,7 +112,7 @@
 				/>
 			</div>
 			<div>
-				<label for="shortName" class="text-sm font-medium text-gray-700">Сокращение</label>
+				<Label for="shortName">Сокращение</Label>
 				<Input
 					id="shortName"
 					name="shortName"
@@ -112,26 +122,25 @@
 				/>
 			</div>
 			<div>
-				<label for="code" class="text-sm font-medium text-gray-700">Код</label>
+				<Label for="code">Код</Label>
 				<Input id="code" name="code" value={editRow?.code ?? ''} placeholder="Код" required />
 			</div>
 			<div>
-				<label class="flex flex-col text-sm font-medium text-gray-700">
+				<Label class="gap-1">
 					Категория
-					<select
-						id="category"
-						name="category"
-						class="rounded-md border border-input px-3 py-2 text-sm"
-					>
-						<option value="" disabled selected={!editRow?.category}>Категория...</option>
-						{#each categories as c}
-							<option value={c.v} selected={editRow?.category === c.v}>{c.l}</option>
-						{/each}
-					</select>
-				</label>
+					<Select type="single" bind:value={category}>
+						<SelectTrigger class="w-full">
+							<span>{categories.find((c) => c.v === category)?.l ?? 'Категория...'}</span>
+						</SelectTrigger>
+						<SelectContent>
+							{#each categories as c}<SelectItem value={c.v}>{c.l}</SelectItem>{/each}
+						</SelectContent>
+					</Select>
+					<input type="hidden" name="category" value={category} />
+				</Label>
 			</div>
 			<div>
-				<label for="reportCode" class="text-sm font-medium text-gray-700">Код отчёта</label>
+				<Label for="reportCode">Код отчёта</Label>
 				<Input
 					id="reportCode"
 					name="reportCode"
@@ -139,16 +148,15 @@
 					placeholder="Код отчёта"
 				/>
 			</div>
-			<label class="flex items-center gap-2 text-sm">
-				<input
-					type="checkbox"
+			<Label class="flex-row items-center gap-2">
+				<Checkbox
 					name="reportExclude"
 					value="true"
 					checked={editRow?.reportExclude ?? false}
-					class="rounded border-input"
+					onCheckedChange={(c) => (editRow = { ...editRow, reportExclude: c === true })}
 				/>
 				Исключить из отчётов
-			</label>
+			</Label>
 			<Button type="submit">{action === 'create' ? 'Создать' : 'Сохранить'}</Button>
 		</form>
 	</DialogContent>

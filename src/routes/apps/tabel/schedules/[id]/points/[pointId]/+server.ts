@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const PATCH = async (event) => {
+	requireEdit(event.locals.user);
 	const id = Number(event.params.pointId);
 	const f = await event.request.formData();
 	const type = f.get('type')?.toString() as 'Entry' | 'Exit' | 'Break' | undefined;
@@ -15,6 +17,7 @@ export const PATCH = async (event) => {
 };
 
 export const DELETE = async (event) => {
+	requireEdit(event.locals.user);
 	const id = Number(event.params.pointId);
 	await scheduleService.removePoint(id);
 	return json({ success: true });

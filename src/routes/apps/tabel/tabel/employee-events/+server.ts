@@ -17,6 +17,7 @@ import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event
 import { pass } from '$lib/server/db/apps/tabel/tables/pass';
 import { db } from '$lib/server/db';
 import { eq, and, or, gte, lte, isNull } from 'drizzle-orm';
+import { canEdit, getControlledDepartmentIds } from '$lib/server/permissions';
 
 /** GET: загрузить данные для модального окна */
 export const GET: RequestHandler = async ({ url }) => {
@@ -173,6 +174,8 @@ export const GET: RequestHandler = async ({ url }) => {
 			date: dateStr,
 			reportWorkTime: tracker?.reportWorkTime ?? null,
 			reportNightWorkTime: tracker?.reportNightWorkTime ?? null,
+			shiftWorkTime: tracker?.shiftWorkTime ?? null,
+			shiftNightWorkTime: tracker?.shiftNightWorkTime ?? null,
 			dayMarkCode: markByCode.get(rawCode) ?? rawCode,
 			extraMarkCode: tracker?.extraMarkCode ?? null,
 			extraMarkMinutes: tracker?.extraMarkMinutes ?? null
@@ -239,6 +242,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	if (!employeeId || !days?.length) {
 		error(400, 'employeeId and days are required');
+	}
+
+	// Запись разрешена только admin/timekeeper и только в подконтрольных подразделениях
+	if (!canEdit(locals.user)) {
+		error(403, 'Недостаточно прав для редактирования');
+	}
+	if (locals.user?.role !== 'admin') {
+		const controlled = await getControlledDepartmentIds(locals.user);
+		for (const day of days) {
+			const mark = day.dayMarkCode.trim();
+			if (
+				!mark &&
+				day.reportWorkTime == null &&
+				day.reportNightWorkTime == null &&
+				!day.extraMarkCode?.trim()
+			)
+				continue;
+			const dept = await employeeService.getDepartmentAtDate(employeeId, day.date);
+			if (!dept || !controlled?.includes(dept.id)) {
+				error(403, 'Подразделение не подконтрольно');
+			}
+		}
 	}
 
 	const updatedBy = locals.user?.name ?? locals.user?.email ?? null;

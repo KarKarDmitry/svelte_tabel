@@ -5,6 +5,7 @@ import { employeeService } from '$lib/server/db/apps/tabel/services/employee.ser
 import { documentService } from '$lib/server/db/apps/tabel/services/document.service';
 import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
 import { positionService } from '$lib/server/db/apps/tabel/services/position.service';
+import { denyIfCannotEditEmployee } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async () => {
 	const [departments, positions] = await Promise.all([
@@ -17,6 +18,12 @@ export const load: PageServerLoad = async () => {
 export const actions: Actions = {
 	create: async (event) => {
 		const form = await event.request.formData();
+		const denied = await denyIfCannotEditEmployee(
+			event.locals.user,
+			0,
+			Number(form.get('departmentId'))
+		);
+		if (denied) return denied;
 		const number = form.get('number')?.toString() || '';
 		const lastName = form.get('lastName')?.toString() || '';
 		const firstName = form.get('firstName')?.toString() || '';
@@ -30,12 +37,48 @@ export const actions: Actions = {
 			return fail(400, { message: 'Заполните ФИО и табельный номер' });
 		}
 
-		const emp = await employeeService.create({
-			number,
-			lastName,
-			firstName,
-			middleName: middleName || null
-		});
+		// Табельный номер должен быть свободен
+		const existing = await employeeService.getByNumber(number);
+		if (existing) {
+			return fail(409, {
+				error: 'number_taken',
+				existing: {
+					id: existing.id,
+					number: existing.number,
+					lastName: existing.lastName,
+					firstName: existing.firstName,
+					middleName: existing.middleName
+				}
+			});
+		}
+
+		let emp;
+		try {
+			emp = await employeeService.create({
+				number,
+				lastName,
+				firstName,
+				middleName: middleName || null
+			});
+		} catch (e: any) {
+			// Редкая гонка: уникальность номера держит БД (23505 = unique_violation)
+			if (e?.code === '23505') {
+				const dup = await employeeService.getByNumber(number);
+				if (dup) {
+					return fail(409, {
+						error: 'number_taken',
+						existing: {
+							id: dup.id,
+							number: dup.number,
+							lastName: dup.lastName,
+							firstName: dup.firstName,
+							middleName: dup.middleName
+						}
+					});
+				}
+			}
+			throw e;
+		}
 
 		if (departmentId && positionId) {
 			await documentService.create({

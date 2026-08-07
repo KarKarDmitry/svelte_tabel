@@ -13,6 +13,7 @@
 		value: string;
 		date: string;
 		reportWorkTime: number | null;
+		shiftWorkTime: number | null;
 		dayMarkCode: string;
 		blocked?: boolean;
 		missingMinutes?: number;
@@ -95,21 +96,22 @@
 
 		for (const [index, day] of emp.days.entries()) {
 			const calDayForDate = day.date ? calendarDays[day.date] : null;
+			// Отчётные часы приоритетны; пока табельщик их не проставил — берём сменные из импорта
+			const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
 			const dayStdMin =
 				day.scheduleId && schedulesById[day.scheduleId]
 					? schedulesById[day.scheduleId].standardWorkTime
-					: day.reportWorkTime && !day.scheduleId
-						? (Object.values(schedulesById).find((s) => s.standardWorkTime === day.reportWorkTime)
+					: workMinutes && !day.scheduleId
+						? (Object.values(schedulesById).find((s) => s.standardWorkTime === workMinutes)
 								?.standardWorkTime ?? null)
 						: null;
 			const stdMin = calDayForDate?.workTime ?? dayStdMin ?? emp.schedule?.standardWorkTime;
 
-			const workTime = showActual ? day.rawWorkTime : (day.reportWorkTime ?? day.shiftWorkTime);
+			const workTime = showActual ? day.rawWorkTime : workMinutes;
 			const nightTime = showActual
 				? day.rawNightWorkTime
 				: (day.reportNightWorkTime ?? day.shiftNightWorkTime);
-			const hasShortage =
-				day.reportWorkTime != null && stdMin != null && day.reportWorkTime < stdMin;
+			const hasShortage = workMinutes != null && stdMin != null && workMinutes < stdMin;
 
 			hoursRow[`day_${index + 1}`] = formatHours(workTime);
 			hoursRow[`day_${index + 1}_blocked`] = day.blocked ?? false;
@@ -120,9 +122,10 @@
 				value: getDayMark(day.dayMarkCode),
 				date: day.date,
 				reportWorkTime: day.reportWorkTime,
+				shiftWorkTime: day.shiftWorkTime,
 				dayMarkCode: day.dayMarkCode,
 				blocked: day.blocked ?? false,
-				missingMinutes: hasShortage ? stdMin - day.reportWorkTime : 0,
+				missingMinutes: hasShortage ? stdMin - workMinutes : 0,
 				extraMarkCode: day.extraMarkCode ?? null,
 				extraMarkMinutes: day.extraMarkMinutes ?? null
 			} satisfies DayMarkValue;

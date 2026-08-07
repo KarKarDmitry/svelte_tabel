@@ -4,66 +4,123 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
+	import DatePicker from '$lib/components/DatetimePick/DatePicker.svelte';
 	import type { PageServerData } from './$types';
+	import { page } from '$app/state';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
 	let { data }: { data: PageServerData } = $props();
+	let canEdit = $derived(page.data.canEdit ?? false);
+	let createDept = $state('');
+	let createPos = $state('');
+	let createDate = $state(new Date().toISOString().split('T')[0]);
+	let numberTaken = $state<{
+		id: number;
+		number: string;
+		lastName: string;
+		firstName: string;
+		middleName: string | null;
+	} | null>(null);
 </script>
 
 <div class="w-full">
-	<form method="post" action="?/create" use:enhance>
-		<div class=" flex items-center justify-between">
-			<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700"
-				>← Назад к списку</a
-			>
-			<Button type="submit" size="lg">Сохранить</Button>
-		</div>
-		<div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
-			<Card>
-				<CardHeader><CardTitle>Основные данные</CardTitle></CardHeader>
-				<CardContent class="flex flex-col gap-4">
-					<Input name="number" placeholder="Табельный номер*" required />
-					<Input name="lastName" placeholder="Фамилия*" required />
-					<Input name="firstName" placeholder="Имя*" required />
-					<Input name="middleName" placeholder="Отчество" />
+	{#if !canEdit}
+		<p class="text-sm text-muted-foreground">Создание сотрудников недоступно: недостаточно прав.</p>
+	{:else}
+		{#if numberTaken}
+			<Card class="border-destructive/40 bg-destructive/5">
+				<CardContent class="flex flex-col gap-1">
+					<p class="font-medium text-destructive">Табельный номер {numberTaken.number} уже занят</p>
+					<p class="text-sm">
+						Он принадлежит сотруднику
+						<a class="underline" href={`/apps/tabel/employees/${numberTaken.id}`}>
+							{numberTaken.lastName}
+							{numberTaken.firstName}
+							{numberTaken.middleName ?? ''}
+						</a>. Если это тот же сотрудник — откройте его карточку и создайте новый кадровый
+						документ.
+					</p>
 				</CardContent>
 			</Card>
+		{/if}
+		<form
+			method="post"
+			action="?/create"
+			use:enhance={() => {
+				return async ({ result }) => {
+					numberTaken = null;
+					if (result.type === 'failure') {
+						const d = (result.data ?? {}) as any;
+						if (d?.error === 'number_taken') numberTaken = d.existing ?? null;
+					}
+				};
+			}}
+		>
+			<div class=" flex items-center justify-between">
+				<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700"
+					><ArrowLeft class="mr-1 inline size-4" />Назад к списку</a
+				>
+				<Button type="submit" size="lg">Сохранить</Button>
+			</div>
+			<div class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+				<Card>
+					<CardHeader><CardTitle>Основные данные</CardTitle></CardHeader>
+					<CardContent class="flex flex-col gap-4">
+						<Input name="number" placeholder="Табельный номер*" required />
+						<Input name="lastName" placeholder="Фамилия*" required />
+						<Input name="firstName" placeholder="Имя*" required />
+						<Input name="middleName" placeholder="Отчество" />
+					</CardContent>
+				</Card>
 
-			<Card>
-				<CardHeader>
-					<div class="flex flex-row flex-wrap items-center justify-between gap-2">
-						<CardTitle class="whitespace-nowrap">Приём на работу</CardTitle>
-						<p class="text-sm text-gray-500">
-							* Можно оставить пустым. Сотрудник попадет в "Ожидание"
-						</p>
-					</div>
-				</CardHeader>
+				<Card>
+					<CardHeader>
+						<div class="flex flex-row flex-wrap items-center justify-between gap-2">
+							<CardTitle class="whitespace-nowrap">Приём на работу</CardTitle>
+							<p class="text-sm text-gray-500">
+								* Можно оставить пустым. Сотрудник попадет в "Ожидание"
+							</p>
+						</div>
+					</CardHeader>
 
-				<CardContent class="flex flex-col gap-4">
-					<select
-						name="departmentId"
-						class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-					>
-						<option value="">Подразделение</option>
-						{#each data.departments as d}
-							<option value={d.id}>{d.name}</option>
-						{/each}
-					</select>
-					<select
-						name="positionId"
-						class="rounded-md border border-input bg-background px-3 py-2 text-sm"
-					>
-						<option value="">Должность</option>
-						{#each data.positions as p}
-							<option value={p.id}>{p.name}</option>
-						{/each}
-					</select>
-					<div class="flex flex-col gap-1">
-						<Label for="date">Дата приёма</Label>
-						<Input name="date" type="date" value={new Date().toISOString().split('T')[0]} />
-					</div>
-					<Input name="docNumber" placeholder="Номер приказа" />
-				</CardContent>
-			</Card>
-		</div>
-	</form>
+					<CardContent class="flex flex-col gap-4">
+						<Select type="single" bind:value={createDept}>
+							<SelectTrigger class="w-full">
+								<span
+									>{data.departments.find((d: any) => String(d.id) === createDept)?.name ??
+										'Подразделение'}</span
+								>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Подразделение</SelectItem>
+								{#each data.departments as d}<SelectItem value={String(d.id)}>{d.name}</SelectItem
+									>{/each}
+							</SelectContent>
+						</Select>
+						<input type="hidden" name="departmentId" value={createDept} />
+						<Select type="single" bind:value={createPos}>
+							<SelectTrigger class="w-full">
+								<span
+									>{data.positions.find((p: any) => String(p.id) === createPos)?.name ??
+										'Должность'}</span
+								>
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="">Должность</SelectItem>
+								{#each data.positions as p}<SelectItem value={String(p.id)}>{p.name}</SelectItem
+									>{/each}
+							</SelectContent>
+						</Select>
+						<input type="hidden" name="positionId" value={createPos} />
+						<div class="flex flex-col gap-1">
+							<Label for="date">Дата приёма</Label>
+							<DatePicker name="date" value={createDate} onchange={(v) => (createDate = v)} />
+						</div>
+						<Input name="docNumber" placeholder="Номер приказа" />
+					</CardContent>
+				</Card>
+			</div>
+		</form>
+	{/if}
 </div>

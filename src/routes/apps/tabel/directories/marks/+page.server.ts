@@ -1,9 +1,13 @@
 import type { PageServerLoad } from './$types';
 import type { Actions } from './$types';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { dayMarkService } from '$lib/server/db/apps/tabel/services/day-mark.service';
+import { denyIfNotAdmin, isAdmin } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
+	if (!isAdmin(event.locals.user)) {
+		throw redirect(303, '/apps/tabel/directories');
+	}
 	const search = event.url.searchParams.get('search') || '';
 	let items = await dayMarkService.list();
 	if (search) {
@@ -20,6 +24,8 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	create: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await dayMarkService.create({
 			name: f.get('name')?.toString() || '',
@@ -31,6 +37,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	update: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		await dayMarkService.update(Number(f.get('id')), {
 			name: f.get('name')?.toString(),
@@ -43,6 +51,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	delete: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		await dayMarkService.remove(Number((await event.request.formData()).get('id')));
 		return { success: true };
 	}

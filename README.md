@@ -15,13 +15,14 @@
 
 ## Требования к системе
 
-| Компонент | Версия / примечание |
-|---|---|
-| Windows 10/11 или Linux | рабочая ОС |
-| Node.js | ≥ 20 (для разработки и сборки) |
-| npm | в составе Node.js |
-| Docker Desktop | для БД и продакшен-стека (compose) |
-| Git Bash | для скриптов бэкапов (`scripts/db-backup.sh`) |
+| Компонент               | Версия / примечание                                                   |
+| ----------------------- | --------------------------------------------------------------------- |
+| Windows 10/11 или Linux | рабочая ОС                                                            |
+| Node.js                 | ≥ 20 (для разработки и сборки)                                        |
+| npm                     | в составе Node.js                                                     |
+| Docker Desktop          | для БД и продакшен-стека (compose)                                    |
+| Python                  | ≥ 3.10 (скрипт `scripts/db.py` для бэкапов/восстановления)            |
+| prompt_toolkit          | `python -m pip install prompt_toolkit` (интерактивное восстановление) |
 
 PostgreSQL отдельно устанавливать **не нужно** — БД поднимается в Docker.
 Для работы со схемой используется `drizzle-kit` (в devDependencies, команда `db:push`).
@@ -40,14 +41,14 @@ cp .env.example .env
 
 Переменные в `.env`:
 
-| Переменная | Назначение |
-|---|---|
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | учётка БД |
-| `POSTGRES_HOST` / `POSTGRES_PORT` | хост/порт БД (по умолчанию `localhost:5432`) |
-| `DATABASE_URL` | строка подключения `postgres://user:pass@host:port/db` |
-| `ORIGIN` | внешний адрес приложения (dev: `http://localhost:5173`, prod: реальный адрес) |
-| `BETTER_AUTH_SECRET` | секрет better-auth (обязательно сменить в prod) |
-| `BOOTSTRAP_LOGIN` / `BOOTSTRAP_PASSWORD` | логин/пароль первого администратора |
+| Переменная                                            | Назначение                                                                    |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | учётка БД                                                                     |
+| `POSTGRES_HOST` / `POSTGRES_PORT`                     | хост/порт БД (по умолчанию `localhost:5432`)                                  |
+| `DATABASE_URL`                                        | строка подключения `postgres://user:pass@host:port/db`                        |
+| `ORIGIN`                                              | внешний адрес приложения (dev: `http://localhost:5173`, prod: реальный адрес) |
+| `BETTER_AUTH_SECRET`                                  | секрет better-auth (обязательно сменить в prod)                               |
+| `BOOTSTRAP_LOGIN` / `BOOTSTRAP_PASSWORD`              | логин/пароль первого администратора                                           |
 
 > Первый пользователь из `bootstrap` получает роль **admin**. Остальные пользователи
 > создаются через админку (`/admin`) и по умолчанию получают роль **user**.
@@ -107,21 +108,26 @@ npm run db:stanza-create
 
 ## Основные npm-скрипты
 
-| Команда | Назначение |
-|---|---|
-| `npm run dev` | dev-сервер |
-| `npm run build` / `npm run preview` | сборка / предпросмотр prod-сборки |
-| `npm run check` | проверка типов (svelte-check) |
-| `npm run db:push` | применить схему Drizzle к БД |
-| `npm run db:bootstrap` | создать первого администратора |
-| `npm run db:seed` | тестовые данные |
-| `npm run db:import` | импорт из MSSQL (см. `docs/ops.md`) |
-| `npm run db:backup` | полный бэкап (pgBackRest) |
-| `npm run db:backup:diff` | дифф-бэкап |
-| `npm run db:backup:list` | список точек восстановления |
-| `npm run db:restore` | восстановление из точки |
-| `npm run db:stanza-create` | инициализация репозитория pgBackRest |
-| `npm run db:deploy` | сборка + деплой compose-стека |
+| Команда                             | Назначение                                           |
+| ----------------------------------- | ---------------------------------------------------- |
+| `npm run dev`                       | dev-сервер                                           |
+| `npm run build` / `npm run preview` | сборка / предпросмотр prod-сборки                    |
+| `npm run check`                     | проверка типов (svelte-check)                        |
+| `npm run db:push`                   | применить схему Drizzle к БД                         |
+| `npm run db:bootstrap`              | создать первого администратора                       |
+| `npm run db:seed`                   | тестовые данные                                      |
+| `npm run db:import`                 | импорт из MSSQL (см. `docs/ops.md`)                  |
+| `npm run db:backup`                 | полный бэкап (pgBackRest)                            |
+| `npm run db:backup:diff`            | дифф-бэкап                                           |
+| `npm run db:backup:incr`            | инкремент-бэкап                                      |
+| `npm run db:backup:list`            | список точек восстановления                          |
+| `npm run db:restore`                | восстановление из точки (интерактивный выбор + PITR) |
+| `npm run db:stanza-create`          | инициализация репозитория pgBackRest                 |
+| `npm run db:deploy`                 | сборка + деплой compose-стека                        |
+
+Бэкапы и восстановление реализованы одним скриптом `scripts/db.py`
+(запуск: `python scripts/db.py <full|diff|incr|scheduled|list|restore|...>`,
+`npm run db:*` — обёртки над ним). Требуется `pip install prompt_toolkit`.
 
 ## Документация
 

@@ -1,4 +1,5 @@
 import type { LayoutServerLoad } from './$types';
+import { canEdit } from '$lib/server/permissions';
 
 export const load: LayoutServerLoad = (event) => {
 	return {
@@ -6,9 +7,11 @@ export const load: LayoutServerLoad = (event) => {
 			? {
 					id: event.locals.user.id,
 					name: event.locals.user.name,
-					email: event.locals.user.email
+					email: event.locals.user.email,
+					role: event.locals.user.role
 				}
 			: null,
-		isAdmin: event.locals.user?.role === 'admin'
+		isAdmin: event.locals.user?.role === 'admin',
+		canEdit: canEdit(event.locals.user)
 	};
 };

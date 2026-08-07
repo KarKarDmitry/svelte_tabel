@@ -41,7 +41,9 @@
 
 		const isShift =
 			shiftMarks.includes(day.dayMarkCode) || day.dayMarkCode === 'I' || day.dayMarkCode === 'N';
-		const hasHours = day.reportWorkTime != null;
+		// Отчётные часы приоритетны; если табельщик их ещё не проставил — берём сменные из импорта
+		const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
+		const hasHours = workMinutes != null;
 		const expectedMinutes = calDay?.workTime ?? empSchedule?.standardWorkTime;
 
 		// Сменная отметка без часов
@@ -52,13 +54,13 @@
 
 		// Переработка / недоработка (допуск 3 мин)
 		if (isShift && hasHours && expectedMinutes) {
-			const diff = Math.abs(day.reportWorkTime - expectedMinutes);
+			const diff = Math.abs(workMinutes - expectedMinutes);
 			if (diff > 3) {
-				if (day.reportWorkTime > expectedMinutes && cellColorRules.overwork?.bg) {
+				if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
 					style.push(`background-color:${cellColorRules.overwork.bg}`);
 					return style.join(';');
 				}
-				if (day.reportWorkTime < expectedMinutes && cellColorRules.underwork?.bg) {
+				if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
 					style.push(`background-color:${cellColorRules.underwork.bg}`);
 					return style.join(';');
 				}

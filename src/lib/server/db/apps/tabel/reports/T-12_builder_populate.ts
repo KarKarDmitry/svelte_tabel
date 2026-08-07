@@ -237,15 +237,7 @@ function mcell(
 	setCellValue(cl, value);
 }
 
-function cell(
-	ws: any,
-	r: number,
-	c: number,
-	value: any,
-	font: any,
-	alignment: any,
-	border?: any
-) {
+function cell(ws: any, r: number, c: number, value: any, font: any, alignment: any, border?: any) {
 	const cl = ws.cell(r, c);
 	const style = toPopStyle(font, alignment, border);
 	applyCellStyle(cl, style);
@@ -384,11 +376,30 @@ function writeDivisionHeader(
 		{ horizontal: 'right', vertical: 'bottom' }
 	);
 
-	mcell(ws, row, 9, row, 18, deptName, { name: 'Times New Roman', size: 12, bold: true }, ALIGN_CENTER, {
-		bottom: { style: 'medium' }
-	});
+	mcell(
+		ws,
+		row,
+		9,
+		row,
+		18,
+		deptName,
+		{ name: 'Times New Roman', size: 12, bold: true },
+		ALIGN_CENTER,
+		{
+			bottom: { style: 'medium' }
+		}
+	);
 
-	mcell(ws, row, 26, row, 36, dateLabel, { name: 'Times New Roman', size: 12, bold: true }, ALIGN_CENTER);
+	mcell(
+		ws,
+		row,
+		26,
+		row,
+		36,
+		dateLabel,
+		{ name: 'Times New Roman', size: 12, bold: true },
+		ALIGN_CENTER
+	);
 
 	row += 2;
 
@@ -453,7 +464,17 @@ function writeColHeaders(ws: any, row: number, lastDay: number, half1: number): 
 		mcell(ws, row, col, row + 2, col, 'Итого за I половину', FONT, ALIGN_CENTER, BORDER);
 		col++;
 		for (let d = 16; d <= 31; d++) {
-			mcell(ws, row, col, row + 2, col, d, { name: 'Times New Roman', size: 7 }, ALIGN_CENTER, BORDER);
+			mcell(
+				ws,
+				row,
+				col,
+				row + 2,
+				col,
+				d,
+				{ name: 'Times New Roman', size: 7 },
+				ALIGN_CENTER,
+				BORDER
+			);
 			col++;
 		}
 		mcell(ws, row, col, row + 2, col, 'Итого за II половину', FONT, ALIGN_CENTER, BORDER);
@@ -461,7 +482,17 @@ function writeColHeaders(ws: any, row: number, lastDay: number, half1: number): 
 	}
 
 	// Итого за месяц
-	mcell(ws, row - 1, col, row - 1, col + 5, 'Итого отработано за месяц', FONT, ALIGN_CENTER, BORDER);
+	mcell(
+		ws,
+		row - 1,
+		col,
+		row - 1,
+		col + 5,
+		'Итого отработано за месяц',
+		FONT,
+		ALIGN_CENTER,
+		BORDER
+	);
 	mcell(ws, row, col, row + 2, col, 'дней', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
 	col++;
 	mcell(ws, row, col, row, col + 4, 'часов', FONT, ALIGN_CENTER, BORDER);
@@ -474,15 +505,7 @@ function writeColHeaders(ws: any, row: number, lastDay: number, half1: number): 
 	col++;
 	cell(ws, row, col, 'ночных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
 	col++;
-	cell(
-		ws,
-		row,
-		col,
-		'выходных,\nпраздничных',
-		FONT,
-		{ ...ALIGN_CENTER, vertical: 'top' },
-		BORDER
-	);
+	cell(ws, row, col, 'выходных,\nпраздничных', FONT, { ...ALIGN_CENTER, vertical: 'top' }, BORDER);
 	col++;
 	cell(ws, row, col, '', FONT, ALIGN_CENTER, BORDER);
 	col++;
@@ -637,7 +660,13 @@ function writeEmployee(
 		}
 
 		// Итого I половина (col 19)
-		mc(c, `=SUM(D${hr}:${getColumnLetter(4 + half1End - 1)}${hr})`, EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			`=SUM(D${hr}:${getColumnLetter(4 + half1End - 1)}${hr})`,
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// Дни 16-31 (col 20-35)
@@ -684,11 +713,23 @@ function writeEmployee(
 		c++;
 
 		// total hours (col 38) = S19 + S36
-		mc(c, `=${getColumnLetter(19)}${row}+${getColumnLetter(36)}${row}`, EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			`=${getColumnLetter(19)}${row}+${getColumnLetter(36)}${row}`,
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// сверхурочных (col 39)
-		mc(c, (options.showOvertime ? emp.overtimeHours : '') || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			(options.showOvertime ? emp.overtimeHours : '') || '',
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// ночных (col 40)
@@ -696,7 +737,13 @@ function writeEmployee(
 		c++;
 
 		// выходных/праздничных (col 41)
-		mc(c, (options.showHoliday ? emp.weekendHolidayHours : '') || '', EMP_FONT, ALIGN_CENTER, EMP_BORDER);
+		mc(
+			c,
+			(options.showHoliday ? emp.weekendHolidayHours : '') || '',
+			EMP_FONT,
+			ALIGN_CENTER,
+			EMP_BORDER
+		);
 		c++;
 
 		// пусто (col 42)
@@ -903,8 +950,18 @@ export async function buildT12(
 	const defaultGroup = 'Другое';
 
 	const monthNames = [
-		'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-		'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+		'Январь',
+		'Февраль',
+		'Март',
+		'Апрель',
+		'Май',
+		'Июнь',
+		'Июль',
+		'Август',
+		'Сентябрь',
+		'Октябрь',
+		'Ноябрь',
+		'Декабрь'
 	];
 	const dateLabel = `${monthNames[month - 1]} ${year} г.`;
 
@@ -938,7 +995,8 @@ export async function buildT12(
 			let empIndex = 0;
 			for (const emp of dept.employees) {
 				empIndex++;
-				const fullName = `${emp.lastName ?? ''} ${emp.firstName ?? ''} ${emp.middleName ?? ''}`.trim();
+				const fullName =
+					`${emp.lastName ?? ''} ${emp.firstName ?? ''} ${emp.middleName ?? ''}`.trim();
 				onProgress?.(dept.name, fullName);
 				const rounding: RoundingConfig | null = roundingConfig
 					? { ...roundingConfig, scheduleStandardTime: emp.schedule?.standardWorkTime ?? null }

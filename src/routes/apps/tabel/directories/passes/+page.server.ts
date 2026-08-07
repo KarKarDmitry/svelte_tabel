@@ -1,8 +1,12 @@
 import type { PageServerLoad, Actions } from './$types';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
+import { denyIfNotAdmin, isAdmin } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
+	if (!isAdmin(event.locals.user)) {
+		throw redirect(303, '/apps/tabel/directories');
+	}
 	const seriaSearch = event.url.searchParams.get('seria') || '';
 	const numberSearch = event.url.searchParams.get('number') || '';
 	let passes = await passService.listWithOwners();
@@ -19,6 +23,8 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	create: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		const seria = f.get('seria')?.toString() || null;
 		const number = f.get('number')?.toString();
@@ -27,6 +33,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	update: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		const f = await event.request.formData();
 		const id = Number(f.get('id'));
 		const seria = f.get('seria')?.toString() || null;
@@ -36,6 +44,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	delete: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await passService.remove(id);
 		return { success: true };

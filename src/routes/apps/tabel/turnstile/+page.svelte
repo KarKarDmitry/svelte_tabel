@@ -58,7 +58,13 @@
 
 {#snippet renderCell(value: any, row: any, col: any)}
 	{#if col.key === 'datetime'}
-		{new Date(value).toLocaleString()}
+		{new Date(value).toLocaleString('ru-RU', {
+			day: '2-digit',
+			month: '2-digit',
+			year: 'numeric',
+			hour: '2-digit',
+			minute: '2-digit'
+		})}
 	{:else if col.key === 'fullName'}
 		{row.fullName || `${row.lastName} ${row.firstName}`}
 	{:else if col.format}{col.format(value, row)}
@@ -74,7 +80,7 @@
 	<DTable
 		data={events}
 		columns={[
-			{ key: 'datetime', label: 'Дата и время' },
+			{ key: 'datetime', label: 'Дата и время', mono: true },
 			{ key: 'eventName', label: 'Событие' },
 			{ key: 'employeeNumber', label: 'Таб. №', mono: true },
 			{ key: 'fullName', label: 'Сотрудник' }

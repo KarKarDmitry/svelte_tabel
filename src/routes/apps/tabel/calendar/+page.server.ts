@@ -1,5 +1,6 @@
-import { redirect } from '@sveltejs/kit'; import type { PageServerLoad } from './$types';
+import { redirect } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async () => {
-  redirect(307, '/apps/tabel/calendar/list');
+	redirect(307, '/apps/tabel/calendar/list');
 };

@@ -3,8 +3,9 @@ import type { RequestHandler } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { buildT12 } from '$lib/server/db/apps/tabel/reports/T-12_builder';
+import { getControlledDepartmentIds } from '$lib/server/permissions';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, locals }) => {
 	const { year, month } = await request.json();
 
 	if (!year || !month) {
@@ -12,9 +13,17 @@ export const POST: RequestHandler = async ({ request }) => {
 	}
 
 	const [data, groups] = await Promise.all([
-		worktimeService.getMonthGrouped(year, month, { pageSize: 9999 }),
+		worktimeService.getMonthGrouped(year, month),
 		departmentGroupService.listWithDepartments()
 	]);
+
+	// Не-админ экспортирует только подконтрольные подразделения
+	const controlled = await getControlledDepartmentIds(locals.user);
+	let departments = data.departments;
+	if (controlled !== null) {
+		const set = new Set(controlled);
+		departments = data.departments.filter((d: any) => set.has(d.id));
+	}
 
 	// Извлекаем праздничные дни месяца из calendarDays
 	const holidays = new Set<number>();
@@ -29,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	const buffer = await buildT12(
 		groups,
-		data.departments,
+		departments,
 		data.dayMarks,
 		year,
 		month,

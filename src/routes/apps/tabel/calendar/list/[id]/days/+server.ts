@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const GET = async (event) => {
 	const calendarId = Number(event.params.id);
@@ -9,6 +10,7 @@ export const GET = async (event) => {
 };
 
 export const PATCH = async (event) => {
+	requireEdit(event.locals.user);
 	const calendarId = Number(event.params.id);
 	const f = await event.request.formData();
 	const date = f.get('date')?.toString();

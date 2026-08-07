@@ -3,7 +3,10 @@ import postgres from 'postgres';
 import * as schema from '../schema';
 
 const url = process.env.DATABASE_URL;
-if (!url) throw new Error('DATABASE_URL is not set. Run with: DATABASE_URL=postgres://... npm run db:import');
+if (!url)
+	throw new Error(
+		'DATABASE_URL is not set. Run with: DATABASE_URL=postgres://... npm run db:import'
+	);
 
 const client = postgres(url);
 

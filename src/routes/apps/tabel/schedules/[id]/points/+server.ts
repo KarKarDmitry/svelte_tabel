@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
+import { requireEdit } from '$lib/server/permissions';
 
 export const GET = async (event) => {
 	const scheduleId = Number(event.params.id);
@@ -8,6 +9,7 @@ export const GET = async (event) => {
 };
 
 export const POST = async (event) => {
+	requireEdit(event.locals.user);
 	const scheduleId = Number(event.params.id);
 	const f = await event.request.formData();
 	const type = f.get('type')?.toString() as 'Entry' | 'Exit' | 'Break' | undefined;
@@ -18,6 +20,13 @@ export const POST = async (event) => {
 
 	if (!type || !time) return json({ error: 'missing fields' }, { status: 400 });
 
-	const point = await scheduleService.createPoint({ scheduleId, type, time, endTime, leftBound, rightBound });
+	const point = await scheduleService.createPoint({
+		scheduleId,
+		type,
+		time,
+		endTime,
+		leftBound,
+		rightBound
+	});
 	return json({ success: true, point });
 };

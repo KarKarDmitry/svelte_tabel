@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group';
 	import {
 		Item,
 		ItemContent,
@@ -12,6 +13,9 @@
 		ItemFooter,
 		ItemSeparator
 	} from '$lib/components/ui/item';
+	import { page } from '$app/state';
+
+	let isAdmin = $derived(page.data.isAdmin ?? false);
 
 	let stage = $state('');
 	let message = $state('');
@@ -185,180 +189,178 @@
 <div class="space-y-6">
 	<h1 class="text-2xl font-bold tracking-tight">Импорт событий турникета</h1>
 
-	<Item>
-		<ItemHeader>
-			<ItemTitle>Выберите файл</ItemTitle>
-			<ItemDescription>Excel-файл с событиями входов/выходов по пропускам</ItemDescription>
-		</ItemHeader>
-		<ItemSeparator />
-		<ItemContent>
-			{#if file}
-				<div class="flex items-center gap-4">
-					<ItemMedia>
-						<div
-							class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-lg text-green-700"
-						>
-							XLS
-						</div>
-					</ItemMedia>
-					<div class="flex-1">
-						<div class="text-sm font-medium">{file.name}</div>
-						<div class="text-xs text-muted-foreground">{formatSize(file.size)}</div>
-					</div>
-					<Button variant="outline" size="sm" disabled={running} onclick={() => (file = null)}
-						>Убрать</Button
-					>
-				</div>
-			{:else}
-				<label
-					class="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 px-6 py-8 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/60"
-				>
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						width="32"
-						height="32"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						class="text-muted-foreground/50"
-					>
-						<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-						<polyline points="17 8 12 3 7 8" />
-						<line x1="12" y1="3" x2="12" y2="15" />
-					</svg>
-					<span>Нажмите, чтобы выбрать файл</span>
-					<span class="text-[10px]">.xls .xlsx</span>
-					<input
-						type="file"
-						accept=".xls,.xlsx"
-						class="hidden"
-						onchange={(e) => (file = (e.target as HTMLInputElement).files?.[0] ?? null)}
-					/>
-				</label>
-			{/if}
-		</ItemContent>
-		{#if file && !unresolvedList.length && !running && stage !== 'done' && stage !== 'error'}
-			<ItemSeparator />
-			<ItemFooter>
-				<ItemActions>
-					<Button onclick={() => start()} disabled={running} class="w-full">
-						{running ? 'Импорт...' : 'Импортировать'}
-					</Button>
-				</ItemActions>
-			</ItemFooter>
-		{/if}
-	</Item>
-
-	<!-- Прогресс -->
-	{#if message}
-		<Item>
-			<ItemContent>
-				<!-- Заголовок стадии -->
-				<div class="flex items-center justify-between">
-					<div class="flex items-center gap-2">
-						{#if running}
-							<div
-								class="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"
-							></div>
-						{/if}
-						<span class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
-							>{stageLabel(stage)}</span
-						>
-					</div>
-					{#if total > 0}
-						<span class="text-xs text-muted-foreground tabular-nums">{current} / {total}</span>
-					{/if}
-				</div>
-
-				<!-- Сообщение -->
-				<div
-					class="mt-1 text-sm {stage === 'done'
-						? 'text-green-700'
-						: stage === 'error'
-							? 'text-red-700'
-							: ''}"
-				>
-					{message}
-				</div>
-
-				<!-- Текущий сотрудник (как в Python-версии) -->
-				{#if currentEmployee && stage === 'collecting'}
-					<div class="mt-1 text-xs text-muted-foreground">
-						Сотрудник: <span class="font-medium">{currentEmployee}</span>
-					</div>
-				{/if}
-
-				<!-- Прогресс-бар -->
-				{#if total > 0}
-					<div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-						<div
-							class="h-full rounded-full bg-primary transition-all duration-150 ease-out"
-							style="width: {(current / total) * 100}%"
-						></div>
-					</div>
-				{/if}
-			</ItemContent>
-		</Item>
-	{/if}
-
-	<!-- Unresolved -->
-	{#if unresolvedList.length > 0}
+	{#if isAdmin}
 		<Item>
 			<ItemHeader>
-				<ItemTitle>Уточните сотрудников</ItemTitle>
-				<ItemDescription
-					>Для следующих пропусков не удалось найти сотрудника. Выберите из списка:</ItemDescription
-				>
+				<ItemTitle>Выберите файл</ItemTitle>
+				<ItemDescription>Excel-файл с событиями входов/выходов по пропускам</ItemDescription>
 			</ItemHeader>
+			<ItemSeparator />
 			<ItemContent>
-				<div class="space-y-4">
-					{#each unresolvedList as item, i}
-						<div class="rounded-lg border p-3">
-							<div class="mb-2 text-xs text-muted-foreground">
-								Пропуск: {item.seria}
-								{item.number} &mdash; {item.fullName}
+				{#if file}
+					<div class="flex items-center gap-4">
+						<ItemMedia>
+							<div
+								class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-lg text-green-700"
+							>
+								XLS
 							</div>
-							<div class="flex flex-col gap-1">
-								<label
-									class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground italic hover:bg-muted"
-								>
-									<input
-										type="radio"
-										name="cand_{i}"
-										value=""
-										checked={item.selectedId === null}
-										onchange={() => (item.selectedId = null)}
-									/>
-									Пропустить
-								</label>
-								{#each item.candidates as cand}
-									<label
-										class="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-muted"
-									>
-										<input
-											type="radio"
-											name="cand_{i}"
-											value={cand.id}
-											checked={item.selectedId === cand.id}
-											onchange={() => (item.selectedId = cand.id)}
-										/>
-										<span class="font-mono text-xs text-muted-foreground">{cand.number}</span>
-										<span>{cand.lastName} {cand.firstName} {cand.middleName ?? ''}</span>
-									</label>
-								{/each}
-							</div>
+						</ItemMedia>
+						<div class="flex-1">
+							<div class="text-sm font-medium">{file.name}</div>
+							<div class="text-xs text-muted-foreground">{formatSize(file.size)}</div>
 						</div>
-					{/each}
-				</div>
+						<Button variant="outline" size="sm" disabled={running} onclick={() => (file = null)}
+							>Убрать</Button
+						>
+					</div>
+				{:else}
+					<label
+						class="flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 px-6 py-8 text-sm text-muted-foreground transition-colors hover:border-muted-foreground/60"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							width="32"
+							height="32"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							class="text-muted-foreground/50"
+						>
+							<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+							<polyline points="17 8 12 3 7 8" />
+							<line x1="12" y1="3" x2="12" y2="15" />
+						</svg>
+						<span>Нажмите, чтобы выбрать файл</span>
+						<span class="text-[10px]">.xls .xlsx</span>
+						<input
+							type="file"
+							accept=".xls,.xlsx"
+							class="hidden"
+							onchange={(e) => (file = (e.target as HTMLInputElement).files?.[0] ?? null)}
+						/>
+					</label>
+				{/if}
 			</ItemContent>
-			<ItemFooter>
-				<ItemActions>
-					<Button onclick={resolveAndImport} class="w-full">Импортировать с выбранными</Button>
-				</ItemActions>
-			</ItemFooter>
+			{#if file && !unresolvedList.length && !running && stage !== 'done' && stage !== 'error'}
+				<ItemSeparator />
+				<ItemFooter>
+					<ItemActions>
+						<Button onclick={() => start()} disabled={running} class="w-full">
+							{running ? 'Импорт...' : 'Импортировать'}
+						</Button>
+					</ItemActions>
+				</ItemFooter>
+			{/if}
 		</Item>
+
+		<!-- Прогресс -->
+		{#if message}
+			<Item>
+				<ItemContent>
+					<!-- Заголовок стадии -->
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							{#if running}
+								<div
+									class="h-3 w-3 animate-spin rounded-full border-2 border-primary border-t-transparent"
+								></div>
+							{/if}
+							<span class="text-xs font-medium tracking-wider text-muted-foreground uppercase"
+								>{stageLabel(stage)}</span
+							>
+						</div>
+						{#if total > 0}
+							<span class="text-xs text-muted-foreground tabular-nums">{current} / {total}</span>
+						{/if}
+					</div>
+
+					<!-- Сообщение -->
+					<div
+						class="mt-1 text-sm {stage === 'done'
+							? 'text-green-700'
+							: stage === 'error'
+								? 'text-red-700'
+								: ''}"
+					>
+						{message}
+					</div>
+
+					<!-- Текущий сотрудник (как в Python-версии) -->
+					{#if currentEmployee && stage === 'collecting'}
+						<div class="mt-1 text-xs text-muted-foreground">
+							Сотрудник: <span class="font-medium">{currentEmployee}</span>
+						</div>
+					{/if}
+
+					<!-- Прогресс-бар -->
+					{#if total > 0}
+						<div class="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+							<div
+								class="h-full rounded-full bg-primary transition-all duration-150 ease-out"
+								style="width: {(current / total) * 100}%"
+							></div>
+						</div>
+					{/if}
+				</ItemContent>
+			</Item>
+		{/if}
+
+		<!-- Unresolved -->
+		{#if unresolvedList.length > 0}
+			<Item>
+				<ItemHeader>
+					<ItemTitle>Уточните сотрудников</ItemTitle>
+					<ItemDescription
+						>Для следующих пропусков не удалось найти сотрудника. Выберите из списка:</ItemDescription
+					>
+				</ItemHeader>
+				<ItemContent>
+					<div class="space-y-4">
+						{#each unresolvedList as item, i}
+							<div class="rounded-lg border p-3">
+								<div class="mb-2 text-xs text-muted-foreground">
+									Пропуск: {item.seria}
+									{item.number} &mdash; {item.fullName}
+								</div>
+								<div class="flex flex-col gap-1">
+									<RadioGroup
+										value={item.selectedId === null ? '' : String(item.selectedId)}
+										onValueChange={(v) => (item.selectedId = v === '' ? null : Number(v))}
+										class="flex flex-col gap-1"
+									>
+										<Label
+											class="cursor-pointer flex-row items-center gap-2 rounded-md px-2 py-1 text-sm text-muted-foreground italic hover:bg-muted"
+										>
+											<RadioGroupItem value="" />
+											Пропустить
+										</Label>
+										{#each item.candidates as cand}
+											<Label
+												class="cursor-pointer flex-row items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-muted"
+											>
+												<RadioGroupItem value={String(cand.id)} />
+												<span class="font-mono text-xs text-muted-foreground">{cand.number}</span>
+												<span>{cand.lastName} {cand.firstName} {cand.middleName ?? ''}</span>
+											</Label>
+										{/each}
+									</RadioGroup>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</ItemContent>
+				<ItemFooter>
+					<ItemActions>
+						<Button onclick={resolveAndImport} class="w-full">Импортировать с выбранными</Button>
+					</ItemActions>
+				</ItemFooter>
+			</Item>
+		{/if}
+	{:else}
+		<p class="text-sm text-muted-foreground">Импорт доступен только администраторам.</p>
 	{/if}
 </div>

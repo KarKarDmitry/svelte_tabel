@@ -10,7 +10,7 @@ import { schedule } from '../tables/schedule';
 import { employeeSchedule } from '../tables/employee-schedule';
 import { calendar } from '../tables/calendar';
 import { calendarDay } from '../tables/calendar-day';
-import { eq, and, asc, between, desc, gte, lte } from 'drizzle-orm';
+import { eq, and, asc, between, desc, gte, lte, sql } from 'drizzle-orm';
 import { buildEmployeeSegments } from './employee-segments';
 
 /** Получить из app_constant множество shortName отметок, при простановке которых подставляются часы из графика */
@@ -31,7 +31,39 @@ async function getShiftMarkShortnames(): Promise<Set<string>> {
 	);
 }
 
+/**
+ * Сотрудники, видимые в табеле за месяц:
+ * все, кроме уволенных (последний документ ≤ конца месяца — увольнение),
+ * у которых нет записей worktime_tracker за этот месяц.
+ */
+async function getVisibleEmployees(year: number, month: number) {
+	const from = `${year}-${String(month).padStart(2, '0')}-01`;
+	const lastDay = new Date(year, month, 0).getDate();
+	const to = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
+	// Все сотрудники, кроме уволенных (последний документ ≤ конца месяца — увольнение),
+	// у которых нет записей worktime_tracker за этот месяц
+	return db
+		.select()
+		.from(employee)
+		.where(
+			sql`NOT (
+				(SELECT d.type FROM ${hrDocument} d
+				 WHERE d.employee_id = ${employee.id} AND d.date <= ${to}
+				 ORDER BY d.date DESC, d.id DESC LIMIT 1) = 'dismissal'
+				AND NOT EXISTS (
+					SELECT 1 FROM ${worktimeTracker} w
+					WHERE w.employee_id = ${employee.id} AND w.date BETWEEN ${from} AND ${to}
+				)
+			)`
+		)
+		.orderBy(employee.lastName, employee.firstName);
+}
+
 export const worktimeService = {
+	/** Сотрудники, видимые в табеле за месяц (не уволенные + уволенные с данными) */
+	getVisibleEmployees,
+
 	getMonth: (employeeId: number, year: number, month: number) => {
 		const from = `${year}-${String(month).padStart(2, '0')}-01`;
 		const lastDay = new Date(year, month, 0).getDate();
@@ -53,14 +85,10 @@ export const worktimeService = {
 		year: number,
 		month: number,
 		params?: {
-			page?: number;
-			pageSize?: number;
 			calendarId?: number;
 			onStage?: (stage: string) => void;
 		}
 	) => {
-		const page = params?.page ?? 1;
-		const pageSize = params?.pageSize ?? 500;
 		const onStage = params?.onStage;
 
 		onStage?.('Загрузка сотрудников…');
@@ -71,11 +99,8 @@ export const worktimeService = {
 		const monthStart = from;
 		const monthEnd = to;
 
-		// --- Получаем всех сотрудников ---
-		const allEmployees = await db
-			.select()
-			.from(employee)
-			.orderBy(employee.lastName, employee.firstName);
+		// --- Получаем видимых сотрудников (не уволенные + уволенные с данными за месяц) ---
+		const allEmployees = await getVisibleEmployees(year, month);
 		const empById = new Map(allEmployees.map((e) => [e.id, e]));
 
 		// --- Получаем ВСЕ HR-документы, группируем по сотруднику, сортируем по дате ASC ---
@@ -146,12 +171,6 @@ export const worktimeService = {
 			if (cmp !== 0) return cmp;
 			return (a.lastName ?? '').localeCompare(b.lastName ?? '');
 		});
-
-		// --- Пагинация ---
-		const total = expanded.length;
-		const totalPages = Math.ceil(total / pageSize);
-		const offset = (page - 1) * pageSize;
-		const pagedEntries = expanded.slice(offset, offset + pageSize);
 
 		// --- Получаем записи табеля за месяц ---
 		onStage?.('Загрузка табеля…');
@@ -232,7 +251,7 @@ export const worktimeService = {
 
 		// --- Группируем по отделам ---
 		const deptMap = new Map<number, { id: number; name: string; employees: any[] }>();
-		for (const entry of pagedEntries) {
+		for (const entry of expanded) {
 			const deptId = entry.departmentId ?? 0;
 			if (!deptMap.has(deptId)) {
 				deptMap.set(deptId, {
@@ -385,10 +404,7 @@ export const worktimeService = {
 			schedulesById,
 			year,
 			month,
-			lastDay,
-			total,
-			page,
-			totalPages
+			lastDay
 		};
 	},
 
@@ -410,7 +426,14 @@ export const worktimeService = {
 		const updateData: Record<string, any> = {
 			updatedBy: updatedBy ?? null
 		};
-		if (trimmed) updateData.dayMarkCode = markCode;
+		if (!trimmed) {
+			// Пустая строка — полностью очищаем день (метка и часы)
+			updateData.dayMarkCode = null;
+			updateData.reportWorkTime = null;
+			updateData.reportNightWorkTime = null;
+		} else {
+			updateData.dayMarkCode = markCode;
+		}
 		if (extraMarkCode !== undefined) updateData.extraMarkCode = extraMarkCode ?? null;
 		if (extraMarkMinutes !== undefined) updateData.extraMarkMinutes = extraMarkMinutes ?? null;
 

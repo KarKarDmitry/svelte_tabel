@@ -5,6 +5,7 @@ import { departmentService } from '$lib/server/db/apps/tabel/services/department
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { department } from '$lib/server/db/apps/tabel/tables/department';
+import { denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const search = event.url.searchParams.get('search') || '';
@@ -18,12 +19,16 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	create: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const name = (await event.request.formData()).get('name')?.toString();
 		if (!name) return fail(400, { message: 'Название обязательно' });
 		await departmentService.create({ name });
 		return { success: true };
 	},
 	update: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const form = await event.request.formData();
 		const id = Number(form.get('id'));
 		const name = form.get('name')?.toString();
@@ -32,6 +37,8 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	delete: async (event) => {
+		const denied = denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await departmentService.remove(id);
 		return { success: true };

@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
+	import { Select, SelectContent, SelectItem, SelectTrigger } from '$lib/components/ui/select';
 	import { Tabs, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import { goto } from '$app/navigation';
@@ -12,6 +14,8 @@
 	import { toast } from 'svelte-sonner';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let canEdit = $derived(page.data.canEdit ?? false);
 
 	let fetched = $state<{ calendars?: any[] }>({});
 	let calendars = $derived(fetched.calendars ?? data.calendars);
@@ -36,6 +40,23 @@
 		deleteTarget = row;
 		deleteOpen = true;
 	}
+
+	const rowActions = $derived([
+		{ label: 'Открыть', onclick: (row: any) => goto(`/apps/tabel/calendar/list/${row.id}/main`) },
+		...(canEdit
+			? [
+					{
+						label: 'Сделать основным',
+						onclick: (row: any) => {
+							const form = document.getElementById('setDefaultForm') as HTMLFormElement;
+							(form.elements.namedItem('id') as HTMLInputElement).value = String(row.id);
+							form.requestSubmit();
+						}
+					},
+					{ label: 'Удалить', onclick: (row: any) => confirmDelete(row) }
+				]
+			: [])
+	]);
 
 	async function doDelete() {
 		if (!deleteTarget) return;
@@ -68,7 +89,9 @@
 <div>
 	<div class="flex items-center justify-between">
 		<h1 class="text-2xl font-bold text-gray-900">Календари</h1>
-		<Button onclick={openGenerate}>Создать по шаблону</Button>
+		{#if canEdit}
+			<Button onclick={openGenerate}>Создать по шаблону</Button>
+		{/if}
 	</div>
 
 	<Tabs value={page.url.pathname}>
@@ -103,18 +126,7 @@
 			}
 		]}
 		cell={renderCell}
-		rowActions={[
-			{ label: 'Открыть', onclick: (row) => goto(`/apps/tabel/calendar/list/${row.id}/main`) },
-			{
-				label: 'Сделать основным',
-				onclick: (row) => {
-					const form = document.getElementById('setDefaultForm') as HTMLFormElement;
-					(form.elements.namedItem('id') as HTMLInputElement).value = String(row.id);
-					form.requestSubmit();
-				}
-			},
-			{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
-		]}
+		{rowActions}
 		onRowClick={(row) => goto(`/apps/tabel/calendar/list/${row.id}/main`)}
 	/>
 
@@ -123,36 +135,44 @@
 			<p class="font-bold">Создать календарь</p>
 			<form method="post" action="?/generate" class="flex flex-col gap-4" use:enhance>
 				<div class="flex flex-col gap-1">
-					<label for="name" class="text-sm font-medium">Название</label>
+					<Label for="name">Название</Label>
 					<Input id="name" name="name" bind:value={calName} required />
 				</div>
 				<div class="flex flex-col gap-1">
-					<label for="templateId" class="text-sm font-medium">Шаблон (для правил)</label>
-					<select
-						id="templateId"
-						name="templateId"
-						bind:value={selTplId}
-						required
-						class="rounded-md border border-input px-3 py-2 text-sm"
+					<Label for="templateId">Шаблон (для правил)</Label>
+					<Select
+						type="single"
+						value={String(selTplId)}
+						onValueChange={(v) => (selTplId = Number(v ?? 0))}
 					>
-						{#each templates as t}
-							<option value={t.id}>{t.name}</option>
-						{/each}
-					</select>
+						<SelectTrigger class="w-full">
+							<span>{templates.find((t: any) => t.id === selTplId)?.name ?? 'Выберите шаблон'}</span
+							>
+						</SelectTrigger>
+						<SelectContent>
+							{#each templates as t}<SelectItem value={String(t.id)}>{t.name}</SelectItem>{/each}
+						</SelectContent>
+					</Select>
+					<input type="hidden" name="templateId" value={selTplId} />
 				</div>
 				<div class="flex flex-col gap-1">
-					<label for="year" class="text-sm font-medium">Год</label>
-					<select
-						id="year"
-						name="year"
-						bind:value={selYear}
-						onchange={() => (calName = `Производственный календарь — ${selYear}`)}
-						class="rounded-md border border-input px-3 py-2 text-sm"
+					<Label for="year">Год</Label>
+					<Select
+						type="single"
+						value={String(selYear)}
+						onValueChange={(v) => {
+							selYear = Number(v ?? selYear);
+							calName = `Производственный календарь — ${selYear}`;
+						}}
 					>
-						{#each years as y}
-							<option value={y}>{y}</option>
-						{/each}
-					</select>
+						<SelectTrigger class="w-full">
+							<span>{selYear}</span>
+						</SelectTrigger>
+						<SelectContent>
+							{#each years as y}<SelectItem value={String(y)}>{y}</SelectItem>{/each}
+						</SelectContent>
+					</Select>
+					<input type="hidden" name="year" value={selYear} />
 				</div>
 				<Button type="submit">Создать</Button>
 			</form>

@@ -2,11 +2,16 @@ import type { RequestHandler } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-	import { buildT12, type ExportOptions } from '$lib/server/db/apps/tabel/reports/T-12_builder_populate';
+import {
+	buildT12,
+	type ExportOptions
+} from '$lib/server/db/apps/tabel/reports/T-12_builder_populate';
+import { getControlledDepartmentIds } from '$lib/server/permissions';
 
-const boolParam = (v: string | null, def: boolean) => (v === null ? def : v === '1' || v === 'true');
+const boolParam = (v: string | null, def: boolean) =>
+	v === null ? def : v === '1' || v === 'true';
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
 	const year = Number(url.searchParams.get('year'));
 	const month = Number(url.searchParams.get('month'));
 
@@ -96,18 +101,25 @@ export const GET: RequestHandler = async ({ url }) => {
 
 					const [data, groups] = await Promise.all([
 						worktimeService.getMonthGrouped(year, month, {
-							pageSize: 9999,
 							calendarId,
 							onStage: emitStage
 						}),
 						departmentGroupService.listWithDepartments()
 					]);
 
+					// Не-админ экспортирует только подконтрольные подразделения
+					const controlled = await getControlledDepartmentIds(locals.user);
+					let departments = data.departments;
+					if (controlled !== null) {
+						const set = new Set(controlled);
+						departments = data.departments.filter((d: any) => set.has(d.id));
+					}
+
 					console.log('[export] данные загружены');
 
 					// Считаем общее количество сотрудников
 					let totalEmployees = 0;
-					for (const d of data.departments) {
+					for (const d of departments) {
 						for (const emp of d.employees) {
 							if (emp.days.some((day: any) => !day.blocked)) totalEmployees++;
 						}
@@ -139,7 +151,7 @@ export const GET: RequestHandler = async ({ url }) => {
 					console.time('export:build');
 					const buffer = await buildT12(
 						groups,
-						data.departments,
+						departments,
 						data.dayMarks,
 						year,
 						month,

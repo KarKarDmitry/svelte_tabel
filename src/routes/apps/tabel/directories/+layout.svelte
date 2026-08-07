@@ -6,14 +6,20 @@
 
 	let { children }: { children: Snippet } = $props();
 
-	const tabs = [
+	let isAdmin = $derived($page.data.isAdmin ?? false);
+
+	const tabs = $derived([
 		{ href: '/apps/tabel/directories/departments', label: 'Подразделения' },
 		{ href: '/apps/tabel/directories/positions', label: 'Должности' },
-		{ href: '/apps/tabel/directories/passes', label: 'Пропуска' },
-		{ href: '/apps/tabel/directories/marks', label: 'Метки табеля' },
 		{ href: '/apps/tabel/directories/department-groups', label: 'Группы подразделений' },
-		{ href: '/apps/tabel/directories/constants', label: 'Константы' }
-	];
+		...(isAdmin
+			? [
+					{ href: '/apps/tabel/directories/passes', label: 'Пропуска' },
+					{ href: '/apps/tabel/directories/marks', label: 'Метки табеля' },
+					{ href: '/apps/tabel/directories/constants', label: 'Константы' }
+				]
+			: [])
+	]);
 </script>
 
 <div class="space-y-4">

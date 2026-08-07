@@ -9,6 +9,8 @@
 
 	let { data }: { data: PageServerData } = $props();
 
+	let canEdit = $derived(page.data.canEdit ?? false);
+
 	let fetched = $state<{
 		employees?: any[];
 		page?: number;
@@ -75,7 +77,9 @@
 			<h1 class="text-2xl font-bold text-gray-900">Сотрудники</h1>
 			<p class="text-sm text-gray-500">Всего: {total}</p>
 		</div>
-		<Button onclick={() => goto('/apps/tabel/employees/create')}>Добавить сотрудника</Button>
+		{#if canEdit}
+			<Button onclick={() => goto('/apps/tabel/employees/create')}>Добавить сотрудника</Button>
+		{/if}
 	</div>
 
 	{#snippet renderCell(value: any, row: any, col: any)}

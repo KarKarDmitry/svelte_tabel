@@ -98,11 +98,40 @@ export const scheduleService = {
 			.where(eq(employeeSchedule.employeeId, employeeId))
 			.orderBy(employeeSchedule.dateFrom),
 
+	/** Получить назначение графика по ID (для проверок) */
+	getEmployeeScheduleById: (id: number) =>
+		db
+			.select()
+			.from(employeeSchedule)
+			.where(eq(employeeSchedule.id, id))
+			.then((r) => r[0]),
+
 	/** Назначить график сотруднику */
 	assignToEmployee: (data: { employeeId: number; scheduleId: number; dateFrom: string }) =>
 		db
 			.insert(employeeSchedule)
 			.values(data)
+			.returning()
+			.then((r) => r[0]),
+
+	/** Обновить назначение графика (график и/или даты начала/окончания) */
+	updateEmployeeSchedule: (
+		id: number,
+		data: { scheduleId?: number; dateFrom?: string; dateTo?: string | null }
+	) =>
+		db
+			.update(employeeSchedule)
+			.set(data)
+			.where(eq(employeeSchedule.id, id))
+			.returning()
+			.then((r) => r[0]),
+
+	/** Открепить график — закрыть период, не удаляя запись (остаётся в истории) */
+	unassignFromEmployee: (id: number, dateTo: string) =>
+		db
+			.update(employeeSchedule)
+			.set({ dateTo })
+			.where(eq(employeeSchedule.id, id))
 			.returning()
 			.then((r) => r[0]),
 

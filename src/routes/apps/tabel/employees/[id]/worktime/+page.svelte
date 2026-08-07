@@ -2,7 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
-	import MonthYearPicker from '$lib/components/MonthYearPicker.svelte';
+	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 	import DayCard from './DayCard.svelte';
 
 	let days = $derived($page.data.days);

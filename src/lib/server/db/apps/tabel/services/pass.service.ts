@@ -95,6 +95,14 @@ export const passService = {
 			.returning()
 			.then((r) => r[0]),
 
+	/** Получить назначение пропуска по ID (для проверок) */
+	getEmployeePassById: (id: number) =>
+		db
+			.select()
+			.from(employeePass)
+			.where(eq(employeePass.id, id))
+			.then((r) => r[0]),
+
 	/** Закрыть конкретную запись пропуска по ID */
 	closeEmployeePass: (id: number, dateTo: string) =>
 		db.update(employeePass).set({ dateTo }).where(eq(employeePass.id, id)),

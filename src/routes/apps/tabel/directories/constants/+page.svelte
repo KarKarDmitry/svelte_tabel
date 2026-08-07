@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
 	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import DTable from '$lib/components/DTable/DTable.svelte';
 	import { page } from '$app/stores';
 	import type { PageServerData } from './$types';
 
 	let { data }: { data: PageServerData } = $props();
+
+	let isAdmin = $derived($page.data.isAdmin ?? false);
 	let fetched = $state<{ constants?: any[]; search?: string }>({});
 	let constants = $derived(fetched.constants ?? data.constants);
 	let search = $derived(fetched.search ?? data.search);
@@ -37,11 +40,13 @@
 		{ key: 'value', label: 'Значение' }
 	]}
 	filters={[{ key: 'search', placeholder: 'Поиск...', type: 'string', value: search, onSearch }]}
-	rowActions={[
-		{ label: 'Редактировать', onclick: (row) => openUpsert(row) },
-		{ label: 'Удалить', onclick: (row) => {} }
-	]}
-	onRowClick={(row) => openUpsert(row)}
+	rowActions={isAdmin
+		? [
+				{ label: 'Редактировать', onclick: (row) => openUpsert(row) },
+				{ label: 'Удалить', onclick: (row) => {} }
+			]
+		: []}
+	onRowClick={isAdmin ? (row) => openUpsert(row) : undefined}
 />
 
 <Dialog bind:open={editOpen}>
@@ -53,18 +58,18 @@
 					<p class="font-medium">Редактировать константу</p>
 				</div>
 				<div>
-					<label for="key" class="text-sm font-medium text-gray-700">Ключ</label>
+					<Label for="key">Ключ</Label>
 					<Input id="key" name="key" value={editRow.key} disabled />
 				</div>
 			{:else}
 				<p class="font-medium">Новая константа</p>
 				<div>
-					<label for="key" class="text-sm font-medium text-gray-700">Ключ</label>
+					<Label for="key">Ключ</Label>
 					<Input id="key" name="key" placeholder="Ключ" required />
 				</div>
 			{/if}
 			<div>
-				<label for="value" class="text-sm font-medium text-gray-700">Значение</label>
+				<Label for="value">Значение</Label>
 				<Input
 					id="value"
 					name="value"

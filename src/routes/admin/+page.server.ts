@@ -1,27 +1,24 @@
 import type { PageServerLoad, Actions } from './$types';
 import { fail } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
-import { db } from '$lib/server/db';
-import { user } from '$lib/server/db/auth.schema';
-import { eq } from 'drizzle-orm';
+import { userService } from '$lib/server/db/user.service';
+import { masterService } from '$lib/server/db/apps/tabel/services/master.service';
+import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
+import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { APIError } from 'better-auth/api';
 import { toEmail, type AppRole } from '$lib/server/auth-utils';
 
-const isRole = (r: unknown): r is AppRole => r === 'admin' || r === 'user';
+const isRole = (r: unknown): r is AppRole => r === 'admin' || r === 'timekeeper' || r === 'user';
 
 export const load: PageServerLoad = async () => {
-	const users = await db
-		.select({
-			id: user.id,
-			name: user.name,
-			email: user.email,
-			role: user.role,
-			createdAt: user.createdAt
-		})
-		.from(user)
-		.orderBy(user.createdAt);
+	const [users, departments, groups, assignments] = await Promise.all([
+		userService.list(),
+		departmentService.list(),
+		departmentGroupService.listWithDepartments(),
+		masterService.listWithDepartments()
+	]);
 
-	return { users };
+	return { users, departments, assignments, departmentGroups: groups };
 };
 
 export const actions: Actions = {
@@ -48,20 +45,28 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
-	toggleRole: async (event) => {
+	setAccess: async (event) => {
 		const formData = await event.request.formData();
 		const userId = formData.get('userId')?.toString();
 		const role = formData.get('role')?.toString();
+		const rawDepts = formData.get('departmentIds')?.toString() ?? '';
 
 		if (!userId || !isRole(role)) {
 			return fail(400, { message: 'Некорректные параметры' });
 		}
 
-		const target = await db
-			.select()
-			.from(user)
-			.where(eq(user.id, userId))
-			.then((r) => r[0]);
+		let departmentIds: number[] = [];
+		try {
+			const parsed = rawDepts ? JSON.parse(rawDepts) : [];
+			if (!Array.isArray(parsed) || parsed.some((d) => !Number.isInteger(d) || d <= 0)) {
+				return fail(400, { message: 'Некорректный список подразделений' });
+			}
+			departmentIds = parsed;
+		} catch {
+			return fail(400, { message: 'Некорректный список подразделений' });
+		}
+
+		const target = await userService.getById(userId);
 		if (!target) {
 			return fail(404, { message: 'Пользователь не найден' });
 		}
@@ -69,23 +74,26 @@ export const actions: Actions = {
 		const isSelf = event.locals.user?.id === userId;
 
 		// Нельзя снять админа с самого себя
-		if (isSelf && target.role === 'admin' && role === 'user') {
+		if (isSelf && target.role === 'admin' && role !== 'admin') {
 			return fail(400, { message: 'Нельзя снять роль администратора с самого себя' });
 		}
 
 		// Нельзя снять админа с последнего оставшегося администратора
-		if (target.role === 'admin' && role === 'user') {
-			const adminCount = await db
-				.select({ count: user.id })
-				.from(user)
-				.where(eq(user.role, 'admin'))
-				.then((r) => r.length);
+		if (target.role === 'admin' && role !== 'admin') {
+			const adminCount = await userService.countAdmins();
 			if (adminCount <= 1) {
 				return fail(400, { message: 'Нельзя снять роль с последнего администратора' });
 			}
 		}
 
-		await db.update(user).set({ role }).where(eq(user.id, userId));
+		// Роль + синхронизация подразделений (bulk через сервисы)
+		await userService.updateRole(userId, role);
+		await masterService.syncActiveDepartments(
+			userId,
+			departmentIds,
+			new Date().toISOString().split('T')[0]
+		);
+
 		return { success: true };
 	},
 
@@ -97,11 +105,7 @@ export const actions: Actions = {
 			return fail(400, { message: 'ID пользователя не указан' });
 		}
 
-		const target = await db
-			.select()
-			.from(user)
-			.where(eq(user.id, userId))
-			.then((r) => r[0]);
+		const target = await userService.getById(userId);
 		if (!target) {
 			return fail(404, { message: 'Пользователь не найден' });
 		}
@@ -113,17 +117,13 @@ export const actions: Actions = {
 
 		// Нельзя удалить последнего администратора
 		if (target.role === 'admin') {
-			const adminCount = await db
-				.select({ count: user.id })
-				.from(user)
-				.where(eq(user.role, 'admin'))
-				.then((r) => r.length);
+			const adminCount = await userService.countAdmins();
 			if (adminCount <= 1) {
 				return fail(400, { message: 'Нельзя удалить последнего администратора' });
 			}
 		}
 
-		await db.delete(user).where(eq(user.id, userId));
+		await userService.remove(userId);
 		return { success: true };
 	}
 };

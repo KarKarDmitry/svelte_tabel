@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { cn } from '$lib/utils';
+	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
 	let {
 		rules = [] as any[],
@@ -74,14 +76,14 @@
 			class="rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted"
 			onclick={() => (month = month === 1 ? 12 : month - 1)}
 		>
-			←
+			<ArrowLeft class="size-4" />
 		</button>
 		<span class="text-sm font-medium">{monthsFull[month - 1]}</span>
 		<button
 			class="rounded-md px-2 py-1 text-sm transition-colors hover:bg-muted"
 			onclick={() => (month = month === 12 ? 1 : month + 1)}
 		>
-			→
+			<ArrowRight class="size-4" />
 		</button>
 	</div>
 

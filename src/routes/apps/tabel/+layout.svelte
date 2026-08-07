@@ -15,7 +15,9 @@
 	} from '$lib/components/ui/sidebar';
 	let { children }: { children: Snippet } = $props();
 
-	const nav = [
+	let isAdmin = $derived($page.data.isAdmin ?? false);
+
+	const nav = $derived([
 		{ href: '/apps/tabel', label: 'Табель' },
 		{ href: '/apps/tabel/employees', label: 'Сотрудники' },
 		{ href: '/apps/tabel/schedules', label: 'Графики' },
@@ -23,8 +25,8 @@
 		{ href: '/apps/tabel/tabel', label: 'Табель' },
 		{ href: '/apps/tabel/turnstile', label: 'События турникета' },
 		{ href: '/apps/tabel/directories', label: 'Справочники' },
-		{ href: '/apps/tabel/import', label: 'Импорт' }
-	];
+		...(isAdmin ? [{ href: '/apps/tabel/import', label: 'Импорт' }] : [])
+	]);
 </script>
 
 <SidebarProvider>

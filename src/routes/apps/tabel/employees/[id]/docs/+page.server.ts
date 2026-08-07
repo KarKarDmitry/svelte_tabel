@@ -1,11 +1,49 @@
 import type { Actions } from './$types';
 import { documentService } from '$lib/server/db/apps/tabel/services/document.service';
 import { redirect } from '@sveltejs/kit';
+import {
+	denyIfCannotEditEmployee,
+	denyIfNoEdit,
+	getControlledDepartmentIds
+} from '$lib/server/permissions';
 
 export const actions: Actions = {
+	rehire: async (event) => {
+		const id = Number(event.params.id);
+		const form = await event.request.formData();
+		const newDeptId = Number(form.get('departmentId'));
+		let denied = await denyIfCannotEditEmployee(event.locals.user, id, newDeptId);
+		// Уволенного можно принять повторно, если он работал в подконтрольном отделе
+		if (denied && event.locals.user?.role !== 'admin') {
+			const docs = await documentService.getByEmployee(id);
+			// getByEmployee сортирует по дате DESC — первый не-dismissal и есть последний
+			const lastNonDismissal = docs.find((d) => d.type !== 'dismissal');
+			if (lastNonDismissal) {
+				const controlled = await getControlledDepartmentIds(event.locals.user);
+				if (controlled?.includes(lastNonDismissal.departmentId)) denied = null;
+			}
+		}
+		if (denied) return denied;
+		await documentService.create({
+			type: 'hiring',
+			date: form.get('date')?.toString() || '',
+			docNumber: form.get('docNumber')?.toString() || null,
+			employeeId: id,
+			departmentId: newDeptId,
+			positionId: Number(form.get('positionId'))
+		});
+		redirect(302, event.url.pathname);
+	},
 	transfer: async (event) => {
 		const id = Number(event.params.id);
 		const form = await event.request.formData();
+		// Перевод разрешён только в подконтрольные подразделения
+		const denied = await denyIfCannotEditEmployee(
+			event.locals.user,
+			id,
+			Number(form.get('departmentId'))
+		);
+		if (denied) return denied;
 		await documentService.create({
 			type: 'transfer',
 			date: form.get('date')?.toString() || '',
@@ -18,6 +56,8 @@ export const actions: Actions = {
 	},
 	dismiss: async (event) => {
 		const id = Number(event.params.id);
+		const denied = await denyIfCannotEditEmployee(event.locals.user, id);
+		if (denied) return denied;
 		const form = await event.request.formData();
 		const today = new Date().toISOString().split('T')[0];
 		const lastDoc = await documentService.getActiveAtDate(id, today);
@@ -34,6 +74,13 @@ export const actions: Actions = {
 
 	cancelDoc: async (event) => {
 		const id = Number((await event.request.formData()).get('id'));
+		const doc = await documentService.getById(id);
+		// Проверка по отделу из документа (для увольнения — отдел до увольнения),
+		// чтобы табельщик мог отменить ошибочное увольнение
+		const denied = doc
+			? await denyIfCannotEditEmployee(event.locals.user, doc.employeeId, doc.departmentId)
+			: denyIfNoEdit(event.locals.user);
+		if (denied) return denied;
 		await documentService.remove(id);
 		return { success: true };
 	}
