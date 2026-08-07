@@ -47,7 +47,7 @@
 
 		<div class="flex items-center gap-3">
 			<a
-				href="?native_only=1"
+				href="/native/apps/"
 				class="text-sm text-gray-500 underline-offset-2 hover:underline"
 				title="Упрощённая версия для старых браузеров (Windows XP)"
 			>
