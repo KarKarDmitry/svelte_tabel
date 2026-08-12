@@ -28,6 +28,11 @@ export const load: LayoutServerLoad = async (event) => {
 		controlledDepartments = departments.filter((d) => set.has(d.id));
 	}
 	const allDepartments = departments;
+	const dayMarks = await dayMarkService.list();
+	const docs = await documentService.getByEmployee(id);
+	const today = new Date();
+	const lastDoc = await documentService.getActiveAtDate(id, today.toISOString().split('T')[0]);
+	const isDismissed = lastDoc?.type === 'dismissal';
 
 	// Право на редактирование именно этого сотрудника
 	// (timekeeper — только если его отдел в подконтрольных)
@@ -46,11 +51,6 @@ export const load: LayoutServerLoad = async (event) => {
 		}
 		canEditEmployee = !!empDeptId && controlledSet.has(empDeptId);
 	}
-	const dayMarks = await dayMarkService.list();
-	const docs = await documentService.getByEmployee(id);
-	const today = new Date();
-	const lastDoc = await documentService.getActiveAtDate(id, today.toISOString().split('T')[0]);
-	const isDismissed = lastDoc?.type === 'dismissal';
 
 	const scheduleHistory = await scheduleService.getHistoryByEmployee(id);
 	const passHistory = await passService.getHistoryByEmployee(id);

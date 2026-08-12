@@ -4,3 +4,4 @@
 Dockerfile* text eol=lf
 pgbackrest.conf text eol=lf
 compose*.yaml text eol=lf
+*.conf text eol=lf

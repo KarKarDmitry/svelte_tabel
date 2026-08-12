@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { error } from '@sveltejs/kit';
 import { isAdmin, canEdit, getControlledDepartmentIds } from '$lib/server/permissions';
 import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
+import { getEmployeeEventsData } from '$lib/server/db/apps/tabel/services/employee-events.service';
 
 /** Нативная страница сотрудника: данные переиспользуем у GET /apps/tabel/tabel/employee-events */
 export const load: PageServerLoad = async (event) => {
@@ -23,19 +24,8 @@ export const load: PageServerLoad = async (event) => {
 		}
 	}
 
-	const cookie = event.request.headers.get('cookie') ?? '';
-	const res = await fetch(
-		new URL(
-			`/apps/tabel/tabel/employee-events?employeeId=${employeeId}&year=${year}&month=${month}`,
-			event.url.origin
-		),
-		{ headers: { cookie } }
-	);
-
-	if (!res.ok) {
-		throw error(res.status, 'Не удалось загрузить данные сотрудника');
-	}
-
-	const data = await res.json();
+	// Логику GET employee-events вызываем напрямую (без HTTP-запроса к собственному
+	// origin — в docker-сборке fetch к внешнему origin изнутри контейнера падает)
+	const data = await getEmployeeEventsData(employeeId, year, month);
 	return { ...data, employeeId, year, month, canEdit: canEdit(event.locals.user) };
 };

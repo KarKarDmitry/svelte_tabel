@@ -32,5 +32,9 @@ export const userService = {
 
 	updateRole: (id: string, role: string) => db.update(user).set({ role }).where(eq(user.id, id)),
 
+	/** Смена логина (name + email) */
+	updateLogin: (id: string, data: { name: string; email: string }) =>
+		db.update(user).set(data).where(eq(user.id, id)),
+
 	remove: (id: string) => db.delete(user).where(eq(user.id, id))
 };

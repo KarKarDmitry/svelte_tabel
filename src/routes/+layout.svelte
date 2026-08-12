@@ -2,6 +2,12 @@
 	import './layout.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { Button } from '$lib/components/ui/button';
+	import {
+		DropdownMenu,
+		DropdownMenuTrigger,
+		DropdownMenuContent,
+		DropdownMenuItem
+	} from '$lib/components/ui/dropdown-menu';
 	import { Toaster } from '$lib/components/ui/sonner';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
@@ -12,6 +18,7 @@
 
 	/** Нативная (XP) ветка — у неё своя шапка/стили в native/apps/+layout.svelte */
 	const isNative = $derived($page.url.pathname.startsWith('/native'));
+	const currentUserName = $derived(data.user?.name ?? '');
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
@@ -26,9 +33,10 @@
 				<td class="native-topbar-right">
 					{#if data.user}
 						{#if data.isAdmin}
-							<a class="native-link" href="/admin">Админ</a>
+							<a class="native-btn native-btn-small" href="/admin">Админ-панель</a>
 						{/if}
 						<span class="native-topbar-user">{data.user.name}</span>
+						<a class="native-btn native-btn-small" href="/native/settings">Настройки</a>
 						<form method="post" action="/auth?/signOut" class="native-topbar-form">
 							<button type="submit" class="native-btn native-btn-small">Выйти</button>
 						</form>
@@ -56,10 +64,23 @@
 			{#if data.user}
 				{#if data.isAdmin}
 					<a href="/admin">
-						<Button variant="ghost" size="sm">Админ</Button>
+						<Button variant="outline" size="sm">Админ-панель</Button>
 					</a>
 				{/if}
-				<span class="text-sm font-medium text-gray-700">{data.user.name}</span>
+				<DropdownMenu>
+					<DropdownMenuTrigger>
+						{#snippet child({ props })}
+							<Button {...props} variant="ghost" size="sm">{currentUserName}</Button>
+						{/snippet}
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem>
+							{#snippet child({ props })}
+								<a {...props} href="/settings">Настройки</a>
+							{/snippet}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
 				<form method="post" action="/auth?/signOut" use:enhance>
 					<Button variant="destructive" size="sm" type="submit">Выйти</Button>
 				</form>

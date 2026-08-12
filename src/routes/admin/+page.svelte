@@ -24,6 +24,11 @@
 	let deleteTarget = $state<any>(null);
 	let deleteOpen = $state(false);
 
+	let editTarget = $state<any>(null);
+	let editOpen = $state(false);
+	let editLogin = $state('');
+	let editPassword = $state('');
+
 	let accessTarget = $state<any>(null);
 	let accessOpen = $state(false);
 	let accessRole = $state('user');
@@ -124,6 +129,26 @@
 		deleteOpen = true;
 	}
 
+	function openEdit(row: any) {
+		editTarget = row;
+		editLogin = row.name;
+		editPassword = '';
+		editOpen = true;
+	}
+
+	async function saveEdit() {
+		if (!editTarget) return;
+		const ok = await runAction('updateUser', {
+			userId: editTarget.id,
+			login: editLogin,
+			newPassword: editPassword
+		});
+		if (!ok) return;
+		editOpen = false;
+		editTarget = null;
+		toast.success('Пользователь обновлён');
+	}
+
 	async function doDelete() {
 		if (!deleteTarget) return;
 		const ok = await runAction('deleteUser', { userId: deleteTarget.id });
@@ -201,6 +226,7 @@
 					{columns}
 					{cell}
 					rowActions={[
+						{ label: 'Изменить', onclick: (row) => openEdit(row) },
 						{ label: 'Доступ', onclick: (row) => openAccess(row) },
 						{ label: 'Удалить', onclick: (row) => confirmDelete(row) }
 					]}
@@ -209,6 +235,37 @@
 		</div>
 	</div>
 </div>
+
+<Dialog bind:open={editOpen}>
+	<DialogContent>
+		<p class="font-bold">Изменить пользователя</p>
+		<p class="text-sm text-muted-foreground">{editTarget?.email}</p>
+
+		<div class="flex flex-col gap-2">
+			<Label for="editLogin">Логин</Label>
+			<Input id="editLogin" bind:value={editLogin} placeholder="Логин (например: ivan)" />
+			<p class="text-xs text-muted-foreground">
+				Логин без @ будет сохранён как
+				<span class="font-mono">логин@mettem.com</span>
+			</p>
+		</div>
+
+		<div class="flex flex-col gap-2">
+			<Label for="editPassword">Новый пароль</Label>
+			<Input
+				id="editPassword"
+				type="password"
+				bind:value={editPassword}
+				placeholder="Оставьте пустым, чтобы не менять"
+			/>
+		</div>
+
+		<div class="flex justify-end gap-2">
+			<Button variant="outline" onclick={() => (editOpen = false)}>Отмена</Button>
+			<Button onclick={saveEdit} disabled={!editLogin.trim()}>Сохранить</Button>
+		</div>
+	</DialogContent>
+</Dialog>
 
 <Dialog bind:open={accessOpen}>
 	<DialogContent>

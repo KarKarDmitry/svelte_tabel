@@ -6,6 +6,7 @@ import { masterService } from '$lib/server/db/apps/tabel/services/master.service
 import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { APIError } from 'better-auth/api';
+import { denyIfNotAdmin } from '$lib/server/permissions';
 import { toEmail, type AppRole } from '$lib/server/auth-utils';
 
 const isRole = (r: unknown): r is AppRole => r === 'admin' || r === 'timekeeper' || r === 'user';
@@ -38,6 +39,41 @@ export const actions: Actions = {
 		} catch (error) {
 			if (error instanceof APIError) {
 				return fail(400, { message: error.message || 'Ошибка создания' });
+			}
+			return fail(500, { message: 'Неожиданная ошибка' });
+		}
+
+		return { success: true };
+	},
+
+	// Смена логина и/или сброс пароля пользователя (только для админов)
+	updateUser: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
+
+		const formData = await event.request.formData();
+		const userId = formData.get('userId')?.toString() ?? '';
+		const login = formData.get('login')?.toString().trim() ?? '';
+		const newPassword = formData.get('newPassword')?.toString() ?? '';
+
+		if (!userId || !login) {
+			return fail(400, { message: 'Укажите логин' });
+		}
+
+		try {
+			if (newPassword) {
+				await auth.api.setUserPassword({
+					body: { userId, newPassword },
+					headers: event.request.headers
+				});
+			}
+			await auth.api.updateUser({
+				body: { userId, name: login, email: toEmail(login) },
+				headers: event.request.headers
+			});
+		} catch (error) {
+			if (error instanceof APIError) {
+				return fail(400, { message: error.message || 'Ошибка обновления' });
 			}
 			return fail(500, { message: 'Неожиданная ошибка' });
 		}
