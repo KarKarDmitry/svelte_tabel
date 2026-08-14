@@ -11,6 +11,7 @@
 
 	let { data }: { data: any } = $props();
 	let canEdit = $derived(page.data.canEdit ?? false);
+	let isAdmin = $derived(page.data.isAdmin ?? false);
 	let createOpen = $state(false);
 	let editOpen = $state(false);
 	let editId = $state<number | null>(null);
@@ -35,7 +36,7 @@
 				{#if canEdit}
 					<div class="flex gap-1">
 						<Button
-							variant="outline"
+							variant="ghost"
 							size="sm"
 							onclick={() => {
 								editId = group.id;
@@ -43,10 +44,12 @@
 								editOpen = true;
 							}}>✎</Button
 						>
-						<form method="post" action="?/remove" use:enhance>
-							<input type="hidden" name="id" value={group.id} />
-							<Button variant="outline" size="sm" type="submit">×</Button>
-						</form>
+						{#if isAdmin}
+							<form method="post" action="?/remove" use:enhance>
+								<input type="hidden" name="id" value={group.id} />
+								<Button variant="destructive" size="sm" type="submit">×</Button>
+							</form>
+						{/if}
 					</div>
 				{/if}
 			</div>

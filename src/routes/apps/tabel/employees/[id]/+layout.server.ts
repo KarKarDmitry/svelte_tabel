@@ -49,7 +49,7 @@ export const load: LayoutServerLoad = async (event) => {
 			const lastNonDismissal = docs.find((d) => d.type !== 'dismissal');
 			empDeptId = lastNonDismissal?.departmentId;
 		}
-		canEditEmployee = !!empDeptId && controlledSet.has(empDeptId);
+		canEditEmployee = empDeptId ? controlledSet.has(empDeptId) : docs.length === 0;
 	}
 
 	const scheduleHistory = await scheduleService.getHistoryByEmployee(id);

@@ -10,6 +10,7 @@
 	let { data }: { data: PageServerData } = $props();
 
 	let canEdit = $derived($page.data.canEdit ?? false);
+	let isAdmin = $derived($page.data.isAdmin ?? false);
 
 	let fetched = $state<{ positions?: any[]; search?: string }>({});
 
@@ -51,7 +52,9 @@
 	rowActions={canEdit
 		? [
 				{ label: 'Редактировать', onclick: (row) => openEdit(row) },
-				{ label: 'Удалить', onclick: (row) => {} }
+				...(isAdmin
+					? [{ label: 'Удалить', variant: 'destructive' as const, onclick: (row: any) => {} }]
+					: [])
 			]
 		: []}
 	onRowClick={canEdit ? (row) => openEdit(row) : undefined}

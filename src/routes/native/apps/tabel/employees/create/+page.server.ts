@@ -31,6 +31,7 @@ export const actions: Actions = {
 			Number(form.get('departmentId'))
 		);
 		if (denied) return denied;
+
 		const number = form.get('number')?.toString() || '';
 		const lastName = form.get('lastName')?.toString() || '';
 		const firstName = form.get('firstName')?.toString() || '';
@@ -98,6 +99,6 @@ export const actions: Actions = {
 			});
 		}
 
-		throw redirect(302, `/apps/tabel/employees/${emp.id}`);
+		throw redirect(302, `/native/apps/tabel/employees/${emp.id}/main`);
 	}
 };

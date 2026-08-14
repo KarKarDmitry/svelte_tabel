@@ -1,6 +1,7 @@
 import { fail, error } from '@sveltejs/kit';
 import { masterService } from '$lib/server/db/apps/tabel/services/master.service';
 import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
+import { documentService } from '$lib/server/db/apps/tabel/services/document.service';
 
 type PermUser = { id: string; role: string } | null | undefined;
 
@@ -51,11 +52,19 @@ export async function denyIfCannotEditEmployee(
 	const controlled = await getControlledDepartmentIds(user);
 	let dept: number | undefined = deptId;
 	if (!dept) {
+		// Создание сотрудника без подразделения («Ожидание») разрешено табельщику
+		if (employeeId === 0) return null;
 		const dep = await employeeService.getDepartmentAtDate(
 			employeeId,
 			new Date().toISOString().split('T')[0]
 		);
 		dept = dep?.id;
+	}
+	if (!dept) {
+		// Сотрудник без активного подразделения: табельщику доступны только
+		// «ожидающие» (ещё не было ни одного кадрового документа)
+		const docs = await documentService.getByEmployee(employeeId);
+		if (docs.length === 0) return null;
 	}
 	if (!dept || !controlled?.includes(dept)) {
 		return fail(403, { message: 'Это подразделение вам не подконтрольно' });

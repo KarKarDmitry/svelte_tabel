@@ -3,6 +3,7 @@ export { default as Input } from './Input.svelte';
 export { default as Select } from './Select.svelte';
 export { default as Card } from './Card.svelte';
 export { default as Badge } from './Badge.svelte';
+export { default as Checkbox } from './Checkbox.svelte';
 export { default as PageHeader } from './PageHeader.svelte';
 export { default as Grid } from './Grid.svelte';
 export { default as GridItem } from './GridItem.svelte';

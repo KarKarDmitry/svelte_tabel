@@ -21,4 +21,11 @@ declare global {
 	}
 }
 
+// ESM-модуль пакета punycode (Node резолвит 'punycode' как встроенный deprecated,
+// поэтому импортируем по пути; тут объявляем типы, т.к. в пакете их нет)
+declare module 'punycode/punycode.es6.js' {
+	export function toASCII(input: string): string;
+	export function toUnicode(input: string): string;
+}
+
 export {};

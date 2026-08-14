@@ -4,6 +4,7 @@
 
 	const data = $derived($page.data);
 	const canEdit = $derived($page.data.canEdit ?? false);
+	const isAdmin = $derived($page.data.isAdmin ?? false);
 
 	function memberNames(g: any): string {
 		return g.departments.map((m: any) => m.departmentName).join(', ') || '—';
@@ -75,10 +76,12 @@
 				<input type="text" name="name" value={g.name} class="n-edit-input" />
 				<Button type="submit" variant="outline" size="sm">Переименовать</Button>
 			</form>
-			<form method="post" action="?/remove" class="n-inline-form">
-				<input type="hidden" name="id" value={g.id} />
-				<Button type="submit" variant="ghost" size="sm">Удалить группу</Button>
-			</form>
+			{#if isAdmin}
+				<form method="post" action="?/remove" class="n-inline-form">
+					<input type="hidden" name="id" value={g.id} />
+					<Button type="submit" variant="ghost" size="sm">Удалить группу</Button>
+				</form>
+			{/if}
 		{:else}
 			<p class="n-note">{memberNames(g)}</p>
 		{/if}

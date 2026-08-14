@@ -7,7 +7,9 @@
 		Select,
 		Badge,
 		Pagination,
-		EmptyState
+		EmptyState,
+		Grid,
+		GridItem
 	} from '$lib/components/native/ui';
 
 	const data = $derived($page.data);
@@ -39,6 +41,8 @@
 </script>
 
 <PageHeader title="Сотрудники" note={`Всего: ${data.total}`} />
+
+<Button href="/native/apps/tabel/employees/create" size="sm">Создать сотрудника</Button>
 
 <form method="get" action="/native/apps/tabel/employees" class="n-filters">
 	<Input
@@ -156,6 +160,9 @@
 	}
 	.n-clear:hover {
 		text-decoration: underline;
+	}
+	.n-create {
+		margin-bottom: 10px;
 	}
 	.n-table {
 		margin-top: 4px;

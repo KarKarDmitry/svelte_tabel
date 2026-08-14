@@ -26,3 +26,4 @@ vite.config.ts.timestamp-*
 
 # old project
 py_tabel
+tmp-export.xlsx

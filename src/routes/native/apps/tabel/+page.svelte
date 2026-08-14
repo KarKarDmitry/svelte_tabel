@@ -8,7 +8,7 @@
 <style>
 	.native-redirect {
 		padding: 16px;
-		font-family: Arial, sans-serif;
+		font-family: 'Tahoma', 'Arial', sans-serif;
 		font-size: 14px;
 	}
 	.native-redirect a {

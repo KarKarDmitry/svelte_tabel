@@ -1,6 +1,8 @@
 import type { PageServerLoad } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
+import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
+import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
 import { getControlledDepartmentIds } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
@@ -9,8 +11,21 @@ export const load: PageServerLoad = async (event) => {
 	const month = Number(url.searchParams.get('month')) || new Date().getMonth() + 1;
 	const actual = url.searchParams.get('actual') === '1';
 
-	const data = await worktimeService.getMonthGrouped(year, month);
-	const groups = await departmentGroupService.listWithDepartments();
+	const [data, groups, calendars, roundingRulesRow] = await Promise.all([
+		worktimeService.getMonthGrouped(year, month),
+		departmentGroupService.listWithDepartments(),
+		calendarService.listCalendars(),
+		appConstantService.getByKey('ROUNDING_RULES')
+	]);
+
+	let roundingRules: Record<string, unknown> | null = null;
+	if (roundingRulesRow?.value) {
+		try {
+			roundingRules = JSON.parse(roundingRulesRow.value);
+		} catch {
+			roundingRules = null;
+		}
+	}
 
 	// Не-админ видит только подконтрольные подразделения
 	const controlled = await getControlledDepartmentIds(event.locals.user);
@@ -37,5 +52,5 @@ export const load: PageServerLoad = async (event) => {
 		grouped.push({ id: 0, name: 'Без группы', departments: ungrouped });
 	}
 
-	return { ...data, departments: grouped, year, month, actual };
+	return { ...data, departments: grouped, calendars, roundingRules, year, month, actual };
 };

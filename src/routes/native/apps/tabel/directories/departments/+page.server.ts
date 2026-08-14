@@ -1,7 +1,7 @@
 import type { PageServerLoad, Actions } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const search = event.url.searchParams.get('search') || '';
@@ -35,7 +35,7 @@ export const actions: Actions = {
 	},
 
 	delete: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
+		const denied = denyIfNotAdmin(event.locals.user);
 		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await departmentService.remove(id);

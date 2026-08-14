@@ -3,7 +3,7 @@ import { departmentGroupService } from '$lib/server/db/apps/tabel/services/depar
 import { department } from '$lib/server/db/apps/tabel/tables/department';
 import { db } from '$lib/server/db';
 import { asc } from 'drizzle-orm';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
 import { redirect } from '@sveltejs/kit';
 
 export const load: PageServerLoad = async () => {
@@ -35,7 +35,7 @@ export const actions: Actions = {
 	},
 
 	remove: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
+		const denied = denyIfNotAdmin(event.locals.user);
 		if (denied) return denied;
 		const f = await event.request.formData();
 		await departmentGroupService.remove(Number(f.get('id')));

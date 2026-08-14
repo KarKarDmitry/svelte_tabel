@@ -144,6 +144,12 @@ async function seed() {
 			hint: 'Отметки явки через запятую, для которых подставляются часы из графика'
 		},
 		{
+			key: 'AUTO_ABSENCE_MARK',
+			value: 'ПР',
+			isJson: false,
+			hint: 'Код отметки «пропуск» (из day_mark.code) для автоматического проставления прогулов в экспорте Т-12; в кодах неявок выводится его отчётный код'
+		},
+		{
 			key: 'CELL_COLOR_RULES',
 			isJson: true,
 			hint: 'Правила окраски ячеек табеля: overwork, underwork, missedWorkday, missingHours, weekendWork, outOfPeriod',
@@ -168,7 +174,7 @@ async function seed() {
 			})
 		}
 	]);
-	console.log('  ✓ app_constants: 6');
+	console.log('  ✓ app_constants: 7');
 
 	// --- department_group ---
 	const groups = await db

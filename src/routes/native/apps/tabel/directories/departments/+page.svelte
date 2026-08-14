@@ -4,6 +4,7 @@
 
 	const data = $derived($page.data);
 	const canEdit = $derived($page.data.canEdit ?? false);
+	const isAdmin = $derived($page.data.isAdmin ?? false);
 
 	const clearUrl = $derived(
 		data.search ? '?search=' : '/native/apps/tabel/directories/departments'
@@ -51,10 +52,12 @@
 									<input type="text" name="name" value={d.name} class="n-edit-input" />
 									<Button type="submit" variant="outline" size="sm">Переименовать</Button>
 								</form>
-								<form method="post" action="?/delete" class="n-inline-form">
-									<input type="hidden" name="id" value={d.id} />
-									<Button type="submit" variant="ghost" size="sm">Удалить</Button>
-								</form>
+								{#if isAdmin}
+									<form method="post" action="?/delete" class="n-inline-form">
+										<input type="hidden" name="id" value={d.id} />
+										<Button type="submit" variant="ghost" size="sm">Удалить</Button>
+									</form>
+								{/if}
 							</td>
 						{/if}
 					</tr>

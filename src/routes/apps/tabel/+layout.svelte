@@ -1,59 +1,36 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
-	import {
-		SidebarProvider,
-		Sidebar,
-		SidebarHeader,
-		SidebarContent,
-		SidebarGroup,
-		SidebarGroupContent,
-		SidebarMenu,
-		SidebarMenuItem,
-		SidebarMenuButton,
-		SidebarInset
-	} from '$lib/components/ui/sidebar';
+	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
+	import Users from '@lucide/svelte/icons/users';
+	import CalendarClock from '@lucide/svelte/icons/calendar-clock';
+	import CalendarDays from '@lucide/svelte/icons/calendar-days';
+	import Table2 from '@lucide/svelte/icons/table-2';
+	import History from '@lucide/svelte/icons/history';
+	import FolderOpen from '@lucide/svelte/icons/folder-open';
+	import Upload from '@lucide/svelte/icons/upload';
+	import Settings from '@lucide/svelte/icons/settings';
+	import { sidebarNav } from '$lib/sidebar-nav.svelte';
+
 	let { children }: { children: Snippet } = $props();
 
-	let isAdmin = $derived($page.data.isAdmin ?? false);
-
-	const nav = $derived([
-		{ href: '/apps/tabel', label: 'Табель' },
-		{ href: '/apps/tabel/employees', label: 'Сотрудники' },
-		{ href: '/apps/tabel/schedules', label: 'Графики' },
-		{ href: '/apps/tabel/calendar', label: 'Календарь' },
-		{ href: '/apps/tabel/tabel', label: 'Табель' },
-		{ href: '/apps/tabel/turnstile', label: 'События турникета' },
-		{ href: '/apps/tabel/directories', label: 'Справочники' },
-		...(isAdmin ? [{ href: '/apps/tabel/import', label: 'Импорт' }] : [])
-	]);
+	// Регистрируем навигацию раздела (выполняется и на сервере, и на клиенте,
+	// поэтому сайдбар в корневом лейауте рендерится уже с кнопками)
+	sidebarNav.set({
+		root: '/apps/tabel',
+		title: 'mettem / Табельный учет',
+		items: [
+			{ href: '/apps/tabel', label: 'Главное', icon: LayoutDashboard, exact: true },
+			{ href: '/apps/tabel/employees', label: 'Сотрудники', icon: Users },
+			{ href: '/apps/tabel/schedules', label: 'Графики', icon: CalendarClock },
+			{ href: '/apps/tabel/calendar', label: 'Календарь', icon: CalendarDays },
+			{ href: '/apps/tabel/tabel', label: 'Табель', icon: Table2 },
+			{ href: '/apps/tabel/turnstile', label: 'События турникета', icon: History },
+			{ href: '/apps/tabel/directories', label: 'Справочники', icon: FolderOpen },
+			...($page.data.isAdmin ? [{ href: '/apps/tabel/import', label: 'Импорт', icon: Upload }] : [])
+		],
+		footer: [{ href: '/settings', label: 'Настройки', icon: Settings }]
+	});
 </script>
 
-<SidebarProvider>
-	<Sidebar>
-		<SidebarHeader class="flex h-12 justify-center border-b border-border px-4">
-			<a href="/apps" class="text-sm font-semibold text-blue-700">mettem / Табельный учет</a>
-		</SidebarHeader>
-		<SidebarContent>
-			<SidebarGroup>
-				<SidebarGroupContent>
-					<SidebarMenu>
-						{#each nav as item}
-							<SidebarMenuItem>
-								<SidebarMenuButton isActive={$page.url.pathname === item.href}>
-									{#snippet child({ props })}
-										<a href={item.href} {...props}>{item.label}</a>
-									{/snippet}
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-						{/each}
-					</SidebarMenu>
-				</SidebarGroupContent>
-			</SidebarGroup>
-		</SidebarContent>
-	</Sidebar>
-
-	<SidebarInset class="overflow-hidden bg-white p-6">
-		{@render children()}
-	</SidebarInset>
-</SidebarProvider>
+{@render children()}

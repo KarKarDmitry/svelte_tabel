@@ -4,6 +4,7 @@ import { db } from '$lib/server/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { denyIfCannotEditEmployee } from '$lib/server/permissions';
+import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
 import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
 import { dayMark } from '$lib/server/db/apps/tabel/tables/day-mark';
 import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-schedule';
@@ -120,7 +121,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		throw error(400, 'employeeId и date обязательны');
 	}
 
-	const denied = await denyIfCannotEditEmployee(locals.user, employeeId);
+	// Право проверяем по отделу сотрудника НА ДАТУ ячейки (при переводах отдел
+	// мог отличаться от сегодняшнего — иначе табельщик не сможет править
+	// «до перевода», даже если подразделение ему подконтрольно)
+	const deptAtDate = await employeeService.getDepartmentAtDate(employeeId, date);
+	const denied = await denyIfCannotEditEmployee(locals.user, employeeId, deptAtDate?.id);
 	if (denied) {
 		throw error(403, denied.data?.message ?? 'Недостаточно прав для редактирования');
 	}

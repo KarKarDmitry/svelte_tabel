@@ -1,7 +1,9 @@
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
+import { fail } from '@sveltejs/kit';
 import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
 import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
 import { positionService } from '$lib/server/db/apps/tabel/services/position.service';
+import { denyIfNotAdmin } from '$lib/server/permissions';
 
 const PAGE_SIZE = 100;
 
@@ -29,4 +31,19 @@ export const load: PageServerLoad = async (event) => {
 		departments: deps,
 		positions
 	};
+};
+
+export const actions: Actions = {
+	/** Полное удаление сотрудника (каскадом) — только для администраторов */
+	delete: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
+		const f = await event.request.formData();
+		const id = Number(f.get('id'));
+		if (!id) return fail(400, { message: 'Неверный ID сотрудника' });
+		// FK в БД (hr_document, employee_pass, employee_schedule, leave_document,
+		// worktime_tracker, turnstile_event_tracker) имеют ON DELETE CASCADE
+		await employeeService.remove(id);
+		return { success: true };
+	}
 };

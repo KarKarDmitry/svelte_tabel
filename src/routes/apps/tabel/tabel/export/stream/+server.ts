@@ -2,10 +2,7 @@ import type { RequestHandler } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-import {
-	buildT12,
-	type ExportOptions
-} from '$lib/server/db/apps/tabel/reports/T-12_builder_populate';
+import { buildT12, type ExportOptions } from '$lib/server/db/apps/tabel/reports/T-12_builder';
 import { getControlledDepartmentIds } from '$lib/server/permissions';
 
 const boolParam = (v: string | null, def: boolean) =>
@@ -161,7 +158,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 						roundingConfig,
 						data.calendarDays,
 						data.shiftMarks,
-						options
+						options,
+						(await appConstantService.getByKey('AUTO_ABSENCE_MARK'))?.value
 					);
 					console.timeEnd('export:build');
 					if (cancelled) return;

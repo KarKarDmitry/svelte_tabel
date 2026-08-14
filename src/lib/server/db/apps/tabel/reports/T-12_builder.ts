@@ -210,7 +210,8 @@ export async function buildT12(
 	roundingConfig?: Omit<RoundingConfig, 'scheduleStandardTime'> | null,
 	calendarDays?: Record<string, { dayType: string; workTime: number | null }>,
 	shiftMarkShortnames?: string[],
-	options?: ExportOptions
+	options?: ExportOptions,
+	autoAbsenceMark?: string
 ): Promise<Buffer> {
 	const opts: ExportOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
 	const wb = new Excel.Workbook();
@@ -219,6 +220,12 @@ export async function buildT12(
 	// Маппинг code → полный объект отметки (для lookup категории, reportCode и т.д.)
 	const markByCodeObj = new Map(dayMarks.map((m: any) => [m.code, m]));
 	const markByShortObj = new Map(dayMarks.map((m: any) => [m.shortName, m]));
+
+	// Отметка «пропуск» (автопрогул): код из app_constant AUTO_ABSENCE_MARK, fallback «ПР».
+	// В ячейках дней выводится сам код, в кодах неявок — его отчётный код (например 01).
+	const absenceMark = autoAbsenceMark || 'ПР';
+	const absenceMarkObj = markByCodeObj.get(absenceMark);
+	const absenceReportCode = absenceMarkObj?.reportCode || absenceMark;
 
 	// Множество кодов отметок, считающихся «рабочими» (SHIFT_MARK_SHORTNAMES)
 	const shiftMarkCodes = new Set<string>();
@@ -270,20 +277,31 @@ export async function buildT12(
 	// Карта: groupName → { ws, row }
 	const sheets = new Map<string, { ws: Excel.Worksheet; row: number }>();
 
+	// Листы создаём в отсортированном по имени порядке, «Другое» — всегда в конце
+	const groupSeen = new Set<string>();
 	for (const dept of departments) {
 		const groupName = deptToGroup.get(dept.id ?? dept.departmentId) ?? defaultGroup;
+		groupSeen.add(groupName);
+	}
+	const sortedGroupNames = [...groupSeen]
+		.filter((n) => n !== defaultGroup)
+		.sort((a, b) => a.localeCompare(b, 'ru'));
+	if (groupSeen.has(defaultGroup)) sortedGroupNames.push(defaultGroup);
 
-		if (!sheets.has(groupName)) {
-			const ws = wb.addWorksheet(groupName, {
-				pageSetup: {
-					orientation: 'landscape',
-					paperSize: 9,
-					margins: { top: 1, bottom: 1, left: 0.5, right: 0.5, header: 0, footer: 0 }
-				}
-			});
-			setColWidths(ws);
-			sheets.set(groupName, { ws, row: 1 });
-		}
+	for (const groupName of sortedGroupNames) {
+		const ws = wb.addWorksheet(groupName, {
+			pageSetup: {
+				orientation: 'landscape',
+				paperSize: 9,
+				margins: { top: 1, bottom: 1, left: 0.5, right: 0.5, header: 0, footer: 0 }
+			}
+		});
+		setColWidths(ws);
+		sheets.set(groupName, { ws, row: 1 });
+	}
+
+	for (const dept of departments) {
+		const groupName = deptToGroup.get(dept.id ?? dept.departmentId) ?? defaultGroup;
 
 		const sheet = sheets.get(groupName)!;
 
@@ -323,7 +341,9 @@ export async function buildT12(
 						empIndex,
 						workDayIndices,
 						shiftMarkCodes,
-						opts
+						opts,
+						absenceMark,
+						absenceReportCode
 					)
 				);
 
@@ -357,7 +377,9 @@ export async function buildT12(
 						empIndex,
 						workDayIndices,
 						shiftMarkCodes,
-						opts
+						opts,
+						absenceMark,
+						absenceReportCode
 					)
 				);
 			}
@@ -708,7 +730,9 @@ function writeEmployee(
 	empIndex: number,
 	workDayIndices: Set<number>,
 	shiftMarkCodes: Set<string>,
-	options: ExportOptions
+	options: ExportOptions,
+	absenceMark: string,
+	absenceReportCode: string
 ): number {
 	const hr = row + 1;
 	const d = emp?.days ?? [];
@@ -769,8 +793,8 @@ function writeEmployee(
 						? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
 						: '';
 			} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
-				// Автопрогул: пустой рабочий день → «ПР»
-				displayMark = 'ПР';
+				// Автопрогул: пустой рабочий день → отметка пропуска
+				displayMark = absenceMark;
 			}
 			dc(c, displayMark, hoursVal);
 			c++;
@@ -809,8 +833,8 @@ function writeEmployee(
 							? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
 							: '';
 				} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
-					// Автопрогул: пустой рабочий день → «ПР»
-					displayMark = 'ПР';
+					// Автопрогул: пустой рабочий день → отметка пропуска
+					displayMark = absenceMark;
 				}
 				dc(c, displayMark, hoursVal);
 				c++;
@@ -883,10 +907,11 @@ function writeEmployee(
 
 				// Пустой код (нет отметки)
 				if (!day?.dayMarkCode) {
-					// Автопрогул: пустой рабочий день → «ПР» в кодах неявок
+					// Автопрогул: пустой рабочий день → отчётный код пропуска в кодах неявок
 					if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
-						if (!skippedDays.has('ПР')) skippedDays.set('ПР', { cnt: 0, hours: 0, cols: [] });
-						const sd = skippedDays.get('ПР')!;
+						if (!skippedDays.has(absenceReportCode))
+							skippedDays.set(absenceReportCode, { cnt: 0, hours: 0, cols: [] });
+						const sd = skippedDays.get(absenceReportCode)!;
 						sd.cnt++;
 						sd.cols.push(dayIdx < 15 ? 4 + dayIdx : 20 + (dayIdx - 15));
 					}

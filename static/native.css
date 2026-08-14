@@ -5,7 +5,7 @@
 	background: #ffffff;
 	color: #232323;
 	padding: 16px;
-	font-family: Arial, sans-serif;
+	font-family: 'Tahoma', 'Arial', sans-serif;
 	font-size: 14px;
 }
 .native-nav {
@@ -168,6 +168,7 @@
 	font-size: 12px;
 	padding: 0px;
 	background: transparent;
+	font-family: 'Tahoma', 'Arial', sans-serif;
 }
 .native-blocked {
 	color: #b0b0b0;
@@ -214,6 +215,7 @@
 	cursor: pointer;
 	text-decoration: none;
 	display: inline-block;
+	font-family: 'Tahoma', 'Arial', sans-serif;
 }
 .native-msg {
 	border: 1px solid #d0d0d0;
@@ -263,7 +265,7 @@
 
 .native-redirect {
 	padding: 16px;
-	font-family: Arial, sans-serif;
+	font-family: 'Tahoma', 'Arial', sans-serif;
 	font-size: 14px;
 }
 .native-redirect a {
@@ -374,4 +376,30 @@
 }
 .native-actions {
 	margin-top: 10px;
+}
+
+/* Форма экспорта табеля (native) */
+.n-export-form {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.n-export-row {
+	max-width: 320px;
+}
+.n-export-checks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 18px;
+	font-size: 13px;
+}
+.n-export-round {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	border-top: 1px solid #eeeeee;
+	padding-top: 10px;
+}
+.n-export-round .n-field {
+	max-width: 320px;
 }

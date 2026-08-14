@@ -5,7 +5,7 @@ import { departmentService } from '$lib/server/db/apps/tabel/services/department
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { department } from '$lib/server/db/apps/tabel/tables/department';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const search = event.url.searchParams.get('search') || '';
@@ -37,7 +37,7 @@ export const actions: Actions = {
 		return { success: true };
 	},
 	delete: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
+		const denied = denyIfNotAdmin(event.locals.user);
 		if (denied) return denied;
 		const id = Number((await event.request.formData()).get('id'));
 		await departmentService.remove(id);

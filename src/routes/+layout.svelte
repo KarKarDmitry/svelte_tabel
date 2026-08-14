@@ -9,6 +9,9 @@
 		DropdownMenuItem
 	} from '$lib/components/ui/dropdown-menu';
 	import { Toaster } from '$lib/components/ui/sonner';
+	import { SidebarProvider, SidebarTrigger, SidebarInset } from '$lib/components/ui/sidebar';
+	import AppSidebar from '$lib/components/app-sidebar.svelte';
+	import { sidebarNav } from '$lib/sidebar-nav.svelte';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/stores';
 	import type { LayoutServerData } from './$types';
@@ -18,10 +21,22 @@
 
 	/** Нативная (XP) ветка — у неё своя шапка/стили в native/apps/+layout.svelte */
 	const isNative = $derived($page.url.pathname.startsWith('/native'));
+	const currentPath = $derived($page.url.pathname);
 	const currentUserName = $derived(data.user?.name ?? '');
+
+	/** Активен ли зарегистрированный раздел (для триггера в шапке и показа сайдбара) */
+	const sidebarActive = $derived(
+		!!sidebarNav.current && currentPath.startsWith(sidebarNav.current.root)
+	);
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<svelte:head>
+	<link rel="icon" href={favicon} />
+	{#if isNative}
+		<link rel="stylesheet" href="/native.css" />
+		<script src="/native-collapse.js"></script>
+	{/if}
+</svelte:head>
 
 {#if isNative}
 	<table class="native-topbar">
@@ -33,7 +48,7 @@
 				<td class="native-topbar-right">
 					{#if data.user}
 						{#if data.isAdmin}
-							<a class="native-btn native-btn-small" href="/admin">Админ-панель</a>
+							<a class="native-btn native-btn-small" href="/native/admin">Админ-панель</a>
 						{/if}
 						<span class="native-topbar-user">{data.user.name}</span>
 						<a class="native-btn native-btn-small" href="/native/settings">Настройки</a>
@@ -47,56 +62,77 @@
 			</tr>
 		</tbody>
 	</table>
-{:else}
-	<header
-		class="flex h-12 items-center justify-between border-b border-border bg-white px-2 shadow-sm"
-	>
-		<a href="/apps" class="text-xl font-bold text-blue-700">mettem</a>
 
-		<div class="flex items-center gap-3">
-			<a
-				href="/native/apps/"
-				class="text-sm text-gray-500 underline-offset-2 hover:underline"
-				title="Упрощённая версия для старых браузеров (Windows XP)"
-			>
-				Версия для XP
-			</a>
-			{#if data.user}
-				{#if data.isAdmin}
-					<a href="/admin">
-						<Button variant="outline" size="sm">Админ-панель</Button>
+	<main class="overflow-hidden">
+		{@render children()}
+	</main>
+{:else}
+	<SidebarProvider class="flex-col">
+		<header
+			class="flex h-12 items-center justify-between border-b border-border bg-white px-2 shadow-sm"
+		>
+			{#if sidebarActive}
+				<div class="flex items-center gap-2">
+					<SidebarTrigger class="md:hidden" />
+					<a
+						href="/apps"
+						class="hidden text-sm font-bold text-blue-700 md:inline md:pl-12 md:text-xl">mettem</a
+					>
+				</div>
+			{:else}
+				<a href="/apps" class="text-sm font-bold text-blue-700 md:pl-12 md:text-xl">mettem</a>
+			{/if}
+
+			<div class="flex items-center gap-3">
+				<a
+					href="/native/apps/"
+					class="hidden text-sm text-gray-500 underline-offset-2 hover:underline md:inline"
+					title="Упрощённая версия для старых браузеров (Windows XP)"
+				>
+					Версия для XP
+				</a>
+				{#if data.user}
+					{#if data.isAdmin}
+						<a href="/admin">
+							<Button variant="outline" size="sm">Админ-панель</Button>
+						</a>
+					{/if}
+					<DropdownMenu>
+						<DropdownMenuTrigger>
+							{#snippet child({ props })}
+								<Button {...props} variant="ghost" size="sm">{currentUserName}</Button>
+							{/snippet}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem>
+								{#snippet child({ props })}
+									<a {...props} href="/settings">Настройки</a>
+								{/snippet}
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<form method="post" action="/auth?/signOut" use:enhance>
+						<Button variant="destructive" size="sm" type="submit">Выйти</Button>
+					</form>
+				{:else}
+					<a href="/auth/login">
+						<Button variant="default" size="sm">Войти</Button>
 					</a>
 				{/if}
-				<DropdownMenu>
-					<DropdownMenuTrigger>
-						{#snippet child({ props })}
-							<Button {...props} variant="ghost" size="sm">{currentUserName}</Button>
-						{/snippet}
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem>
-							{#snippet child({ props })}
-								<a {...props} href="/settings">Настройки</a>
-							{/snippet}
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
-				<form method="post" action="/auth?/signOut" use:enhance>
-					<Button variant="destructive" size="sm" type="submit">Выйти</Button>
-				</form>
-			{:else}
-				<a href="/auth/login">
-					<Button variant="default" size="sm">Войти</Button>
-				</a>
-			{/if}
+			</div>
+		</header>
+
+		<div class="flex min-h-0 flex-1 flex-col md:flex-row">
+			<!-- Сначала контент: раздел (внутри) успевает зарегистрировать навигацию,
+					поэтому сайдбар рендерится уже с кнопками и при SSR -->
+			<SidebarInset class="overflow-hidden bg-white p-6">
+				{@render children()}
+			</SidebarInset>
+			<div class="md:order-first">
+				<AppSidebar activePath={currentPath} />
+			</div>
 		</div>
-	</header>
-{/if}
 
-<main class:overflow-hidden={!isNative}>
-	{@render children()}
-</main>
-
-{#if !isNative}
-	<Toaster />
+		<Toaster />
+	</SidebarProvider>
 {/if}

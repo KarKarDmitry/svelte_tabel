@@ -1,11 +1,25 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { cellStyle } from './cell-style';
-	import { Collapsible, SubCollapsible } from '$lib/components/native/ui';
+	import {
+		Collapsible,
+		SubCollapsible,
+		Card,
+		Select,
+		Input,
+		Checkbox,
+		Button,
+		Flex
+	} from '$lib/components/native/ui';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 
 	const data = $derived($page.data);
+
+	const calendarOptions = $derived(
+		(data.calendars ?? []).map((c: any) => ({ value: c.id, label: `${c.name} (${c.year})` }))
+	);
+	const roundingRules = $derived(data.roundingRules ?? {});
 
 	const months = [
 		'Январь',
@@ -244,6 +258,70 @@
 	{:else}
 		<a href={`?year=${data.year}&month=${data.month}&actual=1`}> Фактическое время </a>
 	{/if}
+	<span class="native-sep">|</span>
+	{@html `<button type="button" class="native-btn native-btn-small" onclick="xpToggle('export_card')">Экспорт</button>`}
+</div>
+
+<div id="export_card" style="display: none">
+	<Card title="Экспорт табеля">
+		<form method="get" action="/native/apps/tabel/tabel/export" class="n-export-form">
+			<input type="hidden" name="year" value={data.year} />
+			<input type="hidden" name="month" value={data.month} />
+
+			<div class="n-export-row">
+				<Select name="calendarId" label="Календарь" options={calendarOptions} />
+			</div>
+
+			<Flex>
+				<Checkbox name="showNight" label="Ночные" checked />
+				<Checkbox name="showHoliday" label="Праздники" checked />
+				<Checkbox name="showAbsence" label="Неявки" checked />
+				<Checkbox name="showOvertime" label="Переработки" />
+				<Checkbox name="autoAbsence" label="Автопропуски" />
+				<Checkbox name="rounding" label="Округлять часы" />
+			</Flex>
+
+			<div class="n-export-round">
+				<Input
+					name="roundingPoint"
+					label="Точка округления (ч)"
+					type="number"
+					step="0.1"
+					value={String(roundingRules.roundingPoint ?? '')}
+				/>
+				<Input
+					name="roundingFrom"
+					label="От (ч)"
+					type="number"
+					step="0.1"
+					value={String(roundingRules.roundingFrom ?? '')}
+				/>
+				<Input
+					name="roundingTo"
+					label="До (ч)"
+					type="number"
+					step="0.1"
+					value={String(roundingRules.roundingTo ?? '')}
+				/>
+				<Input
+					name="standardLeft"
+					label="Сдвиг влево к стандарту (ч)"
+					type="number"
+					step="0.1"
+					value={String(roundingRules.standardLeft ?? '')}
+				/>
+				<Input
+					name="standardRight"
+					label="Сдвиг вправо к стандарту (ч)"
+					type="number"
+					step="0.1"
+					value={String(roundingRules.standardRight ?? '')}
+				/>
+			</div>
+
+			<Button type="submit" size="sm">Скачать</Button>
+		</form>
+	</Card>
 </div>
 
 <div>

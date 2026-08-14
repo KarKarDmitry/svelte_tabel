@@ -3,10 +3,12 @@
 
 	let {
 		title,
+		note,
 		class: className = '',
 		children
 	}: {
 		title?: string;
+		note?: string;
 		class?: string;
 		children: Snippet;
 	} = $props();
@@ -16,6 +18,8 @@
 
 <div class={cls}>
 	{#if title}<div class="n-card-title">{title}</div>{/if}
+	{#if note}<div class="n-card-note">{note}</div>{/if}
+	<div class="n-card-sep"></div>
 	{@render children()}
 </div>
 
@@ -32,6 +36,13 @@
 		font-size: 15px;
 		font-weight: 600;
 		color: #111827;
+	}
+	.n-card-note {
+		font-size: 14px;
+		color: #6b7280;
+		margin: 0;
+	}
+	.n-card-sep {
 		border-bottom: 2px solid #afafaf;
 		padding-bottom: 10px;
 		margin-bottom: 10px;

@@ -67,10 +67,9 @@ export const actions: Actions = {
 					headers: event.request.headers
 				});
 			}
-			await auth.api.updateUser({
-				body: { userId, name: login, email: toEmail(login) },
-				headers: event.request.headers
-			});
+			// Логин (name + email) обновляем напрямую в БД: better-auth не позволяет
+			// менять email через updateUser, а русский логин требует punycode-email
+			await userService.updateLogin(userId, { name: login, email: toEmail(login) });
 		} catch (error) {
 			if (error instanceof APIError) {
 				return fail(400, { message: error.message || 'Ошибка обновления' });

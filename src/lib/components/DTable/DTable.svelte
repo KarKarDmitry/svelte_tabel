@@ -31,6 +31,7 @@
 	export interface Action {
 		label: string | ((row: any) => string);
 		onclick: (row: any) => void;
+		variant?: 'default' | 'destructive';
 	}
 
 	export interface Filter {
@@ -126,8 +127,10 @@
 			<!-- Actions -->
 			<div class="flex gap-2">
 				{#each actions as act}
-					<Button onclick={() => act.onclick(null)} class="hidden sm:inline-flex"
-						>{act.label}</Button
+					<Button
+						variant={act.variant ?? 'default'}
+						onclick={() => act.onclick(null)}
+						class="hidden sm:inline-flex">{act.label}</Button
 					>
 				{/each}
 				{#if actions.length > 1}
@@ -137,7 +140,10 @@
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							{#each actions as act}
-								<DropdownMenuItem onclick={() => act.onclick(null)}>{act.label}</DropdownMenuItem>
+								<DropdownMenuItem
+									variant={act.variant ?? 'default'}
+									onclick={() => act.onclick(null)}>{act.label}</DropdownMenuItem
+								>
 							{/each}
 						</DropdownMenuContent>
 					</DropdownMenu>
@@ -218,7 +224,10 @@
 										</DropdownMenuTrigger>
 										<DropdownMenuContent>
 											{#each rowActions as act}
-												<DropdownMenuItem onclick={() => act.onclick(row)}>
+												<DropdownMenuItem
+													variant={act.variant ?? 'default'}
+													onclick={() => act.onclick(row)}
+												>
 													{typeof act.label === 'function' ? act.label(row) : act.label}
 												</DropdownMenuItem>
 											{/each}
