@@ -27,5 +27,14 @@ export const load: PageServerLoad = async (event) => {
 	// Логику GET employee-events вызываем напрямую (без HTTP-запроса к собственному
 	// origin — в docker-сборке fetch к внешнему origin изнутри контейнера падает)
 	const data = await getEmployeeEventsData(employeeId, year, month);
-	return { ...data, employeeId, year, month, canEdit: canEdit(event.locals.user) };
+	return {
+		...data,
+		employeeId,
+		year,
+		month,
+		canEdit: canEdit(event.locals.user),
+		// native без тёмной темы — отдаём плоский светлый набор расцветки
+		cellColorRules: (data.cellColorRules as any)?.light ?? data.cellColorRules ?? {},
+		markColorRules: (data.markColorRules as any)?.light ?? data.markColorRules ?? {}
+	};
 };

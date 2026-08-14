@@ -143,8 +143,10 @@
 						<Label
 							class={cn(
 								'flex-row items-center gap-2 rounded-md border px-3 py-2 text-sm',
-								isChecked && !isDisabled && 'border-green-700 bg-green-100',
-								isDisabled && 'border-gray-700 bg-gray-300'
+								isChecked &&
+									!isDisabled &&
+									'border-green-700 bg-green-100 dark:border-green-500 dark:bg-green-900/30',
+								isDisabled && 'border-gray-700 bg-gray-300 dark:border-gray-600 dark:bg-gray-700'
 							)}
 						>
 							<Checkbox

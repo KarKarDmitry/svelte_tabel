@@ -2,10 +2,10 @@
 	import { tv, type VariantProps } from 'tailwind-variants';
 
 	export const tabsListVariants = tv({
-		base: 'rounded-xl p-1 group-data-horizontal/tabs:min-h-9 group-data-vertical/tabs:rounded-2xl data-[variant=line]:rounded-none group/tabs-list text-muted-foreground inline-flex w-fit flex-wrap items-center justify-left group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col',
+		base: 'rounded-3xl p-1 group-data-horizontal/tabs:min-h-9 group-data-vertical/tabs:rounded-2xl data-[variant=line]:rounded-none group/tabs-list text-muted-foreground inline-flex w-fit flex-wrap items-center justify-left group-data-[orientation=vertical]/tabs:h-fit group-data-[orientation=vertical]/tabs:flex-col',
 		variants: {
 			variant: {
-				default: 'cn-tabs-list-variant-default bg-accent',
+				default: 'cn-tabs-list-variant-default bg-card',
 				line: 'cn-tabs-list-variant-line gap-1 bg-transparent'
 			}
 		},

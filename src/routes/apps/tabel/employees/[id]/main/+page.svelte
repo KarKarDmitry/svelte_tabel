@@ -82,9 +82,9 @@
 				{/if}
 			{:else}
 				<div class="space-y-2 text-sm">
-					<p><span class="text-xs text-gray-500">Табельный номер</span><br />{emp.number}</p>
+					<p><span class="text-xs text-muted-foreground">Табельный номер</span><br />{emp.number}</p>
 					<p>
-						<span class="text-xs text-gray-500">ФИО</span><br />
+						<span class="text-xs text-muted-foreground">ФИО</span><br />
 						{emp.lastName}
 						{emp.firstName}
 						{emp.middleName ?? ''}
@@ -98,8 +98,8 @@
 		<CardHeader><CardTitle>Текущий статус</CardTitle></CardHeader>
 		<CardContent class="space-y-3">
 			<div>
-				<span class="text-xs text-gray-500">Статус</span>
-				<p>
+				<Label class="flex flex-row items-center gap-2">
+					Статус
 					{#if isDismissed}
 						<Badge variant="destructive">Уволен</Badge>
 					{:else if lastDoc}
@@ -107,7 +107,7 @@
 					{:else}
 						<Badge variant="outline">Ожидает</Badge>
 					{/if}
-				</p>
+				</Label>
 			</div>
 			{#if !isDismissed && !lastDoc && canEdit}
 				<form
@@ -158,19 +158,19 @@
 			{/if}
 			{#if lastDoc && !isDismissed}
 				<div>
-					<span class="text-xs text-gray-500">Подразделение</span>
+					<Label>Подразделение</Label>
 					<p class="font-medium">
 						{$page.data.allDepartments.find((d: any) => d.id === lastDoc.departmentId)?.name ?? '—'}
 					</p>
 				</div>
 				<div>
-					<span class="text-xs text-gray-500">Должность</span>
+					<Label>Должность</Label>
 					<p class="font-medium">
 						{$page.data.positions.find((p: any) => p.id === lastDoc.positionId)?.name ?? '—'}
 					</p>
 				</div>
 				<div>
-					<span class="text-xs text-gray-500">Дата последнего документа</span>
+					<Label>Дата последнего документа</Label>
 					<p class="font-medium">
 						{new Date(lastDoc.date).toLocaleString('ru-RU', {
 							day: '2-digit',

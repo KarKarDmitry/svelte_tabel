@@ -42,10 +42,10 @@
 	};
 
 	const dayTypeColors: Record<string, string> = {
-		holiday: 'bg-red-100 text-red-800',
-		preholiday: 'bg-yellow-100 text-yellow-800',
-		transferred_workday: 'bg-blue-100 text-blue-800',
-		transferred_holiday: 'bg-purple-100 text-purple-800'
+		holiday: 'bg-destructive/15 text-destructive',
+		preholiday: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+		transferred_workday: 'bg-blue-100 text-primary dark:bg-blue-900/30 dark:text-blue-300',
+		transferred_holiday: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
 	};
 
 	const allDayTypeLabels: Record<string, string> = {

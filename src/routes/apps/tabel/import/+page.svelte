@@ -201,7 +201,7 @@
 					<div class="flex items-center gap-4">
 						<ItemMedia>
 							<div
-								class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-lg text-green-700"
+								class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-lg text-green-700 dark:bg-green-900/30 dark:text-green-300"
 							>
 								XLS
 							</div>
@@ -281,9 +281,9 @@
 					<!-- Сообщение -->
 					<div
 						class="mt-1 text-sm {stage === 'done'
-							? 'text-green-700'
+							? 'text-green-700 dark:text-green-400'
 							: stage === 'error'
-								? 'text-red-700'
+								? 'text-destructive'
 								: ''}"
 					>
 						{message}

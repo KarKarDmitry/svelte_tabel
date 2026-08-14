@@ -213,8 +213,8 @@
 										minute: '2-digit'
 									})}
 								</span>
-								<span>{e.eventName}</span>
-								<span class="text-muted-foreground">
+								<span class="w-full px-3 text-left whitespace-nowrap">{e.eventName}</span>
+								<span class="whitespace-nowrap text-muted-foreground">
 									{e.passSeria ? `${e.passSeria} ` : ''}{e.passNumber ?? `#${e.passId}`}
 								</span>
 							</div>

@@ -38,7 +38,7 @@
 		>
 			<a
 				href="/apps"
-				class="text-sm font-semibold whitespace-nowrap text-blue-700 group-data-[collapsible=icon]:hidden"
+				class="text-sm font-semibold whitespace-nowrap text-blue-700 group-data-[collapsible=icon]:hidden dark:text-blue-400"
 			>
 				{nav.title}
 			</a>

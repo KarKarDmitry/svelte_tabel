@@ -117,17 +117,28 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 	const markByCode = new Map(allMarks.map((m) => [m.code, m.shortName]));
 	const shiftMarkValue = shiftMarkRow?.value ?? '';
 
-	let cellColorRules: Record<string, string> = {};
-	let markColorRules: Record<string, string> = {};
+	let cellColorRules: Record<string, any> = {};
+	let markColorRules: Record<string, any> = {};
 	try {
-		if (cellRow?.value) cellColorRules = JSON.parse(cellRow.value);
+		if (cellRow?.value) {
+			const parsed = JSON.parse(cellRow.value);
+			cellColorRules = parsed.light
+				? { light: parsed.light, dark: parsed.dark ?? parsed.light }
+				: { light: parsed, dark: parsed };
+		}
 		if (markRow?.value) {
 			const raw: Record<string, any> = JSON.parse(markRow.value);
 			const shortToCode = new Map(allMarks.map((m) => [m.shortName, m.code]));
-			markColorRules = {};
-			for (const [key, val] of Object.entries(raw)) {
-				markColorRules[shortToCode.get(key) ?? key] = val;
-			}
+			const convert = (obj: Record<string, any>) => {
+				const out: Record<string, any> = {};
+				for (const [key, val] of Object.entries(obj)) {
+					out[shortToCode.get(key) ?? key] = val;
+				}
+				return out;
+			};
+			markColorRules = raw.light
+				? { light: convert(raw.light), dark: convert(raw.dark ?? raw.light) }
+				: { light: convert(raw), dark: convert(raw) };
 		}
 	} catch {}
 

@@ -27,6 +27,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
 	import { toast } from 'svelte-sonner';
+	import { mode } from 'mode-watcher';
 
 	type TabelRow = {
 		id: string;
@@ -57,8 +58,10 @@
 	let year = $derived(data.year);
 	let month = $derived(data.month);
 	let lastDay = $derived(data.lastDay);
-	let cellColorRules = $derived(data.cellColorRules ?? {});
-	let markColorRules = $derived(data.markColorRules ?? {});
+	let isDark = $derived(mode.current === 'dark');
+	// Правила расцветки: сервер отдаёт { light, dark } — выбираем по текущей теме
+	let cellColorRules = $derived((data.cellColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
+	let markColorRules = $derived((data.markColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
 	let calendarDays = $derived<Record<string, { dayType: string; workTime: number | null }>>(
 		data.calendarDays ?? {}
 	);
@@ -577,7 +580,7 @@
 				align: 'center' as const,
 				mono: true,
 				render: dayCell,
-				headClass: isWeekend ? 'bg-red-50 text-red-700' : ''
+				headClass: isWeekend ? 'bg-destructive/10 text-destructive' : ''
 			};
 		});
 	}
@@ -593,15 +596,15 @@
 		{
 			key: 'totalReport',
 			label: 'Итого',
-			width: 90,
+			width: 60,
 			align: 'center' as const,
 			mono: true,
 			render: totalCell
 		},
 		{
 			key: 'totalNight',
-			label: 'Ночных',
-			width: 90,
+			label: 'Ночь',
+			width: 60,
 			align: 'center' as const,
 			mono: true,
 			render: totalCell
@@ -652,7 +655,9 @@
 			>
 				<span class="truncate px-1">{value?.value ?? ''}</span>
 				{#if value?.missingMinutes}
-					<div class="pointer-events-none absolute right-0.5 bottom-0.5 text-[8px] text-amber-500">
+					<div
+						class="pointer-events-none absolute right-0.5 bottom-0.5 text-[8px] text-amber-500 dark:text-amber-400"
+					>
 						{'\u25BC'}
 					</div>
 				{/if}
@@ -680,7 +685,9 @@
 					onchange={(e) => queueUpdate(row.empId, value.date, e.currentTarget.value.toUpperCase())}
 				/>
 				{#if value?.missingMinutes}
-					<div class="pointer-events-none absolute right-0.5 bottom-0.5 text-[8px] text-amber-500">
+					<div
+						class="pointer-events-none absolute right-0.5 bottom-0.5 text-[8px] text-amber-500 dark:text-amber-400"
+					>
 						{'\u25BC'}
 					</div>
 				{/if}

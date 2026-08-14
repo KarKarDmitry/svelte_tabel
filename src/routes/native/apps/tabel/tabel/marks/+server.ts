@@ -66,16 +66,20 @@ async function buildDayStyle(
 		.map((sn) => shortToCode.get(sn) ?? sn)
 		.filter(Boolean);
 
-	// Правила расцветки
+	// Правила расцветки (native — всегда светлый набор: тёмной темы нет)
 	const cellColorRules: Record<string, any> = {};
 	const markColorRules: Record<string, any> = {};
 	try {
 		const c = constRows.find((x) => x.key === 'CELL_COLOR_RULES');
-		if (c?.value) Object.assign(cellColorRules, JSON.parse(c.value));
+		if (c?.value) {
+			const parsed = JSON.parse(c.value);
+			Object.assign(cellColorRules, parsed.light ?? parsed);
+		}
 		const m = constRows.find((x) => x.key === 'MARK_COLOR_RULES');
 		if (m?.value) {
 			const raw: Record<string, any> = JSON.parse(m.value);
-			for (const [key, val] of Object.entries(raw)) {
+			const source = raw.light ?? raw;
+			for (const [key, val] of Object.entries(source)) {
 				markColorRules[shortToCode.get(key) ?? key] = val;
 			}
 		}

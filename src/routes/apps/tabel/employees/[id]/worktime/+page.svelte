@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { mode } from 'mode-watcher';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 	import DayCard from './DayCard.svelte';
 
 	let days = $derived($page.data.days);
-	let cellColorRules = $derived($page.data.cellColorRules);
-	let markColorRules = $derived($page.data.markColorRules);
+	let isDark = $derived(mode.current === 'dark');
+	// Сервер отдаёт { light, dark } — выбираем набор по текущей теме
+	let cellColorRules = $derived(($page.data.cellColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
+	let markColorRules = $derived(($page.data.markColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
 	let shiftMarks = $derived($page.data.shiftMarks);
 	let empSchedule = $derived($page.data.empSchedule);
 	let dayMarks = $derived($page.data.dayMarks);
@@ -39,7 +42,7 @@
 	</CardHeader>
 	<CardContent>
 		{#if days.length === 0}
-			<p class="p-4 text-center text-sm text-gray-400">Нет записей</p>
+			<p class="p-4 text-center text-sm text-muted-foreground">Нет записей</p>
 		{:else}
 			<div
 				class="grid grid-cols-2 gap-2 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"

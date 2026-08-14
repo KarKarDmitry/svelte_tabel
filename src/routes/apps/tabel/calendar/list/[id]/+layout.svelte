@@ -18,11 +18,11 @@
 		<div class="flex items-center gap-4">
 			<a
 				href="/apps/tabel/calendar/list"
-				class="items-center text-sm whitespace-nowrap text-gray-500 hover:text-gray-700"
+				class="items-center text-sm whitespace-nowrap text-muted-foreground hover:text-foreground"
 			>
 				<ArrowLeft class="mr-1 inline size-4" />К календарям
 			</a>
-			<h1 class="text-2xl font-bold text-gray-900">{cal.name}</h1>
+			<h1 class="text-2xl font-bold text-foreground">{cal.name}</h1>
 		</div>
 
 		<div>

@@ -1,3 +1,3 @@
 <script lang="ts"></script>
 
-<p class="text-sm text-gray-400">Выберите раздел справочника</p>
+<p class="text-sm text-muted-foreground">Выберите раздел справочника</p>

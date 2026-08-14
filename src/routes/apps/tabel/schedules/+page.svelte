@@ -58,7 +58,7 @@
 
 <div class="space-y-2">
 	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">Графики работы</h1>
+		<h1 class="text-2xl font-bold text-foreground">Графики работы</h1>
 		{#if canEdit}
 			<Button
 				onclick={() => {
@@ -81,7 +81,7 @@
 					<Badge class="text-xs">{dayNames[d - 1]}</Badge>
 				{/each}
 				{#if !value}
-					<span class="text-gray-400">—</span>
+					<span class="text-muted-foreground">—</span>
 				{/if}
 			</div>
 		{:else if col.format}

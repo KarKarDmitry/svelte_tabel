@@ -320,7 +320,7 @@
 <Dialog bind:open={deleteOpen}>
 	<DialogContent>
 		<p class="font-bold">Удалить правило?</p>
-		<p class="text-sm text-gray-500">
+		<p class="text-sm text-muted-foreground">
 			Вы уверены, что хотите удалить правило на {String(deleteTarget?.month).padStart(
 				2,
 				'0'

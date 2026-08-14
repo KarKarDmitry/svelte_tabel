@@ -15,9 +15,7 @@
 <Label>
 	{placeholder}
 	<Select type="single" {value} onValueChange={(v) => onSearch(v ?? '')}>
-		<SelectTrigger
-			class="h-9 w-auto rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
-		>
+		<SelectTrigger>
 			<span>{currentLabel}</span>
 		</SelectTrigger>
 		<SelectContent>

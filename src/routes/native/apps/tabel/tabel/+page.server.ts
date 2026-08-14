@@ -52,5 +52,16 @@ export const load: PageServerLoad = async (event) => {
 		grouped.push({ id: 0, name: 'Без группы', departments: ungrouped });
 	}
 
-	return { ...data, departments: grouped, calendars, roundingRules, year, month, actual };
+	return {
+		...data,
+		departments: grouped,
+		calendars,
+		roundingRules,
+		year,
+		month,
+		actual,
+		// native без тёмной темы — отдаём плоский светлый набор расцветки
+		cellColorRules: (data.cellColorRules as any)?.light ?? data.cellColorRules ?? {},
+		markColorRules: (data.markColorRules as any)?.light ?? data.markColorRules ?? {}
+	};
 };

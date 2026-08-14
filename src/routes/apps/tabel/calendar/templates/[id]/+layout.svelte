@@ -20,10 +20,10 @@
 
 <div class="space-y-4">
 	<div class="flex items-center gap-4">
-		<a href="/apps/tabel/calendar/templates" class="text-sm text-gray-500 hover:text-gray-700"
+		<a href="/apps/tabel/calendar/templates" class="text-sm text-muted-foreground hover:text-foreground"
 			><ArrowLeft class="mr-1 inline size-4" />К шаблонам</a
 		>
-		<h1 class="text-2xl font-bold text-gray-900">{tpl.name}</h1>
+		<h1 class="text-2xl font-bold text-foreground">{tpl.name}</h1>
 	</div>
 
 	<Tabs value={page.url.pathname}>

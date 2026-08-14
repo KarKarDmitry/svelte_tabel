@@ -40,15 +40,15 @@
 <div class="space-y-6">
 	<div class="flex items-start justify-between">
 		<div>
-			<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700">
+			<a href="/apps/tabel/employees" class="text-sm text-muted-foreground hover:text-foreground">
 				<ArrowLeft class="mr-1 inline size-4" />Назад к списку</a
 			>
-			<h1 class="mt-1 text-2xl font-bold text-gray-900">
+			<h1 class="mt-1 text-2xl font-bold text-foreground">
 				{emp.lastName}
 				{emp.firstName}
 				{emp.middleName ?? ''}
 			</h1>
-			<p class="text-sm text-gray-500">Таб. № {emp.number}</p>
+			<p class="text-sm text-muted-foreground">Таб. № {emp.number}</p>
 		</div>
 	</div>
 

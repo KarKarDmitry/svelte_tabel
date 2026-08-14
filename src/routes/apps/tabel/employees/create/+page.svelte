@@ -58,7 +58,7 @@
 			}}
 		>
 			<div class=" flex items-center justify-between">
-				<a href="/apps/tabel/employees" class="text-sm text-gray-500 hover:text-gray-700"
+				<a href="/apps/tabel/employees" class="text-sm text-muted-foreground hover:text-foreground"
 					><ArrowLeft class="mr-1 inline size-4" />Назад к списку</a
 				>
 				<Button type="submit" size="lg">Сохранить</Button>
@@ -78,7 +78,7 @@
 					<CardHeader>
 						<div class="flex flex-row flex-wrap items-center justify-between gap-2">
 							<CardTitle class="whitespace-nowrap">Приём на работу</CardTitle>
-							<p class="text-sm text-gray-500">
+							<p class="text-sm text-muted-foreground">
 								* Можно оставить пустым. Сотрудник попадет в "Ожидание"
 							</p>
 						</div>

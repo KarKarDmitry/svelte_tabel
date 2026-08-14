@@ -76,7 +76,7 @@
 						{#each months as mName, i}
 							<button
 								class={cn(
-									'w-full rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
+									'w-full rounded-3xl px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
 									i + 1 === selMonth && 'bg-accent font-medium text-accent-foreground'
 								)}
 								onclick={() => selectMonth(i + 1)}
@@ -98,7 +98,7 @@
 						{#each years as y}
 							<button
 								class={cn(
-									'w-full rounded-lg px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
+									'w-full rounded-3xl px-3 py-1.5 text-left text-sm transition-colors hover:bg-accent',
 									y === selYear && 'bg-accent font-medium text-accent-foreground'
 								)}
 								onclick={() => selectYear(y)}

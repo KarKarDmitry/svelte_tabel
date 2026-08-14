@@ -5,6 +5,7 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import ETable from '$lib/components/ETable/ETable.svelte';
 	import { toast } from 'svelte-sonner';
+	import { mode } from 'mode-watcher';
 
 	let {
 		show = $bindable(false),
@@ -40,6 +41,7 @@
 	let open = $state(false);
 	let loading = $state(false);
 	let saving = $state(false);
+	let isDark = $derived(mode.current === 'dark');
 	let employee: any = $state(null);
 	let days = $state<
 		Array<{
@@ -204,8 +206,8 @@
 			employee = data.employee;
 			days = data.days;
 			lastDay = data.lastDay;
-			cellColorRules = data.cellColorRules ?? {};
-			markColorRules = data.markColorRules ?? {};
+			cellColorRules = (data.cellColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {};
+			markColorRules = (data.markColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {};
 			calendarDays = data.calendarDays ?? {};
 			empSchedule = data.empSchedule ?? null;
 			turnstileEvents = data.turnstileEvents ?? [];

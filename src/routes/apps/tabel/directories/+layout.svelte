@@ -23,7 +23,7 @@
 </script>
 
 <div class="space-y-4">
-	<h1 class="text-2xl font-bold text-gray-900">Справочники</h1>
+	<h1 class="text-2xl font-bold text-foreground">Справочники</h1>
 
 	<Tabs value={$page.url.pathname}>
 		<TabsList>

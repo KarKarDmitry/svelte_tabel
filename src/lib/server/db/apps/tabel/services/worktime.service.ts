@@ -352,20 +352,32 @@ export const worktimeService = {
 				.then((r) => r[0])
 		]);
 
-		let cellColorRules: Record<string, string> = {};
-		let markColorRules: Record<string, string> = {};
+		let cellColorRules: Record<string, any> = {};
+		let markColorRules: Record<string, any> = {};
 		let shiftMarkShortnames: string[] = [];
 
 		try {
-			if (cellColorRow?.value) cellColorRules = JSON.parse(cellColorRow.value);
+			if (cellColorRow?.value) {
+				const parsed = JSON.parse(cellColorRow.value);
+				// Новый формат { light, dark }; старый — считаем светлым набором
+				cellColorRules = parsed.light
+					? { light: parsed.light, dark: parsed.dark ?? parsed.light }
+					: { light: parsed, dark: parsed };
+			}
 			if (markColorRow?.value) {
 				const raw: Record<string, any> = JSON.parse(markColorRow.value);
 				// Конвертируем ключи из shortName в code (на случай старых данных)
 				const shortToCode = new Map(dayMarks.map((m) => [m.shortName, m.code]));
-				markColorRules = {};
-				for (const [key, val] of Object.entries(raw)) {
-					markColorRules[shortToCode.get(key) ?? key] = val;
-				}
+				const convert = (obj: Record<string, any>) => {
+					const out: Record<string, any> = {};
+					for (const [key, val] of Object.entries(obj)) {
+						out[shortToCode.get(key) ?? key] = val;
+					}
+					return out;
+				};
+				markColorRules = raw.light
+					? { light: convert(raw.light), dark: convert(raw.dark ?? raw.light) }
+					: { light: convert(raw), dark: convert(raw) };
 			}
 			if (shiftMarkRow?.value) {
 				shiftMarkShortnames = shiftMarkRow.value

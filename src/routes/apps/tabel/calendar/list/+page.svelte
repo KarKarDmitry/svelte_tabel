@@ -88,7 +88,7 @@
 
 <div>
 	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">Календари</h1>
+		<h1 class="text-2xl font-bold text-foreground">Календари</h1>
 		{#if canEdit}
 			<Button onclick={openGenerate}>Создать по шаблону</Button>
 		{/if}
@@ -197,7 +197,7 @@
 	<Dialog bind:open={deleteOpen}>
 		<DialogContent>
 			<p class="font-bold">Удалить календарь?</p>
-			<p class="text-sm text-gray-500">
+			<p class="text-sm text-muted-foreground">
 				Вы уверены, что хотите удалить «{deleteTarget?.name}»? Это действие нельзя отменить.
 			</p>
 			<div class="flex justify-end gap-2">

@@ -152,25 +152,43 @@ async function seed() {
 		{
 			key: 'CELL_COLOR_RULES',
 			isJson: true,
-			hint: 'Правила окраски ячеек табеля: overwork, underwork, missedWorkday, missingHours, weekendWork, outOfPeriod',
+			hint: 'Правила окраски ячеек табеля (light/dark): overwork, underwork, missedWorkday, missingHours, weekendWork, outOfPeriod',
 			value: JSON.stringify({
-				overwork: { bg: '#fef9c3' },
-				underwork: { bg: '#ffedd5' },
-				missedWorkday: { bg: '#fee2e2' },
-				missingHours: { bg: '#fecaca' },
-				weekendWork: { bg: '#bbf7d0' },
-				outOfPeriod: { bg: '#f3f4f6' }
+				light: {
+					overwork: { bg: '#97f6f7' },
+					underwork: { bg: '#f7d9b0' },
+					missedWorkday: { bg: '#facfcf' },
+					missingHours: { bg: '#fecaca' },
+					weekendWork: { bg: '#bbf7d0' },
+					outOfPeriod: { bg: '#f3f4f6' }
+				},
+				dark: {
+					overwork: { bg: '#164e63' },
+					underwork: { bg: '#7c2d12' },
+					missedWorkday: { bg: '#7f1d1d' },
+					missingHours: { bg: '#991b1b' },
+					weekendWork: { bg: '#14532d' },
+					outOfPeriod: { bg: '#1f2937' }
+				}
 			})
 		},
 		{
 			key: 'MARK_COLOR_RULES',
 			isJson: true,
-			hint: 'Особенные цвета для конкретных отметок. Ключи — shortName отметки. Каждая: { bg, color, fontWeight }',
+			hint: 'Особенные цвета для конкретных отметок (light/dark). Ключи — shortName отметки. Каждая: { bg, color, fontWeight }',
 			value: JSON.stringify({
-				'\u041f\u0420': { bg: '#fee2e2', color: '#991b1b', fontWeight: 'bold' },
-				'\u0411': { bg: '#f3e8ff', color: '#6b21a8' },
-				'\u0410\u041e': { bg: '#fef3c7', color: '#92400e' },
-				'\u0414': { bg: '#fef9c3', color: '#854d0e' }
+				light: {
+					'\u041f\u0420': { bg: '#fee2e2', color: '#991b1b', fontWeight: 'bold' },
+					'\u0411': { bg: '#f3e8ff', color: '#6b21a8' },
+					'\u0410\u041e': { bg: '#fef3c7', color: '#92400e' },
+					'\u0414': { bg: '#fef9c3', color: '#854d0e' }
+				},
+				dark: {
+					'\u041f\u0420': { bg: '#7f1d1d', color: '#fca5a5', fontWeight: 'bold' },
+					'\u0411': { bg: '#4c1d95', color: '#c4b5fd' },
+					'\u0410\u041e': { bg: '#78350f', color: '#fcd34d' },
+					'\u0414': { bg: '#713f12', color: '#fde047' }
+				}
 			})
 		}
 	]);

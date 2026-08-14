@@ -126,6 +126,11 @@
 	width: 100%;
 	font-size: 12px;
 }
+/* Горизонтальная прокрутка табеля на узких экранах */
+.native-table-wrap {
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
 .cell {
 	border: 1px solid #c3c3c3 !important;
 	padding: 1px 1px 1px 1px;
@@ -144,6 +149,7 @@
 	font-family: monospace;
 }
 .cell-day {
+	min-width: 24px;
 	max-width: 24px;
 	max-height: 20px;
 }
@@ -154,7 +160,28 @@
 	max-width: 220px;
 }
 .cell-total {
+	min-width: 42px;
 	max-width: 42px;
+}
+/* Липкие колонки табеля (т/н и ФИО) при горизонтальной прокрутке */
+.cell-sticky {
+	position: sticky;
+	box-sizing: border-box;
+	background: #ffffff;
+	z-index: 1;
+}
+.cell-sticky.cell-head {
+	background: #f5f5f5;
+}
+.cell-sticky.cell-num {
+	width: 30px;
+	min-width: 30px;
+	left: 0;
+}
+.cell-sticky.cell-fio {
+	width: 200px;
+	min-width: 200px;
+	left: 30px;
 }
 .cell-mark {
 	padding: 0 !important;

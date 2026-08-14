@@ -171,15 +171,15 @@
 
 	<!-- Таблица -->
 	<div class="flex-1 overflow-auto pt-2">
-		<div class={variant === 'default' ? 'rounded-lg border-2 bg-card' : ''}>
+		<div class={variant === 'default' ? 'rounded-3xl border-2 bg-card' : ''}>
 			<Table>
-				<TableHeader class="border-b-2">
-					<TableRow>
+				<TableHeader>
+					<TableRow class="rounded-3xl border-b-2 bg-sidebar-accent">
 						{#each columns as col}
 							<TableHead
 								class="border-r font-bold {col.sortable
 									? 'cursor-pointer select-none'
-									: ''} {col.sticky ? 'sticky left-0 z-20 bg-card' : ''}"
+									: ''} {col.sticky ? 'sticky left-0 z-20' : ''}"
 								onclick={col.sortable ? () => onSort(col.key as string) : undefined}
 							>
 								{col.label}
@@ -194,7 +194,7 @@
 				<TableBody>
 					{#each data as row}
 						<TableRow
-							class={onRowClick ? 'cursor-pointer hover:bg-muted/50' : ''}
+							class={onRowClick ? 'cursor-pointer hover:bg-muted' : ''}
 							onclick={onRowClick ? () => onRowClick(row) : undefined}
 						>
 							{#each columns as col}
@@ -240,7 +240,7 @@
 						<TableRow>
 							<TableCell
 								colspan={columns.length + (rowActions.length ? 1 : 0)}
-								class="text-center text-gray-400"
+								class="text-center text-muted-foreground"
 							>
 								Нет данных
 							</TableCell>

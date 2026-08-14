@@ -74,7 +74,7 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between">
-		<h1 class="text-2xl font-bold text-gray-900">События турникета</h1>
+		<h1 class="text-2xl font-bold text-foreground">События турникета</h1>
 	</div>
 
 	<DTable

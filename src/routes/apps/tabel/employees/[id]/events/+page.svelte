@@ -52,7 +52,7 @@
 	<CardContent class="p-0 pt-2">
 		<Separator />
 		{#if events.length === 0}
-			<p class="p-4 text-center text-sm text-gray-400">Нет событий</p>
+			<p class="p-4 text-center text-sm text-muted-foreground">Нет событий</p>
 		{:else}
 			<DTable data={events} {columns} variant="ghost" />
 		{/if}

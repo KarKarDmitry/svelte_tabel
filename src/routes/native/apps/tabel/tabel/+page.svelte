@@ -329,75 +329,81 @@
 		<Collapsible id={`grp_${gi}`} title={group.name}>
 			{#each group.departments as dept, di}
 				<SubCollapsible id={`dept_${gi}_${di}`} title={dept.name}>
-					<table class="native-table">
-						<thead>
-							<tr>
-								<th class="cell cell-head cell-left">т/н</th>
-								<th class="cell cell-head cell-left">ФИО</th>
-								<th class="cell cell-head cell-total">Итого</th>
-								<th class="cell cell-head cell-total">Ночь</th>
-								{#each Array(data.lastDay) as _, i}
-									<th class="cell cell-head cell-day">{i + 1}</th>
+					<div class="native-table-wrap">
+						<table class="native-table">
+							<thead>
+								<tr>
+									<th class="cell cell-head cell-left cell-sticky cell-num">т/н</th>
+									<th class="cell cell-head cell-left cell-sticky cell-fio">ФИО</th>
+									<th class="cell cell-head cell-total">Итого</th>
+									<th class="cell cell-head cell-total">Ночь</th>
+									{#each Array(data.lastDay) as _, i}
+										<th class="cell cell-head cell-day">{i + 1}</th>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each dept.employees as emp}
+									{@const r = empRows(emp)}
+									<tr
+										class="native-hours"
+										data-empid={emp.id}
+										data-year={data.year}
+										data-month={data.month}
+									>
+										<td class="cell cell-left cell-mono cell-sticky cell-num">{r.number}</td>
+										<td class="cell cell-left cell-sticky cell-fio">{r.fio}</td>
+										<td
+											id="total_{r.id}"
+											class="cell cell-total"
+											data-minutes={r.totalReportMinutes}>{r.totalReport}</td
+										>
+										<td
+											id="total_night_{r.id}"
+											class="cell cell-total"
+											data-minutes={r.totalNightMinutes}>{r.totalNight}</td
+										>
+										{#each Array(data.lastDay) as _, i}
+											{@const c = r.cell(i + 1)}
+											<td
+												id="hours_{r.id}_{dateStr(i + 1)}"
+												data-minutes={c?.minutes ?? 0}
+												data-night={c?.minutesNight ?? 0}
+												class="cell cell-day"
+												style={c?.style ?? ''}>{c?.hours ?? ''}</td
+											>
+										{/each}
+									</tr>
+									<tr class="native-marks">
+										<td class="cell cell-sticky cell-num"></td>
+										<td class="cell cell-sticky cell-fio"></td>
+										<td class="cell cell-left" colspan="2"></td>
+										{#each Array(data.lastDay) as _, i}
+											{@const c = r.cell(i + 1)}
+											<td
+												id="cell_mark_{r.id}_{dateStr(i + 1)}"
+												class="cell cell-day cell-mark"
+												style={c?.style ?? ''}
+											>
+												{#if c?.blocked}
+													<span class="native-blocked">×</span>
+												{:else}
+													<input
+														type="text"
+														name="mark_{r.id}_{dateStr(i + 1)}"
+														value={c?.mark ?? ''}
+														size="1"
+														maxlength="3"
+														class="native-input"
+													/>
+												{/if}
+											</td>
+										{/each}
+									</tr>
 								{/each}
-							</tr>
-						</thead>
-						<tbody>
-							{#each dept.employees as emp}
-								{@const r = empRows(emp)}
-								<tr
-									class="native-hours"
-									data-empid={emp.id}
-									data-year={data.year}
-									data-month={data.month}
-								>
-									<td class="cell cell-left cell-mono cell-num">{r.number}</td>
-									<td class="cell cell-left cell-fio">{r.fio}</td>
-									<td id="total_{r.id}" class="cell cell-total" data-minutes={r.totalReportMinutes}
-										>{r.totalReport}</td
-									>
-									<td
-										id="total_night_{r.id}"
-										class="cell cell-total"
-										data-minutes={r.totalNightMinutes}>{r.totalNight}</td
-									>
-									{#each Array(data.lastDay) as _, i}
-										{@const c = r.cell(i + 1)}
-										<td
-											id="hours_{r.id}_{dateStr(i + 1)}"
-											data-minutes={c?.minutes ?? 0}
-											data-night={c?.minutesNight ?? 0}
-											class="cell cell-day"
-											style={c?.style ?? ''}>{c?.hours ?? ''}</td
-										>
-									{/each}
-								</tr>
-								<tr class="native-marks">
-									<td class="cell cell-left" colspan="4"></td>
-									{#each Array(data.lastDay) as _, i}
-										{@const c = r.cell(i + 1)}
-										<td
-											id="cell_mark_{r.id}_{dateStr(i + 1)}"
-											class="cell cell-day cell-mark"
-											style={c?.style ?? ''}
-										>
-											{#if c?.blocked}
-												<span class="native-blocked">×</span>
-											{:else}
-												<input
-													type="text"
-													name="mark_{r.id}_{dateStr(i + 1)}"
-													value={c?.mark ?? ''}
-													size="1"
-													maxlength="3"
-													class="native-input"
-												/>
-											{/if}
-										</td>
-									{/each}
-								</tr>
-							{/each}
-						</tbody>
-					</table>
+							</tbody>
+						</table>
+					</div>
 				</SubCollapsible>
 			{/each}
 		</Collapsible>

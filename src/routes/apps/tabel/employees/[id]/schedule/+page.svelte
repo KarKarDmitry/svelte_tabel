@@ -166,12 +166,15 @@
 		</Collapsible>
 	{/if}
 
-	<Item.Root variant="outline" class="mt-4 w-fit border-2 border-amber-500 bg-amber-50">
+	<Item.Root
+		variant="outline"
+		class="mt-4 w-fit border-2 border-amber-500 bg-amber-50 dark:border-amber-500/50 dark:bg-amber-900/20"
+	>
 		<Item.Media variant="icon">
-			<Info class="size-5 text-amber-500" />
+			<Info class="size-5 text-amber-500 dark:text-amber-400" />
 		</Item.Media>
 		<Item.Content>
-			<Item.Title class="text-amber-800">Рекомендация</Item.Title>
+			<Item.Title class="text-amber-800 dark:text-amber-300">Рекомендация</Item.Title>
 			<Item.Description>
 				Назначайте один график сотруднику, чтобы избежать конфликтов при расчёте табеля и расцветке
 				ячеек

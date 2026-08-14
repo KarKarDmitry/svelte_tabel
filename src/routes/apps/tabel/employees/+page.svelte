@@ -79,8 +79,8 @@
 <div class="space-y-2">
 	<div class="flex items-center justify-between">
 		<div>
-			<h1 class="text-2xl font-bold text-gray-900">Сотрудники</h1>
-			<p class="text-sm text-gray-500">Всего: {total}</p>
+			<h1 class="text-2xl font-bold text-foreground">Сотрудники</h1>
+			<p class="text-sm text-muted-foreground">Всего: {total}</p>
 		</div>
 		{#if canEdit}
 			<Button onclick={() => goto('/apps/tabel/employees/create')}>Добавить сотрудника</Button>

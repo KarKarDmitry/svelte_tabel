@@ -29,12 +29,12 @@
 	});
 
 	const dayTypeColors: Record<string, string> = {
-		workday: 'bg-green-100 text-green-800',
-		weekend: 'bg-gray-100 text-gray-500',
-		holiday: 'bg-red-100 text-red-800',
-		preholiday: 'bg-yellow-100 text-yellow-800',
-		transferred_workday: 'bg-blue-100 text-blue-800',
-		transferred_holiday: 'bg-purple-100 text-purple-800'
+		workday: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+		weekend: 'bg-gray-100 text-muted-foreground dark:bg-gray-800/40',
+		holiday: 'bg-destructive/15 text-destructive',
+		preholiday: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+		transferred_workday: 'bg-blue-100 text-primary dark:bg-blue-900/30 dark:text-blue-300',
+		transferred_holiday: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
 	};
 
 	const dayTypeLabels: Record<string, string> = {
@@ -141,7 +141,7 @@
 					<CardContent class="p-1 pt-0">
 						<div class="grid grid-cols-7 gap-0.5">
 							{#each dayNames as dn}
-								<div class="pb-1 text-center text-xs font-medium text-gray-500">
+								<div class="pb-1 text-center text-xs font-medium text-muted-foreground">
 									{dn}
 								</div>
 							{/each}
@@ -150,7 +150,7 @@
 							{/each}
 							{#each monthDays as day}
 								{@const dayNum = Number(day.date.split('-')[2])}
-								{@const colors = dayTypeColors[day.dayType] || 'bg-gray-50'}
+								{@const colors = dayTypeColors[day.dayType] || 'bg-gray-50 dark:bg-gray-800/40'}
 								<button
 									class="rounded border p-1 text-center text-xs {colors} cursor-pointer hover:ring-1 hover:ring-gray-400"
 									onclick={canEdit ? () => openEdit(day) : undefined}

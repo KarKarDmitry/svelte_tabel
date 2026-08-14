@@ -51,9 +51,9 @@
 
 	// --- точки ---
 	const pointColors: Record<string, string> = {
-		Entry: 'bg-green-600',
-		Exit: 'bg-red-600',
-		Break: 'bg-yellow-600'
+		Entry: 'bg-green-600 dark:bg-green-500',
+		Exit: 'bg-red-600 dark:bg-red-500',
+		Break: 'bg-yellow-600 dark:bg-yellow-500'
 	};
 
 	const pointLabels: Record<string, string> = {
@@ -196,10 +196,10 @@
 <div class="space-y-4">
 	<!-- Шапка -->
 	<div class="flex items-center gap-4">
-		<a href="/apps/tabel/schedules" class="text-sm text-gray-500 hover:text-gray-700">
+		<a href="/apps/tabel/schedules" class="text-sm text-muted-foreground hover:text-foreground">
 			<ArrowLeft class="mr-1 inline size-4" />Назад к списку
 		</a>
-		<h1 class="text-2xl font-bold text-gray-900">{schedule.name}</h1>
+		<h1 class="text-2xl font-bold text-foreground">{schedule.name}</h1>
 	</div>
 
 	<Tabs bind:value={tabValue} class="w-full">
@@ -264,9 +264,11 @@
 						</form>
 					{:else}
 						<div class="space-y-2 text-sm">
-							<p><span class="text-xs text-gray-500">Название</span><br />{schedule.name}</p>
 							<p>
-								<span class="text-xs text-gray-500">Норма</span><br />
+								<span class="text-xs text-muted-foreground">Название</span><br />{schedule.name}
+							</p>
+							<p>
+								<span class="text-xs text-muted-foreground">Норма</span><br />
 								{hoursMinutes} · {dayNames.filter((_, i) => weekDays.includes(i + 1)).join(', ') ||
 									'—'}
 							</p>
@@ -283,11 +285,11 @@
 				<Card class="p-0">
 					<CardContent class="p-4">
 						<div
-							class="relative h-16 overflow-hidden rounded-lg border-2 border-border bg-gray-100"
+							class="relative h-16 overflow-hidden rounded-lg border-2 border-border bg-gray-100 dark:bg-gray-800/40"
 						>
 							{#each Array(24) as _, i}
 								<div
-									class="absolute top-0 h-full border-l border-border pt-1 text-[10px] text-gray-600"
+									class="absolute top-0 h-full border-l border-border pt-1 text-[10px] text-muted-foreground"
 									style="left: {(i / 24) * 100}%"
 								>
 									<span class="ml-1">{String(i).padStart(2, '0')}:00</span>
@@ -304,10 +306,10 @@
 								>
 									<span
 										class="text-lg {pt.type === 'Break'
-											? 'text-yellow-600'
+											? 'text-yellow-600 dark:text-yellow-400'
 											: pt.type === 'Entry'
-												? 'text-green-600'
-												: 'text-red-600'}"
+												? 'text-green-600 dark:text-green-400'
+												: 'text-destructive'}"
 									>
 										{pt.type === 'Break' ? '◉' : pt.type === 'Entry' ? '●' : '✕'}
 									</span>
@@ -317,14 +319,14 @@
 								</button>
 								{#if pt.type === 'Break' && pt.endTime}
 									<div
-										class="absolute top-1/2 h-1 -translate-y-1/2 bg-yellow-600 opacity-50"
+										class="absolute top-1/2 h-1 -translate-y-1/2 bg-yellow-600 opacity-50 dark:bg-yellow-500"
 										style="left: {pct}%; width: {pctEnd - pct}%"
 									></div>
 								{/if}
 							{/each}
 						</div>
 
-						<div class="mt-3 flex gap-4 text-xs text-gray-500">
+						<div class="mt-3 flex gap-4 text-xs text-muted-foreground">
 							{#each Object.entries(pointLabels) as [type, label]}
 								<div class="flex items-center gap-1">
 									<span class="h-2 w-2 rounded-full {pointColors[type]}"></span>
@@ -355,7 +357,7 @@
 										<Button
 											variant="ghost"
 											size="sm"
-											class="h-4 w-4 p-0 text-gray-400 hover:text-gray-700"
+											class="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
 											disabled={i === 0}
 											onclick={(e) => {
 												e.stopPropagation();
@@ -365,7 +367,7 @@
 										<Button
 											variant="ghost"
 											size="sm"
-											class="h-4 w-4 p-0 text-gray-400 hover:text-gray-700"
+											class="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
 											disabled={i === sortedPoints.length - 1}
 											onclick={(e) => {
 												e.stopPropagation();
@@ -377,11 +379,11 @@
 								<div class="h-3 w-3 rounded-full {pointColors[pt.type]}"></div>
 								<div>
 									<span class="font-medium">{pointLabels[pt.type]}</span>
-									<span class="ml-2 text-gray-500">
+									<span class="ml-2 text-muted-foreground">
 										{pt.type === 'Break' ? `${pt.time} — ${pt.endTime}` : pt.time}
 									</span>
 								</div>
-								<div class="flex items-center gap-4 text-sm text-gray-500">
+								<div class="flex items-center gap-4 text-sm text-muted-foreground">
 									<span title="Можно раньше / Можно позже"
 										>−{formatBound(pt.leftBound)} / +{formatBound(pt.rightBound)}</span
 									>
@@ -389,7 +391,7 @@
 										<Button
 											variant="ghost"
 											size="sm"
-											class="text-red-500 hover:text-red-700"
+											class="text-destructive hover:text-destructive"
 											onclick={(e) => {
 												e.stopPropagation();
 												deletePoint(pt.id);
@@ -402,7 +404,9 @@
 							</CardContent>
 						</Card>
 					{:else}
-						<p class="py-8 text-center text-gray-400">Нет точек. Добавьте хотя бы Entry и Exit.</p>
+						<p class="py-8 text-center text-muted-foreground">
+							Нет точек. Добавьте хотя бы Entry и Exit.
+						</p>
 					{/each}
 				</div>
 			</div>
