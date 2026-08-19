@@ -10,7 +10,13 @@ export const auth = betterAuth({
 	baseURL: env.ORIGIN,
 	secret: env.BETTER_AUTH_SECRET,
 	database: drizzleAdapter(db, { provider: 'pg' }),
-	emailAndPassword: { enabled: true, minPasswordLength: 3, autoSignIn: false },
+	emailAndPassword: {
+		enabled: true,
+		minPasswordLength: 8,
+		autoSignIn: false,
+		// Регистрация только через админку (/admin); sign-up отключён
+		disableSignUp: true
+	},
 	user: {
 		additionalFields: {
 			role: {

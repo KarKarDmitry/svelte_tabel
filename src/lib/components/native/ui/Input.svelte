@@ -1,5 +1,6 @@
 <script lang="ts">
 	let {
+		id,
 		name,
 		label,
 		type = 'text',
@@ -8,8 +9,10 @@
 		placeholder = '',
 		maxlength,
 		step,
-		class: className = ''
+		class: className = '',
+		...rest
 	}: {
+		id?: string;
 		name: string;
 		label?: string;
 		type?: string;
@@ -19,6 +22,7 @@
 		maxlength?: number;
 		step?: string | number;
 		class?: string;
+		[key: string]: any;
 	} = $props();
 
 	const cls = $derived(`n-field${className ? ' ' + className : ''}`);
@@ -26,7 +30,18 @@
 
 <label class={cls}>
 	{#if label}<span class="n-label">{label}</span>{/if}
-	<input {name} {type} {value} {required} {placeholder} {maxlength} {step} class="n-input" />
+	<input
+		{id}
+		{name}
+		{type}
+		{value}
+		{required}
+		{placeholder}
+		{maxlength}
+		{step}
+		class="n-input"
+		{...rest}
+	/>
 </label>
 
 <style>

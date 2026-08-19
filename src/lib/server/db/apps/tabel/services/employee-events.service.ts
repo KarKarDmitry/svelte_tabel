@@ -13,6 +13,8 @@ import { appConstant } from '../tables/app-constant';
 import { turnstileEventTracker } from '../tables/turnstile-event-tracker';
 import { turnstileEvent } from '../tables/turnstile-event';
 import { pass } from '../tables/pass';
+import { worktimeTracker } from '../tables/worktime-tracker';
+import { cellStyle } from '$lib/apps/tabel/cell-style';
 import { db } from '$lib/server/db';
 import { eq, and, or, gte, lte, isNull } from 'drizzle-orm';
 
@@ -115,7 +117,15 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 	]);
 
 	const markByCode = new Map(allMarks.map((m) => [m.code, m.shortName]));
+	const shortToCodeAll = new Map(allMarks.map((m) => [m.shortName, m.code]));
 	const shiftMarkValue = shiftMarkRow?.value ?? '';
+	// Сменные отметки (shortName → code), как в табеле
+	const shiftMarks = shiftMarkValue
+		.split(',')
+		.map((s: string) => s.trim())
+		.filter(Boolean)
+		.map((sn) => shortToCodeAll.get(sn) ?? sn)
+		.filter(Boolean);
 
 	let cellColorRules: Record<string, any> = {};
 	let markColorRules: Record<string, any> = {};
@@ -141,6 +151,10 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 				: { light: convert(raw), dark: convert(raw) };
 		}
 	} catch {}
+
+	// Расцветка ячеек (единый источник — cellStyle из lib); native использует светлый набор
+	const lightCellColorRules = (cellColorRules as any)?.light ?? cellColorRules ?? {};
+	const lightMarkColorRules = (markColorRules as any)?.light ?? markColorRules ?? {};
 
 	// Загружаем календарь
 	let calendarDayMap = new Map<string, { dayType: string; workTime: number | null }>();
@@ -174,10 +188,28 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 
 	// Строим массив дней месяца с данными из трекеров
 	const days = [];
+	const calendarDaysRecord = Object.fromEntries(calendarDayMap);
 	for (let d = 1; d <= lastDay; d++) {
 		const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 		const tracker = trackers.find((t) => t.date === dateStr);
 		const rawCode = tracker?.dayMarkCode ?? '';
+		const style = cellStyle(
+			{
+				date: dateStr,
+				dayMarkCode: rawCode,
+				reportWorkTime: tracker?.reportWorkTime ?? null,
+				shiftWorkTime: tracker?.shiftWorkTime ?? null,
+				scheduleId: null
+			},
+			empSchedule ?? null,
+			{
+				shiftMarks,
+				calendarDays: calendarDaysRecord,
+				schedulesById: {},
+				cellColorRules: lightCellColorRules,
+				markColorRules: lightMarkColorRules
+			}
+		);
 		days.push({
 			date: dateStr,
 			reportWorkTime: tracker?.reportWorkTime ?? null,
@@ -186,7 +218,8 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 			shiftNightWorkTime: tracker?.shiftNightWorkTime ?? null,
 			dayMarkCode: markByCode.get(rawCode) ?? rawCode,
 			extraMarkCode: tracker?.extraMarkCode ?? null,
-			extraMarkMinutes: tracker?.extraMarkMinutes ?? null
+			extraMarkMinutes: tracker?.extraMarkMinutes ?? null,
+			style
 		});
 	}
 
@@ -230,4 +263,90 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 			})
 			.filter(Boolean)
 	};
+}
+
+/**
+ * Сохранение изменений дней сотрудника (POST employee-events).
+ * Вынесено в сервис, чтобы и apps, и native endpoint'ы переиспользовали логику.
+ * Возвращает обновлённые записи. Пустой день (нет метки/часов/доп.метки) пропускается.
+ */
+export async function saveEmployeeEvents(
+	employeeId: number,
+	days: Array<{
+		date: string;
+		reportWorkTime: number | null;
+		reportNightWorkTime: number | null;
+		dayMarkCode: string;
+		extraMarkCode?: string | null;
+		extraMarkMinutes?: number | null;
+	}>,
+	updatedBy?: string | null
+) {
+	const updated: Array<{
+		employeeId: number;
+		date: string;
+		reportWorkTime: number | null;
+		reportNightWorkTime: number | null;
+		dayMarkCode: string | null;
+		extraMarkCode?: string | null;
+		extraMarkMinutes?: number | null;
+	}> = [];
+
+	for (const day of days) {
+		const mark = day.dayMarkCode.trim();
+		if (
+			!mark &&
+			day.reportWorkTime == null &&
+			day.reportNightWorkTime == null &&
+			!day.extraMarkCode?.trim()
+		) {
+			continue;
+		}
+
+		const result = await worktimeService.updateDayMark(
+			employeeId,
+			day.date,
+			mark,
+			updatedBy,
+			day.extraMarkCode?.trim() || null,
+			day.extraMarkMinutes ?? null
+		);
+
+		const explicitHours = day.reportWorkTime !== undefined && day.reportWorkTime !== null;
+		const explicitNight = day.reportNightWorkTime !== undefined && day.reportNightWorkTime !== null;
+
+		if (
+			explicitHours ||
+			explicitNight ||
+			day.extraMarkCode?.trim() ||
+			day.extraMarkMinutes != null
+		) {
+			const setData: any = {};
+			if (explicitHours) setData.reportWorkTime = day.reportWorkTime;
+			if (explicitNight) setData.reportNightWorkTime = day.reportNightWorkTime;
+			if (day.extraMarkCode?.trim()) setData.extraMarkCode = day.extraMarkCode.trim();
+			if (day.extraMarkMinutes != null) setData.extraMarkMinutes = day.extraMarkMinutes;
+
+			if (Object.keys(setData).length > 0) {
+				await db
+					.update(worktimeTracker)
+					.set(setData)
+					.where(
+						and(eq(worktimeTracker.employeeId, employeeId), eq(worktimeTracker.date, day.date))
+					);
+			}
+		}
+
+		updated.push({
+			employeeId,
+			date: day.date,
+			reportWorkTime: day.reportWorkTime ?? result.reportWorkTime,
+			reportNightWorkTime: day.reportNightWorkTime ?? result.reportNightWorkTime,
+			dayMarkCode: mark || result.dayMarkCode,
+			extraMarkCode: day.extraMarkCode?.trim() || result.extraMarkCode || null,
+			extraMarkMinutes: day.extraMarkMinutes ?? result.extraMarkMinutes ?? null
+		});
+	}
+
+	return updated;
 }

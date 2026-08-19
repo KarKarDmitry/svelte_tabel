@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';
+	import { Badge } from '$lib/components/ui/badge';
 	import { RadioGroup, RadioGroupItem } from '$lib/components/ui/radio-group';
 	import {
 		Item,
@@ -31,12 +32,19 @@
 			seria: string;
 			number: string;
 			fullName: string;
+			/** Существующий пропуск в БД (занят другим) — для переназначения */
+			passId?: number | null;
+			/** Дата первого события по пропуску — предлагаемая дата выдачи */
+			firstDate?: string;
+			/** Текущий владелец пропуска (если занят) */
+			currentOwner?: string | null;
 			candidates: {
 				id: number;
 				number: string;
 				lastName: string;
 				firstName: string;
 				middleName: string | null;
+				status: string | null;
 			}[];
 			selectedId: number | null;
 		}[]
@@ -133,6 +141,8 @@
 		const unresolved = unresolvedList.map((u) => ({
 			seria: u.seria,
 			number: u.number,
+			passId: u.passId ?? null,
+			dateFrom: u.firstDate,
 			employeeId: u.selectedId
 		}));
 
@@ -161,6 +171,22 @@
 		if (bytes < 1024) return bytes + ' B';
 		if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
 		return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+	}
+
+	/** Badge статуса сотрудника для списка кандидатов */
+	function statusBadge(
+		status: string | null
+	): { variant: 'default' | 'destructive' | 'secondary'; label: string } | null {
+		switch (status) {
+			case 'active':
+				return { variant: 'default', label: 'Активен' };
+			case 'dismissed':
+				return { variant: 'destructive', label: 'Уволен' };
+			case 'pending':
+				return { variant: 'secondary', label: 'Ожидает' };
+			default:
+				return null;
+		}
 	}
 
 	/** Описание стадии для отображения */
@@ -322,10 +348,24 @@
 					<div class="space-y-4">
 						{#each unresolvedList as item, i}
 							<div class="rounded-lg border p-3">
-								<div class="mb-2 text-xs text-muted-foreground">
+								<div class="mb-1 text-xs text-muted-foreground">
 									Пропуск: {item.seria}
 									{item.number} &mdash; {item.fullName}
 								</div>
+								{#if item.passId && item.currentOwner}
+									<div
+										class="mb-2 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs"
+									>
+										Пропуск занят: <span class="font-medium">{item.currentOwner}</span>. Будет
+										переназначен на дату первого события{item.firstDate
+											? ` (${item.firstDate})`
+											: ''}.
+									</div>
+								{:else if item.firstDate}
+									<div class="mb-2 text-xs text-muted-foreground">
+										Первое событие: {item.firstDate}
+									</div>
+								{/if}
 								<div class="flex flex-col gap-1">
 									<RadioGroup
 										value={item.selectedId === null ? '' : String(item.selectedId)}
@@ -339,12 +379,16 @@
 											Пропустить
 										</Label>
 										{#each item.candidates as cand}
+											{@const st = statusBadge(cand.status)}
 											<Label
 												class="cursor-pointer flex-row items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-muted"
 											>
 												<RadioGroupItem value={String(cand.id)} />
 												<span class="font-mono text-xs text-muted-foreground">{cand.number}</span>
 												<span>{cand.lastName} {cand.firstName} {cand.middleName ?? ''}</span>
+												{#if st}
+													<Badge variant={st.variant}>{st.label}</Badge>
+												{/if}
 											</Label>
 										{/each}
 									</RadioGroup>

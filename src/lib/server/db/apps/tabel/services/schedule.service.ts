@@ -2,7 +2,7 @@ import { db } from '$lib/server/db';
 import { schedule } from '../tables/schedule';
 import { schedulePoint } from '../tables/schedule-point';
 import { employeeSchedule } from '../tables/employee-schedule';
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, inArray } from 'drizzle-orm';
 
 export const scheduleService = {
 	// --- Графики ---
@@ -79,6 +79,10 @@ export const scheduleService = {
 	removePoint: (id: number) => db.delete(schedulePoint).where(eq(schedulePoint.id, id)),
 
 	// --- Назначение графиков сотрудникам ---
+
+	/** Получить все назначения графиков для списка сотрудников */
+	listAssignmentsByEmployees: (employeeIds: number[]) =>
+		db.select().from(employeeSchedule).where(inArray(employeeSchedule.employeeId, employeeIds)),
 
 	/** Получить текущий график сотрудника */
 	getCurrentByEmployee: (employeeId: number) =>

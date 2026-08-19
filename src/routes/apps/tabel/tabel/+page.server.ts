@@ -96,5 +96,97 @@ export const actions: Actions = {
 		);
 
 		return { success: true };
+	},
+
+	/** Массовое назначение отметок подразделению (сотрудники × даты) */
+	bulkAssign: async (event) => {
+		if (!canEdit(event.locals.user)) {
+			return fail(403, { message: 'Недостаточно прав для редактирования' });
+		}
+
+		const f = await event.request.formData();
+		const deptId = Number(f.get('deptId'));
+		const updatesRaw = f.get('updates')?.toString() || '';
+
+		if (!deptId || !updatesRaw) {
+			return fail(400, { message: 'Выберите сотрудников и даты' });
+		}
+
+		let parsed: Array<{ employeeId: number; date: string; shortName: string; hours: string }>;
+		try {
+			parsed = JSON.parse(updatesRaw);
+		} catch {
+			return fail(400, { message: 'Некорректный формат обновлений' });
+		}
+		if (!Array.isArray(parsed) || parsed.length === 0) {
+			return fail(400, { message: 'Выберите сотрудников и даты' });
+		}
+
+		// Табельщик — только подконтрольные подразделения
+		if (event.locals.user.role !== 'admin') {
+			const controlled = await getControlledDepartmentIds(event.locals.user);
+			if (!controlled?.includes(deptId)) {
+				return fail(403, { message: 'Подразделение не подконтрольно' });
+			}
+		}
+
+		// Часы задаются построчно (таблица проверки); пусто — не трогаем часы
+		const updates: Array<{
+			employeeId: number;
+			date: string;
+			shortName: string;
+			minutes: number | null;
+		}> = [];
+		for (const u of parsed) {
+			const employeeId = Number(u?.employeeId);
+			const date = String(u?.date ?? '');
+			const shortName = String(u?.shortName ?? '').trim();
+			const hoursRaw = String(u?.hours ?? '').trim();
+			if (!Number.isInteger(employeeId) || employeeId <= 0 || !date) {
+				return fail(400, { message: 'Некорректная запись обновления' });
+			}
+			let minutes: number | null = null;
+			if (hoursRaw) {
+				minutes = Math.round(parseFloat(hoursRaw) * 60);
+				if (!Number.isFinite(minutes) || minutes < 0) {
+					return fail(400, { message: 'Некорректное значение часов' });
+				}
+			}
+			updates.push({ employeeId, date, shortName, minutes });
+		}
+
+		// Табельщик — каждый сотрудник должен принадлежать выбранному подразделению на дату
+		if (event.locals.user.role !== 'admin') {
+			const depts = await employeeService.getDepartmentsAtDates(
+				updates.map((u) => ({ employeeId: u.employeeId, date: u.date }))
+			);
+			for (const u of updates) {
+				if (depts.get(`${u.employeeId}-${u.date}`) !== deptId) {
+					return fail(403, {
+						message: `Сотрудник ${u.employeeId} на ${u.date} не в выбранном подразделении`
+					});
+				}
+			}
+		}
+
+		const updatedBy = event.locals.user?.name ?? event.locals.user?.email ?? null;
+
+		console.log('[bulkAssign]', {
+			deptId,
+			updates: updates.length,
+			user: updatedBy
+		});
+
+		try {
+			const saved = await worktimeService.bulkUpdateDayMarks(updates, updatedBy);
+			console.log('[bulkAssign] ok:', saved.length);
+			return { success: true, count: saved.length };
+		} catch (err: any) {
+			console.error('[bulkAssign] ошибка:', err);
+			if (err?.stack) console.error(err.stack);
+			return fail(500, {
+				message: 'Не удалось применить назначение: ' + (err?.message ?? String(err))
+			});
+		}
 	}
 };

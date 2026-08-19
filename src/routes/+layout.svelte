@@ -38,6 +38,9 @@
 	{#if isNative}
 		<link rel="stylesheet" href="/native.css" />
 		<script src="/native-collapse.js"></script>
+		<script src="/native-dialog.js"></script>
+		<script src="/native-bulk.js"></script>
+		<script src="/native-employee.js"></script>
 	{/if}
 </svelte:head>
 

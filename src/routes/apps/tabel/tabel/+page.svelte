@@ -16,6 +16,7 @@
 	import DepartmentCard from './DepartmentCard.svelte';
 	import EmployeeEventsModal from './EmployeeEventsModal.svelte';
 	import ExportProgress from './ExportProgress.svelte';
+	import BulkAssignDialog from './BulkAssignDialog.svelte';
 	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 
 	import { Input } from '$lib/components/ui/input';
@@ -76,6 +77,15 @@
 	let modalEmployeeId = $state<number | null>(null);
 	let modalDeptName = $state('');
 	let modalPosName = $state('');
+
+	// Быстрое назначение: один диалог на страницу, открывается для выбранного подразделения
+	let bulkDept = $state<any>(null);
+	let bulkOpen = $state(false);
+
+	function openBulkAssign(dept: any) {
+		bulkDept = dept;
+		bulkOpen = true;
+	}
 
 	let cellPopup = $state<{
 		x: number;
@@ -815,7 +825,7 @@
 		{#each groupedDepartments as group}
 			<Collapsible class="group">
 				<CollapsibleTrigger
-					class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground"
+					class="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:bg-accent hover:text-foreground"
 				>
 					<Badge>{group.departments.length}</Badge>
 					<span>{group.name}</span>
@@ -834,6 +844,8 @@
 							{calendarDays}
 							{schedulesById}
 							{showActual}
+							canEditDivision={canEdit}
+							onRequestBulkAssign={openBulkAssign}
 							onOpenEmployee={openEmployeeModal}
 						/>
 					{/each}
@@ -852,6 +864,15 @@
 	positionName={modalPosName}
 	readonly={!canEdit}
 	onSave={onModalSave}
+/>
+
+<BulkAssignDialog
+	bind:show={bulkOpen}
+	bind:bulkDept
+	dayMarks={[...dayMarks].sort((a: any, b: any) => a.shortName.localeCompare(b.shortName))}
+	{calendarDays}
+	{year}
+	{month}
 />
 
 <Dialog bind:open={exportOpen}>

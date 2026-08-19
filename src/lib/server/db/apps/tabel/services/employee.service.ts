@@ -3,7 +3,7 @@ import { employee } from '../tables/employee';
 import { department } from '../tables/department';
 import { position } from '../tables/position';
 import { hrDocument } from '../tables/document';
-import { eq, and, desc, lte, sql } from 'drizzle-orm';
+import { eq, and, desc, lte, sql, type SQL } from 'drizzle-orm';
 
 export const employeeService = {
 	list: () => db.select().from(employee).orderBy(employee.lastName, employee.firstName),
@@ -112,6 +112,35 @@ export const employeeService = {
 		return dep;
 	},
 
+	/** Отдел сотрудника на каждый запрошенный день (батчем, один запрос) */
+	getDepartmentsAtDates: async (rows: Array<{ employeeId: number; date: string }>) => {
+		const out = new Map<string, number | null>();
+		if (rows.length === 0) return out;
+
+		const maxDate = rows.reduce((m, r) => (r.date > m ? r.date : m), rows[0].date);
+		const ids = [...new Set(rows.map((r) => r.employeeId))];
+
+		const docs = await db
+			.select()
+			.from(hrDocument)
+			.where(and(sql`${hrDocument.employeeId} = ANY(${ids})`, lte(hrDocument.date, maxDate)))
+			.orderBy(desc(hrDocument.date));
+
+		const byEmp = new Map<number, (typeof hrDocument.$inferSelect)[]>();
+		for (const d of docs) {
+			if (!byEmp.has(d.employeeId)) byEmp.set(d.employeeId, []);
+			byEmp.get(d.employeeId)!.push(d);
+		}
+
+		for (const { employeeId, date } of rows) {
+			// docs отсортированы по дате desc → первый подходящий = последний документ на дату
+			const last = (byEmp.get(employeeId) ?? []).find((d) => d.date <= date);
+			const dept = last && last.type !== 'dismissal' ? last.departmentId : null;
+			out.set(`${employeeId}-${date}`, dept);
+		}
+		return out;
+	},
+
 	/** Поиск с фильтрацией, сортировкой и пагинацией */
 	searchWithFilters: async (params: {
 		search?: string;
@@ -129,16 +158,18 @@ export const employeeService = {
 			sort === 'number' ? 'e.number' : sort === 'firstName' ? 'e.first_name' : 'e.last_name';
 		const sortDir = order === 'desc' ? 'DESC' : 'ASC';
 
-		const conds: string[] = [];
+		// Фильтры собираются параметризованными sql-фрагментами (значения — параметры,
+		// не строки), чтобы исключить SQL-инъекцию через поисковые параметры.
+		const conds: SQL[] = [];
 		if (search)
 			conds.push(
-				`(e.last_name ILIKE '%${search}%' OR e.first_name ILIKE '%${search}%' OR e.number::text ILIKE '%${search}%')`
+				sql`(e.last_name ILIKE ${'%' + search + '%'} OR e.first_name ILIKE ${'%' + search + '%'} OR e.number::text ILIKE ${'%' + search + '%'})`
 			);
-		if (department) conds.push(`dep.name ILIKE '%${department}%'`);
-		if (position) conds.push(`pos.name ILIKE '%${position}%'`);
-		if (status === 'active') conds.push(`last_doc.type IN ('hiring', 'transfer')`);
-		if (status === 'dismissed') conds.push(`last_doc.type = 'dismissal'`);
-		const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+		if (department) conds.push(sql`dep.name ILIKE ${'%' + department + '%'}`);
+		if (position) conds.push(sql`pos.name ILIKE ${'%' + position + '%'}`);
+		if (status === 'active') conds.push(sql`last_doc.type IN ('hiring', 'transfer')`);
+		if (status === 'dismissed') conds.push(sql`last_doc.type = 'dismissal'`);
+		const where = conds.length ? sql`WHERE ${sql.join(conds, sql` AND `)}` : sql``;
 
 		const query = sql`
 			SELECT e.*, dep.name as department_name, pos.name as position_name,

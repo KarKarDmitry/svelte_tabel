@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import sys
 from datetime import date, datetime, time
 
 import psycopg2
@@ -20,22 +21,13 @@ try:
 except ImportError:
     openpyxl = None
 
-# --- Конфигурация ---
-MSSQL = {
-    "server": "192.168.1.42",
-    "database": "OPP_R",
-    "user": "Editor",
-    "password": "***REMOVED***",
-    "port": 1433,
-}
+# --- Конфигурация (секреты — из .env, не в коде) ---
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from env import load_env, mssql_config, pg_config
 
-PG = {
-    "host": "localhost",
-    "port": 654,
-    "dbname": "mettem",
-    "user": "karkardmitry",
-    "password": "***REMOVED***",
-}
+load_env()
+MSSQL = mssql_config()
+PG = pg_config()
 
 
 DAY_MARKS = [

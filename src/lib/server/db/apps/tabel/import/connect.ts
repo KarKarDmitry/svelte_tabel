@@ -1,13 +1,23 @@
+import 'dotenv/config';
 import sql from 'mssql';
 
+const missing = ['MSSQL_SERVER', 'MSSQL_DATABASE', 'MSSQL_USER', 'MSSQL_PASSWORD'].filter(
+	(k) => !process.env[k]
+);
+if (missing.length > 0) {
+	throw new Error(
+		`Отсутствуют переменные окружения: ${missing.join(', ')}. Задайте их в .env (см. .env.example).`
+	);
+}
+
 const MSSQL_CONFIG: sql.config = {
-	server: '192.168.1.42',
-	database: 'OPP_R',
-	user: 'Editor',
-	password: '***REMOVED***',
-	port: 1433,
+	server: process.env.MSSQL_SERVER!,
+	database: process.env.MSSQL_DATABASE!,
+	user: process.env.MSSQL_USER!,
+	password: process.env.MSSQL_PASSWORD!,
+	port: Number(process.env.MSSQL_PORT) || 1433,
 	options: {
-		encrypt: false,
+		encrypt: process.env.MSSQL_ENCRYPT === 'true',
 		trustServerCertificate: true
 	},
 	pool: {

@@ -430,3 +430,136 @@
 .n-export-round .n-field {
 	max-width: 320px;
 }
+
+/* Диалог (XP): разметка всегда в DOM, показ/скрытие через инлайн display */
+.xp-dialog {
+	position: fixed;
+	inset: 0;
+	z-index: 900;
+}
+.xp-dialog-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 900;
+	background: rgba(0, 0, 0, 0.45);
+}
+.xp-dialog-panel {
+	position: fixed;
+	z-index: 901;
+	top: 4%;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 94%;
+	max-height: 90vh;
+	overflow: auto;
+	background: #ffffff;
+	border: 1px solid #8a8a8a;
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.xp-dialog-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 12px;
+	background: #f0f0f0;
+	border-bottom: 1px solid #c8c8c8;
+}
+.xp-dialog-title {
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 14px;
+	font-weight: 600;
+	color: #111827;
+}
+.xp-dialog-close {
+	cursor: pointer;
+	color: #555555;
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 14px;
+	padding: 0 6px;
+}
+.xp-dialog-close:hover {
+	color: #b91c1c;
+}
+.xp-dialog-body {
+	padding: 12px;
+}
+.xp-dialog-foot {
+	display: flex;
+	justify-content: flex-end;
+	padding: 10px 12px;
+	border-top: 1px solid #e0e0e0;
+}
+.xp-dialog-foot > * + * {
+	margin-left: 8px;
+}
+
+/* Быстрое назначение (bulk): только стили {@html}/JS-генерируемой разметки.
+ * Стили Svelte-элементов (зоны, списки, заголовки) — в BulkAssignNative.svelte. */
+.xp-bulk-num {
+	font-family: 'Consolas', 'Courier New', monospace;
+	font-size: 12px;
+	color: #6b7280;
+	padding: 0px 2px;
+}
+.xp-bulk-actions {
+	margin-top: 8px;
+}
+.xp-bulk-day {
+	font-family: 'Tahoma', 'Arial', sans-serif;
+	font-size: 12px;
+	width: 100%;
+	min-width: 22px;
+	line-height: 22px;
+	margin: 1px 0;
+	border: 1px solid #c3c3c3;
+	border-radius: 4px;
+	background: #ffffff;
+	color: #111827;
+	cursor: pointer;
+}
+.xp-bulk-day:hover {
+	background: #f5f5f5;
+}
+.xp-bulk-day.xp-bulk-day-on {
+	background: #232323;
+	color: #fafafa;
+	border-color: #232323;
+}
+.xp-bulk-day.xp-bulk-day-on:hover {
+	background: #232323;
+}
+.xp-bulk-day.xp-bulk-day-weekend {
+	color: #b91c1c;
+}
+.xp-bulk-day.xp-bulk-day-on.xp-bulk-day-weekend {
+	color: #fafafa;
+}
+.xp-bulk-preview {
+	display: none;
+}
+.xp-bulk-preview-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 12px;
+}
+.xp-bulk-preview-table th,
+.xp-bulk-preview-table td {
+	border: 1px solid #d0d0d0;
+	padding: 4px 6px;
+	text-align: left;
+}
+.xp-bulk-preview-table th {
+	background: #f0f0f0;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.xp-bulk-preview-table td {
+	vertical-align: top;
+}
+.xp-bulk-old {
+	color: #6b7280;
+}
+.xp-bulk-new {
+	font-weight: 600;
+}

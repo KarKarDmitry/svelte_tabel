@@ -1,9 +1,13 @@
 import { db } from '$lib/server/db';
 import { appConstant } from '../tables/app-constant';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 
 export const appConstantService = {
 	list: () => db.select().from(appConstant).orderBy(appConstant.key),
+
+	/** Константы по списку ключей */
+	listByKeys: (keys: string[]) =>
+		db.select().from(appConstant).where(inArray(appConstant.key, keys)),
 
 	getByKey: (key: string) =>
 		db

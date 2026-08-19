@@ -2,8 +2,10 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db';
 import { employee } from '$lib/server/db/apps/tabel/tables/employee';
+import { hrDocument } from '$lib/server/db/apps/tabel/tables/document';
 import { pass as passTable } from '$lib/server/db/apps/tabel/tables/pass';
 import { employeePass } from '$lib/server/db/apps/tabel/tables/employee-pass';
+import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
 import { schedule } from '$lib/server/db/apps/tabel/tables/schedule';
 import { schedulePoint } from '$lib/server/db/apps/tabel/tables/schedule-point';
 import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-schedule';
@@ -13,7 +15,7 @@ import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstil
 import { requireAdmin } from '$lib/server/permissions';
 import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-import { and, between, desc, eq, gte, inArray, lte, lt, sql } from 'drizzle-orm';
+import { and, between, desc, eq, gte, inArray, isNull, lte, lt, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
 import { log, logError } from './logger';
 
@@ -146,7 +148,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 					});
 
 					// Парсим: [сотрудник, дата, время, подразделение, событие, устройство, серия, номер]
-					const passSet = new Map<string, { seria: string; number: string; fullName: string }>();
+					const passSet = new Map<
+						string,
+						{ seria: string; number: string; fullName: string; firstDate: string }
+					>();
 					let eventCount = 0;
 					for (const r of rows) {
 						if (r.length < 8) continue;
@@ -156,8 +161,16 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						const nd = normDate(r[1]);
 						if (!nd) continue;
 						const key = `${seria}|${num}`;
-						if (!passSet.has(key)) {
-							passSet.set(key, { seria, number: num, fullName: String(r[0] ?? '').trim() });
+						const prev = passSet.get(key);
+						if (!prev) {
+							passSet.set(key, {
+								seria,
+								number: num,
+								fullName: String(r[0] ?? '').trim(),
+								firstDate: nd
+							});
+						} else if (nd < prev.firstDate) {
+							prev.firstDate = nd; // первое событие по пропуску — дата начала использования
 						}
 						eventCount++;
 					}
@@ -174,22 +187,35 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						message: `Найдено ${eventCount} событий, ${passSet.size} пропусков. Поиск сотрудников...`
 					});
 
-					// Загружаем существующие пропуска
+					// Загружаем существующие пропуска с текущим (активным) владельцем
 					const existingPasses = await db
 						.select({
 							id: passTable.id,
 							seria: passTable.seria,
 							number: passTable.number,
-							employeeId: employeePass.employeeId
+							employeeId: employeePass.employeeId,
+							ownerLastName: employee.lastName,
+							ownerFirstName: employee.firstName,
+							ownerMiddleName: employee.middleName
 						})
 						.from(passTable)
-						.leftJoin(employeePass, eq(employeePass.passId, passTable.id));
+						.leftJoin(
+							employeePass,
+							and(eq(employeePass.passId, passTable.id), isNull(employeePass.dateTo))
+						)
+						.leftJoin(employee, eq(employee.id, employeePass.employeeId));
 
-					const passByKey = new Map<string, { passId: number; employeeId: number | null }>();
+					const passByKey = new Map<
+						string,
+						{ passId: number; employeeId: number | null; ownerName: string | null }
+					>();
 					for (const p of existingPasses) {
 						passByKey.set(`${p.seria ?? ''}|${p.number}`, {
 							passId: p.id,
-							employeeId: p.employeeId ?? null
+							employeeId: p.employeeId ?? null,
+							ownerName: p.employeeId
+								? [p.ownerLastName, p.ownerFirstName, p.ownerMiddleName].filter(Boolean).join(' ')
+								: null
 						});
 					}
 
@@ -222,7 +248,63 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 						const key = `${p.seria}|${p.number}`;
 						const existing = passByKey.get(key);
-						if (existing && existing.employeeId) {
+
+						// Ищем сотрудника по ФИО (для существующих без привязки, занятых И новых)
+						const { lastName, firstName, middleName } = splitFullName(p.fullName);
+
+						const nameCond = firstName
+							? sql`substring(${employee.firstName}, 1, ${firstName.length}) = ${firstName}`
+							: sql`1=1`;
+						// Отчество из Excel фильтрует однофамильцев; сотрудников без отчества в БД не отсекаем
+						const midCond = middleName
+							? sql`(
+								${employee.middleName} IS NULL
+								OR substring(${employee.middleName}, 1, ${middleName.length}) = ${middleName}
+							)`
+							: sql`1=1`;
+						const candidates = await db
+							.select({
+								id: employee.id,
+								number: employee.number,
+								lastName: employee.lastName,
+								firstName: employee.firstName,
+								middleName: employee.middleName
+							})
+							.from(employee)
+							.where(and(eq(employee.lastName, lastName), nameCond, midCond))
+							.limit(10);
+
+						// Статус каждого кандидата — по последнему hr_document (для badge в UI)
+						const candIds = candidates.map((c) => c.id);
+						const candStatus = new Map<number, string>();
+						if (candIds.length > 0) {
+							const lastDocs = await db
+								.select({
+									employeeId: hrDocument.employeeId,
+									type: hrDocument.type,
+									date: hrDocument.date
+								})
+								.from(hrDocument)
+								.where(inArray(hrDocument.employeeId, candIds))
+								.orderBy(desc(hrDocument.date));
+							for (const d of lastDocs) {
+								if (!candStatus.has(d.employeeId)) {
+									candStatus.set(d.employeeId, d.type === 'dismissal' ? 'dismissed' : 'active');
+								}
+							}
+						}
+						const candidatesWithStatus = candidates.map((c) => ({
+							id: c.id,
+							number: c.number,
+							lastName: c.lastName,
+							firstName: c.firstName,
+							middleName: c.middleName,
+							status: candStatus.get(c.id) ?? 'pending'
+						}));
+
+						// Пропуск уже принадлежит одному из найденных кандидатов — он «известен»,
+						// даже если по ФИО нашлось несколько однофамильцев (в т.ч. уволенных)
+						if (existing?.employeeId && candidates.some((c) => c.id === existing.employeeId)) {
 							known++;
 							tSend({
 								stage: 'collecting',
@@ -234,40 +316,43 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 							continue;
 						}
 
-						// Ищем сотрудника по ФИО (для существующих без привязки И для новых)
-						const { lastName, firstName } = splitFullName(p.fullName);
-
-						const nameCond = firstName
-							? sql`substring(${employee.firstName}, 1, ${firstName.length}) = ${firstName}`
-							: sql`1=1`;
-						const candidates = await db
-							.select({
-								id: employee.id,
-								number: employee.number,
-								lastName: employee.lastName,
-								firstName: employee.firstName,
-								middleName: employee.middleName
-							})
-							.from(employee)
-							.where(and(eq(employee.lastName, lastName), nameCond))
-							.limit(10);
+						const pushUnresolved = (cands: any[]) =>
+							unresolved.push({
+								seria: p.seria,
+								number: p.number,
+								fullName: p.fullName,
+								passId: existing?.passId ?? null,
+								firstDate: p.firstDate,
+								currentOwner: existing?.employeeId ? existing.ownerName : null,
+								candidates: cands
+							});
 
 						if (candidates.length === 1) {
+							const cand = candidates[0];
 							if (existing && !existing.employeeId) {
 								// Пропуск есть, но без сотрудника — привязываем существующий
 								await db
 									.insert(employeePass)
-									.values({ employeeId: candidates[0].id, passId: existing.passId })
+									.values({
+										employeeId: cand.id,
+										passId: existing.passId,
+										dateFrom: p.firstDate
+									})
 									.onConflictDoNothing();
-								passByKey.set(key, { passId: existing.passId, employeeId: candidates[0].id });
+								passByKey.set(key, {
+									passId: existing.passId,
+									employeeId: cand.id,
+									ownerName: null
+								});
+								known++;
 								tSend({
 									stage: 'collecting',
 									current: known,
 									total: passSet.size,
-									message: `Привязан: ${p.fullName} → ${candidates[0].lastName} ${candidates[0].firstName}`,
+									message: `Привязан: ${p.fullName} → ${cand.lastName} ${cand.firstName}`,
 									employee: p.fullName
 								});
-							} else {
+							} else if (!existing) {
 								// Создаём новый пропуск
 								const [newPass] = await db
 									.insert(passTable)
@@ -275,17 +360,31 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 									.returning({ id: passTable.id });
 								await db
 									.insert(employeePass)
-									.values({ employeeId: candidates[0].id, passId: newPass.id });
-								passByKey.set(key, { passId: newPass.id, employeeId: candidates[0].id });
+									.values({ employeeId: cand.id, passId: newPass.id, dateFrom: p.firstDate });
+								passByKey.set(key, {
+									passId: newPass.id,
+									employeeId: cand.id,
+									ownerName: null
+								});
+								known++;
 								tSend({
 									stage: 'collecting',
 									current: known,
 									total: passSet.size,
-									message: `Найден: ${p.fullName} → ${candidates[0].lastName} ${candidates[0].firstName}`,
+									message: `Найден: ${p.fullName} → ${cand.lastName} ${cand.firstName}`,
 									employee: p.fullName
 								});
+							} else {
+								// Пропуск занят другим сотрудником — предложить переназначить
+								tSend({
+									stage: 'collecting',
+									current: known,
+									total: passSet.size,
+									message: `Занят: ${p.fullName} (${existing.ownerName ?? 'другой сотрудник'})`,
+									employee: p.fullName
+								});
+								pushUnresolved(candidatesWithStatus);
 							}
-							known++;
 						} else {
 							tSend({
 								stage: 'collecting',
@@ -294,33 +393,48 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 								message: `Не найден: ${p.fullName}`,
 								employee: p.fullName
 							});
-							unresolved.push({
-								seria: p.seria,
-								number: p.number,
-								fullName: p.fullName,
-								candidates:
-									candidates.length > 1
-										? candidates.map((c: any) => ({
-												id: c.id,
-												number: c.number,
-												lastName: c.lastName,
-												firstName: c.firstName,
-												middleName: c.middleName
-											}))
-										: [
-												{
-													id: 0,
-													number: '—',
-													lastName: 'Не найден',
-													firstName: '',
-													middleName: null
-												}
-											]
-							});
+							pushUnresolved(
+								candidates.length > 1
+									? candidatesWithStatus
+									: [
+											{
+												id: 0,
+												number: '—',
+												lastName: 'Не найден',
+												firstName: '',
+												middleName: null,
+												status: null
+											}
+										]
+							);
 						}
 					}
 
 					if (unresolved.length > 0) {
+						// Логируем исключения перед выдачей пользователю
+						for (const u of unresolved) {
+							log(
+								'[unresolved]',
+								`pass=${u.seria}${u.number}`,
+								`excel_name=${u.fullName}`,
+								u.passId ? `pass_id=${u.passId}` : 'pass_id=none',
+								u.currentOwner ? `owner=${u.currentOwner}` : 'owner=none',
+								u.firstDate ? `first_event=${u.firstDate}` : 'first_event=none',
+								`candidates=${u.candidates
+									.map(
+										(c: any) =>
+											`${c.lastName} ${c.firstName ?? ''}(id=${c.id},status=${c.status ?? '?'})`
+									)
+									.join('; ')}`
+							);
+						}
+						log(
+							'[unresolved] итог:',
+							`известных=${known}`,
+							`времянок=${skipped}`,
+							`исключений=${unresolved.length}`
+						);
+
 						tFlush({
 							stage: 'unresolved',
 							message: `Найдено ${eventCount} событий, ${passSet.size} пропусков. Известно: ${known}, пропущено (времянки): ${skipped}, требуется уточнение: ${unresolved.length}`,
@@ -1024,35 +1138,90 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	});
 };
 
-/** ФАЗА 2: создание пропусков (быстрая операция, без SSE) */
+/** ФАЗА 2: создание/переназначение пропусков (быстрая операция, без SSE) */
 export const PUT: RequestHandler = async ({ request, locals }) => {
 	requireAdmin(locals.user);
 	try {
 		const { unresolved } = (await request.json()) as {
-			unresolved: { seria: string; number: string; employeeId: number }[];
+			unresolved: {
+				seria: string;
+				number: string;
+				passId?: number | null;
+				employeeId: number;
+				dateFrom?: string;
+			}[];
 		};
 
 		let created = 0;
 		let linked = 0;
+		let reassigned = 0;
 		const skipList: { seria: string; number: string }[] = [];
 		for (const u of unresolved) {
 			if (!u.employeeId || u.employeeId <= 0) {
 				// Пользователь выбрал «Пропустить» — не создаём пропуск, запоминаем для пропуска
 				skipList.push({ seria: u.seria, number: u.number });
+				log('[PUT] пропущен:', `${u.seria}${u.number}`);
 				continue;
 			}
-			const [newPass] = await db
-				.insert(passTable)
-				.values({ seria: u.seria, number: u.number })
-				.returning({ id: passTable.id });
-			created++;
-			await db.insert(employeePass).values({ employeeId: u.employeeId, passId: newPass.id });
-			linked++;
+			// Дата начала использования — первое событие по пропуску из файла
+			const dateFrom = u.dateFrom || new Date().toISOString().split('T')[0];
+
+			if (u.passId && u.passId > 0) {
+				// Пропуск уже существует (занят другим) — переназначаем новому сотруднику:
+				// закрываем текущему владельцу (dateTo = день до первого события) и выдаём новому
+				const active = await passService.getActiveAssignment(u.passId);
+				if (active) {
+					const prevDay = new Date(new Date(`${dateFrom}T00:00:00`).getTime() - 86400000)
+						.toISOString()
+						.split('T')[0];
+					await passService.closeEmployeePass(active.id, prevDay);
+					log('[PUT] закрыта старая привязка:', `assignment_id=${active.id}`, `date_to=${prevDay}`);
+				}
+				await passService.assignToEmployee({
+					employeeId: u.employeeId,
+					passId: u.passId,
+					dateFrom
+				});
+				reassigned++;
+				log(
+					'[PUT] переназначен:',
+					`${u.seria}${u.number}`,
+					`pass_id=${u.passId}`,
+					`employee_id=${u.employeeId}`,
+					`date_from=${dateFrom}`
+				);
+			} else {
+				const [newPass] = await db
+					.insert(passTable)
+					.values({ seria: u.seria, number: u.number })
+					.returning({ id: passTable.id });
+				created++;
+				await passService.assignToEmployee({
+					employeeId: u.employeeId,
+					passId: newPass.id,
+					dateFrom
+				});
+				linked++;
+				log(
+					'[PUT] создан:',
+					`${u.seria}${u.number}`,
+					`new_pass_id=${newPass.id}`,
+					`employee_id=${u.employeeId}`,
+					`date_from=${dateFrom}`
+				);
+			}
 		}
+		log(
+			'[PUT] итог:',
+			`создано=${created}`,
+			`привязано=${linked}`,
+			`переназначено=${reassigned}`,
+			`пропущено=${skipList.length}`
+		);
 
 		return json({
 			stage: 'done',
-			message: `Создано ${created} пропусков, привязано ${linked} к сотрудникам.${skipList.length ? ` Пропущено: ${skipList.length}.` : ''}`,
+			message: `Создано ${created} пропусков, привязано ${linked}, переназначено ${reassigned}.${skipList.length ? ` Пропущено: ${skipList.length}.` : ''}`,
 			skipList
 		});
 	} catch (e: any) {

@@ -1,18 +1,22 @@
 <script lang="ts">
 	let {
+		id,
 		name,
 		label,
 		value = '',
 		options = [],
 		required = false,
-		class: className = ''
+		class: className = '',
+		...rest
 	}: {
+		id?: string;
 		name: string;
 		label?: string;
 		value?: string;
 		options: { value: string | number; label: string }[];
 		required?: boolean;
 		class?: string;
+		[key: string]: any;
 	} = $props();
 
 	const cls = $derived(`n-field${className ? ' ' + className : ''}`);
@@ -20,7 +24,7 @@
 
 <label class={cls}>
 	{#if label}<span class="n-label">{label}</span>{/if}
-	<select {name} {required} class="n-select">
+	<select {id} {name} {required} class="n-select" {...rest}>
 		<option value="" selected={value === ''}>— {label || 'Выберите'} —</option>
 		{#each options as opt}
 			<option value={opt.value} selected={String(opt.value) === String(value)}>

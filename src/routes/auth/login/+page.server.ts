@@ -3,7 +3,14 @@ import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
 import { auth } from '$lib/server/auth';
 import { toEmail } from '$lib/server/auth-utils';
+import { checkRateLimit, clearRateLimit } from '$lib/server/rate-limit';
 import { APIError } from 'better-auth/api';
+
+// Лимиты: 5 попыток на (IP + логин) за 15 мин; агрегатно 20 попыток с IP за 15 мин.
+const WINDOW_MS = 15 * 60 * 1000;
+const LOCK_MS = 15 * 60 * 1000;
+const PER_USER_MAX = 5;
+const PER_IP_MAX = 20;
 
 export const load: PageServerLoad = (event) => {
 	if (event.locals.user) {
@@ -17,17 +24,34 @@ export const actions: Actions = {
 		const formData = await event.request.formData();
 		const username = formData.get('username')?.toString() ?? '';
 		const password = formData.get('password')?.toString() ?? '';
+		const email = toEmail(username);
+
+		const ip = event.getClientAddress();
+		const perIp = checkRateLimit(`login:ip:${ip}`, {
+			max: PER_IP_MAX,
+			windowMs: WINDOW_MS,
+			lockMs: LOCK_MS
+		});
+		const perUser = checkRateLimit(`login:ip:${ip}:user:${email}`, {
+			max: PER_USER_MAX,
+			windowMs: WINDOW_MS,
+			lockMs: LOCK_MS
+		});
+		const limit = !perIp.allowed ? perIp : perUser;
+		if (!limit.allowed) {
+			return fail(429, {
+				message: `Слишком много попыток входа. Попробуйте через ${limit.retryAfterSec} сек.`
+			});
+		}
 
 		try {
-			const result = await auth.api.signInEmail({
+			await auth.api.signInEmail({
 				body: {
-					email: toEmail(username),
+					email,
 					password
 				}
 			});
-			console.log('signIn result:', JSON.stringify(result));
 		} catch (error: any) {
-			console.error('signIn error:', error);
 			if (error instanceof APIError) {
 				return fail(400, { message: error.message });
 			}
@@ -36,6 +60,7 @@ export const actions: Actions = {
 			});
 		}
 
+		clearRateLimit(`login:ip:${ip}:user:${email}`);
 		return redirect(302, '/');
 	}
 };

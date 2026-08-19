@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cellStyle } from './cell-style';
+	import { cellStyle } from '$lib/apps/tabel/cell-style';
 	import {
 		Collapsible,
 		SubCollapsible,
@@ -13,6 +13,8 @@
 	} from '$lib/components/native/ui';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
+	import BulkAssignNative from './BulkAssignNative.svelte';
+	import EmployeeEventsNative from './EmployeeEventsNative.svelte';
 
 	const data = $derived($page.data);
 
@@ -84,6 +86,8 @@
 				: (day.reportNightWorkTime ?? day.shiftNightWorkTime);
 			totalReport += workTime ?? 0;
 			totalNight += nightTime ?? 0;
+			// Звёздочка — день с отчётными значениями (проставлен табельщиком)
+			const hasReport = day.reportWorkTime != null || day.reportNightWorkTime != null;
 			// Отчётные часы приоритетны; пока табельщик их не проставил — берём сменные из импорта
 			const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
 			const hasShortage = workMinutes != null && stdMin != null && workMinutes < stdMin;
@@ -93,7 +97,7 @@
 				mark: getDayMark(day.dayMarkCode),
 				blocked: day.blocked ?? false,
 				missing: hasShortage ? stdMin - workMinutes : 0,
-				hours: fmt(workTime),
+				hours: fmt(workTime) + (hasReport && !showActual ? '*' : ''),
 				minutes: workTime ?? 0,
 				minutesNight: nightTime ?? 0,
 				style: cellStyle(day, emp.schedule, cellCtx)
@@ -126,6 +130,11 @@
 		const a = data.actual ? '&actual=1' : '';
 		return `?year=${p.year}&month=${p.month}${a}`;
 	}
+
+	/** Кнопка «Быстрое назначение» для подразделения (инлайн onclick для XP) */
+	function bulkBtn(dept: any): string {
+		return `<button type="button" class="native-btn native-btn-small" onclick="xpBulkOpen('bulk_${dept.id}')">Быстрое назначение</button>`;
+	}
 </script>
 
 <svelte:head>
@@ -133,6 +142,7 @@
 		// --- Сохранение отметок с debounce (как в основном табеле) ---
 		var nativeTimers = {};
 		var NATIVE_MARKS_URL = '/native/apps/tabel/tabel/marks';
+		var NATIVE_ACTUAL = {data.actual ? 1 : 0};
 
 		function nativeSchedule(empId, date, value) {
 			var key = empId + '_' + date;
@@ -186,7 +196,13 @@
 
 			hoursCell.setAttribute('data-minutes', newMin);
 			hoursCell.setAttribute('data-night', newNight);
-			hoursCell.innerText = newMin ? (newMin / 60).toFixed(1) : '';
+			// Звёздочка — отчётные значения проставлены (в режиме «фактическое» не показываем)
+			var star = NATIVE_ACTUAL
+				? ''
+				: updated.reportWorkTime != null || updated.reportNightWorkTime != null
+					? '*'
+					: '';
+			hoursCell.innerText = (newMin ? (newMin / 60).toFixed(1) : '') + star;
 
 			// Расцветка приходит от сервера (полем style)
 			var style = updated.style || '';
@@ -208,6 +224,18 @@
 			}
 		}
 
+		// Применение результата массового назначения без перезагрузки страницы
+		function xpApplyBulk(updatedList) {
+			for (var i = 0; i < updatedList.length; i++) {
+				var u = updatedList[i];
+				nativeApply(u);
+				var markInp = document.querySelector(
+					'input[name="mark_' + u.employeeId + '_' + u.date + '"]'
+				);
+				if (markInp) markInp.value = u.shortName || '';
+			}
+		}
+
 		document.onchange = function (e) {
 			e = e || window.event;
 			var target = e.target || e.srcElement;
@@ -219,7 +247,7 @@
 			nativeSchedule(empId, date, target.value.toUpperCase());
 		};
 
-		// Клик по строке часов — открыть события сотрудника в новой вкладке
+		// Клик по строке часов — открыть диалог событий сотрудника
 		document.onclick = function (e) {
 			e = e || window.event;
 			var el = e.target || e.srcElement;
@@ -228,11 +256,8 @@
 					var empId = el.getAttribute('data-empid');
 					var y = el.getAttribute('data-year');
 					var m = el.getAttribute('data-month');
-					if (empId) {
-						window.open(
-							'/native/apps/tabel/tabel/employee/' + empId + '?year=' + y + '&month=' + m,
-							'_blank'
-						);
+					if (empId && typeof xpEmpOpen === 'function') {
+						xpEmpOpen(empId, y, m);
 					}
 					return;
 				}
@@ -329,6 +354,9 @@
 		<Collapsible id={`grp_${gi}`} title={group.name}>
 			{#each group.departments as dept, di}
 				<SubCollapsible id={`dept_${gi}_${di}`} title={dept.name}>
+					{#if data.canEdit}
+						<div class="native-actions">{@html bulkBtn(dept)}</div>
+					{/if}
 					<div class="native-table-wrap">
 						<table class="native-table">
 							<thead>
@@ -409,3 +437,20 @@
 		</Collapsible>
 	{/each}
 </div>
+
+{#if data.canEdit}
+	{#each data.departments as group}
+		{#each group.departments as dept}
+			<BulkAssignNative
+				{dept}
+				dayMarks={data.dayMarks ?? []}
+				calendarDays={data.calendarDays ?? {}}
+				year={data.year}
+				month={data.month}
+				lastDay={data.lastDay}
+			/>
+		{/each}
+	{/each}
+{/if}
+
+<EmployeeEventsNative canEdit={data.canEdit} />

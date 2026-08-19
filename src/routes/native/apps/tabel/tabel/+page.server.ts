@@ -3,7 +3,7 @@ import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.ser
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-import { getControlledDepartmentIds } from '$lib/server/permissions';
+import { getControlledDepartmentIds, canEdit } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {
 	const url = event.url;
@@ -60,6 +60,7 @@ export const load: PageServerLoad = async (event) => {
 		year,
 		month,
 		actual,
+		canEdit: canEdit(event.locals.user),
 		// native без тёмной темы — отдаём плоский светлый набор расцветки
 		cellColorRules: (data.cellColorRules as any)?.light ?? data.cellColorRules ?? {},
 		markColorRules: (data.markColorRules as any)?.light ?? data.markColorRules ?? {}

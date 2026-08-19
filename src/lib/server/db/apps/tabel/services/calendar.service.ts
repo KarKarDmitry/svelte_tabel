@@ -4,7 +4,7 @@ import { calendar } from '../tables/calendar';
 import { calendarDay } from '../tables/calendar-day';
 import { calendarTemplateRule } from '../tables/calendar-template-rule';
 import { schedule } from '../tables/schedule';
-import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { eq, and, gte, lte, desc, inArray } from 'drizzle-orm';
 
 export const calendarService = {
 	// --- Шаблоны ---
@@ -107,6 +107,19 @@ export const calendarService = {
 
 	// --- Календари (связка шаблон + год) ---
 	listCalendars: () => db.select().from(calendar).orderBy(desc(calendar.year)),
+	/** Календари за указанные годы (для расчёта расцветки ячеек) */
+	listByYears: (years: number[]) => db.select().from(calendar).where(inArray(calendar.year, years)),
+	/** Календарные дни по списку дат (по всем календарям) */
+	listDaysByDates: (dates: string[]) =>
+		db
+			.select({
+				calendarId: calendarDay.calendarId,
+				date: calendarDay.date,
+				dayType: calendarDay.dayType,
+				workTime: calendarDay.workTime
+			})
+			.from(calendarDay)
+			.where(inArray(calendarDay.date, dates)),
 	getCalendarById: (id: number) =>
 		db
 			.select()

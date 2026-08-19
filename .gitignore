@@ -27,3 +27,6 @@ vite.config.ts.timestamp-*
 # old project
 py_tabel
 tmp-export.xlsx
+
+# ПДн / разовые выгрузки — не коммитить
+fired.csv

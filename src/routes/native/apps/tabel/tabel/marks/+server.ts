@@ -11,7 +11,7 @@ import { employeeSchedule } from '$lib/server/db/apps/tabel/tables/employee-sche
 import { schedule } from '$lib/server/db/apps/tabel/tables/schedule';
 import { calendar } from '$lib/server/db/apps/tabel/tables/calendar';
 import { calendarDay } from '$lib/server/db/apps/tabel/tables/calendar-day';
-import { cellStyle } from '../cell-style';
+import { cellStyle } from '$lib/apps/tabel/cell-style';
 
 const CONST_KEYS = ['CELL_COLOR_RULES', 'MARK_COLOR_RULES', 'SHIFT_MARK_SHORTNAMES'] as const;
 

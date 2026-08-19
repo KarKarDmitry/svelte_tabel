@@ -52,7 +52,6 @@ const handleNativeMode: Handle = async ({ event, resolve }) => {
 const handleAuthGuard: Handle = async ({ event, resolve }) => {
 	if (
 		event.url.pathname.startsWith('/auth') ||
-		event.url.pathname.startsWith('/setup') ||
 		event.url.pathname.startsWith('/_app')
 	) {
 		return resolve(event);

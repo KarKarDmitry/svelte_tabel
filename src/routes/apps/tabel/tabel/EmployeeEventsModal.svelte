@@ -165,6 +165,19 @@
 		return (val / 60).toFixed(1);
 	}
 
+	/** Часы ячейки: отчётные или сменные из импорта (звёздочка — в колонке «День») */
+	function hoursText(day: any): string {
+		if (day?.reportWorkTime != null) return fmt(day.reportWorkTime);
+		if (day?.shiftWorkTime != null) return fmt(day.shiftWorkTime);
+		return '';
+	}
+
+	function nightText(day: any): string {
+		if (day?.reportNightWorkTime != null) return fmt(day.reportNightWorkTime);
+		if (day?.shiftNightWorkTime != null) return fmt(day.shiftNightWorkTime);
+		return '';
+	}
+
 	function parseHours(val: string): number | null {
 		const n = parseFloat(val);
 		if (isNaN(n)) return null;
@@ -280,17 +293,24 @@
 	];
 </script>
 
+{#snippet dayCell(_value: any, row: DayRow)}
+	<div class="flex h-7 w-full items-center justify-center text-xs">
+		{row.dayNum}
+		{#if row.dayData?.reportWorkTime != null || row.dayData?.reportNightWorkTime != null}*{/if}
+	</div>
+{/snippet}
+
 {#snippet hoursCell(_value: any, row: DayRow)}
 	{#if readonly}
 		<div class="flex h-7 w-full items-center justify-center text-xs">
-			{fmt(row.dayData?.reportWorkTime ?? null)}
+			{hoursText(row.dayData)}
 		</div>
 	{:else}
 		<Input
 			type="number"
 			step="0.1"
 			class="h-7 w-full rounded-none text-center text-xs"
-			value={fmt(row.dayData?.reportWorkTime ?? null)}
+			value={fmt(row.dayData?.reportWorkTime ?? row.dayData?.shiftWorkTime ?? null)}
 			oninput={(e) => {
 				row.dayData.reportWorkTime = parseHours((e.target as HTMLInputElement).value);
 			}}
@@ -301,14 +321,14 @@
 {#snippet nightCell(_value: any, row: DayRow)}
 	{#if readonly}
 		<div class="flex h-7 w-full items-center justify-center text-xs">
-			{fmt(row.dayData?.reportNightWorkTime ?? null)}
+			{nightText(row.dayData)}
 		</div>
 	{:else}
 		<Input
 			type="number"
 			step="0.1"
 			class="h-7 w-full rounded-none text-center text-xs"
-			value={fmt(row.dayData?.reportNightWorkTime ?? null)}
+			value={fmt(row.dayData?.reportNightWorkTime ?? row.dayData?.shiftNightWorkTime ?? null)}
 			oninput={(e) => {
 				row.dayData.reportNightWorkTime = parseHours((e.target as HTMLInputElement).value);
 			}}
@@ -481,7 +501,13 @@
 									data={rows}
 									getRowId={(r) => r.id}
 									columns={[
-										{ key: 'dayNum', label: 'День', width: 45, align: 'center' as const },
+										{
+											key: 'dayNum',
+											label: 'День',
+											width: 45,
+											align: 'center' as const,
+											render: dayCell
+										},
 										{
 											key: ['dayData', 'reportWorkTime'],
 											label: 'Часов',

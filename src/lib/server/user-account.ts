@@ -41,8 +41,8 @@ export async function changePasswordAction(
 	if (newPassword !== confirmPassword) {
 		return fail(400, { message: 'Пароли не совпадают' });
 	}
-	if (newPassword.length < 3) {
-		return fail(400, { message: 'Пароль слишком короткий (минимум 3 символа)' });
+	if (newPassword.length < 8) {
+		return fail(400, { message: 'Пароль слишком короткий (минимум 8 символов)' });
 	}
 
 	try {

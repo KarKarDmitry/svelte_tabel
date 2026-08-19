@@ -10,7 +10,7 @@ import { schedule } from '../tables/schedule';
 import { employeeSchedule } from '../tables/employee-schedule';
 import { calendar } from '../tables/calendar';
 import { calendarDay } from '../tables/calendar-day';
-import { eq, and, asc, between, desc, gte, lte, sql } from 'drizzle-orm';
+import { eq, and, asc, between, desc, gte, lte, sql, or, isNull } from 'drizzle-orm';
 import { buildEmployeeSegments } from './employee-segments';
 
 /** Получить из app_constant множество shortName отметок, при простановке которых подставляются часы из графика */
@@ -467,11 +467,19 @@ export const worktimeService = {
 				shiftMarks.has(trimmed) ||
 				shiftMarks.has(allMarks.find((m) => m.code === trimmed)?.shortName ?? '');
 			if (isShiftMark) {
+				// График, активный именно на дату (последний назначенный)
 				const empSchedule = await db
 					.select({ standardWorkTime: schedule.standardWorkTime })
 					.from(employeeSchedule)
 					.innerJoin(schedule, eq(employeeSchedule.scheduleId, schedule.id))
-					.where(eq(employeeSchedule.employeeId, employeeId))
+					.where(
+						and(
+							eq(employeeSchedule.employeeId, employeeId),
+							or(isNull(employeeSchedule.dateFrom), lte(employeeSchedule.dateFrom, date)),
+							or(isNull(employeeSchedule.dateTo), gte(employeeSchedule.dateTo, date))
+						)
+					)
+					.orderBy(desc(employeeSchedule.dateFrom))
 					.limit(1)
 					.then((r) => r[0]);
 
@@ -518,6 +526,63 @@ export const worktimeService = {
 			extraMarkCode: saved!.extraMarkCode,
 			extraMarkMinutes: saved!.extraMarkMinutes
 		};
+	},
+
+	/**
+	 * Массовое назначение отметок.
+	 * Время НЕ вычисляется из графика — часы передаются явно (minutes, минуты):
+	 * - minutes != null — ставим reportWorkTime (для метки «Н» — и ночные часы);
+	 * - minutes == null — часы не трогаем, меняем только метку.
+	 * Одна транзакция, bulk upsert по (employee_id, date).
+	 */
+	bulkUpdateDayMarks: async (
+		updates: Array<{
+			employeeId: number;
+			date: string;
+			shortName: string;
+			minutes: number | null;
+		}>,
+		updatedBy?: string | null
+	) => {
+		if (updates.length === 0) return [];
+
+		// Конвертация shortName → code
+		const allMarks = await db.select().from(dayMark);
+		const codeByShort = new Map(allMarks.map((m) => [m.shortName, m.code]));
+
+		return db.transaction(async (tx) => {
+			const results: Array<typeof worktimeTracker.$inferSelect> = [];
+			for (const u of updates) {
+				const trimmed = u.shortName.trim();
+				const setData: Record<string, any> = {
+					updatedBy: updatedBy ?? null
+				};
+				if (!trimmed) {
+					// Пустая метка — полностью очищаем день (метка и часы), как «» в одиночном методе
+					setData.dayMarkCode = null;
+					setData.reportWorkTime = null;
+					setData.reportNightWorkTime = null;
+				} else {
+					const markCode = codeByShort.get(trimmed) ?? trimmed;
+					setData.dayMarkCode = markCode;
+					if (u.minutes != null) {
+						setData.reportWorkTime = u.minutes;
+						setData.reportNightWorkTime = markCode === 'N' ? u.minutes : 0;
+					}
+				}
+
+				const [saved] = await tx
+					.insert(worktimeTracker)
+					.values({ employeeId: u.employeeId, date: u.date, ...setData })
+					.onConflictDoUpdate({
+						target: [worktimeTracker.employeeId, worktimeTracker.date],
+						set: setData
+					})
+					.returning();
+				if (saved) results.push(saved);
+			}
+			return results;
+		});
 	},
 
 	upsert: async (data: {

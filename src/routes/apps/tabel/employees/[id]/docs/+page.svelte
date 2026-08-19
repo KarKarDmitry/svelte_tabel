@@ -168,9 +168,12 @@
 			<Dialog bind:open={dismissOpen}>
 				<DialogContent>
 					<div class="flex flex-col gap-4">
-						<p class="mb-4 font-medium">Подтвердите увольнение</p>
+						<p class="mb-1 font-medium">Подтвердите увольнение</p>
+						<p class="mb-1 text-sm text-muted-foreground">
+							При увольнении сотрудника с него будут сняты текущие графики и пропуска.
+						</p>
 						<DatePicker value={dismissDate} onchange={(v) => (dismissDate = v)} />
-						<Button variant="destructive" onclick={doDismiss}>Подтвердить увольнение</Button>
+						<Button variant="destructive" onclick={doDismiss}>Далее</Button>
 					</div>
 				</DialogContent>
 			</Dialog>
