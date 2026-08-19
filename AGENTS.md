@@ -44,7 +44,7 @@
 
 ### High
 3. ✅ **Открытая регистрация** — закрыта: `disableSignUp: true` в `auth.ts` (пользователи создаются через админку); `minPasswordLength: 8` (и в `user-account.ts`).
-4. ✅ **Хардкод секретов в git** — вынесено в `.env`: `connect.ts` читает `MSSQL_*`, Python-скрипты читают `.env` через `import/env.py` (`MSSQL_*`/`PG_*`). `fired.csv` убран из индекса (в .gitignore). ⚠️ История git всё ещё содержит секреты и ПДн — нужен rewrite истории (не делали без согласования).
+4. ✅ **Хардкод секретов в git** — вынесено в `.env`: `connect.ts` читает `MSSQL_*`, Python-скрипты читают `.env` через `import/env.py` (`MSSQL_*`/`PG_*`). `fired.csv` убран из индекса (в .gitignore). ⚠️ История git переписана через `git filter-repo` (12 коммитов, force-push в origin/dev): `fired.csv` удалён из всех коммитов, пароли заменены на `***REMOVED***`. ⚠️⚠️ **Сами пароли (MSSQL `1111`, PG-пароль) остаются рабочими** — сменить их в БД и в `.env`; бэкап до переписывания: `%TEMP%\opencode\svelte_tabel_backup.bundle`.
 5. ✅ **Bulk-assign мимо отделов** — в `bulkAssign` (apps) и `bulk/+server.ts` (native) добавлена проверка отдела каждого `employeeId` на дату через `employeeService.getDepartmentsAtDates`.
 6. ✅ **Слабый auth** — частично: добавлен rate-limit на вход (`src/lib/server/rate-limit.ts`): 5 попыток на IP+логин и 20 с IP за 15 мин с лок-аутом. Email-верификация **неприменима** — у пользователей синтетические адреса (`логин@mettem.com`, см. `auth-utils.ts`), почты/mail-сервера нет.
 
@@ -74,4 +74,7 @@
 
 ## Текущая незавершённая работа (на момент ревью, commit 6c66a0a)
 - Нативный табель: планируется переключение месяца без перезагрузки (клиентское переключение через новый JSON-эндпоинт месяца + серверный кэш `getMonthGrouped` с инвалидацией при записи; `actual` в состояние).
-- Незакоммичено: BulkAssign (modern+нативный), EmployeeEvents-диалог со стилями, тёмная тема, общий `cell-style.ts`, `Dialog.svelte`.
+- BulkAssign (modern+нативный), EmployeeEvents-диалог со стилями, тёмная тема, общий `cell-style.ts`, `Dialog.svelte` — закоммичено в `0af1d5d` вместе с харденингом безопасности.
+
+## Сменить пароли (обязательно после rewrite истории)
+- MSSQL `Editor` (`1111` в старой истории) и PG-пароль (`88afa887…`) **всё ещё рабочие** — сменить в БД и в `.env`, даже после scrub истории (старые клоны/бэкапы/GitHub могут хранить их).
