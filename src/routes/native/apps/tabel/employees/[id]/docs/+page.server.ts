@@ -1,5 +1,7 @@
 import type { Actions } from './$types';
 import { documentService } from '$lib/server/db/apps/tabel/services/document.service';
+import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
+import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
 import { redirect } from '@sveltejs/kit';
 import {
 	denyIfCannotEditEmployee,
@@ -61,16 +63,22 @@ export const actions: Actions = {
 		const denied = await denyIfCannotEditEmployee(event.locals.user, id);
 		if (denied) return denied;
 		const form = await event.request.formData();
-		const today = new Date().toISOString().split('T')[0];
-		const lastDoc = await documentService.getActiveAtDate(id, today);
+		const date = form.get('date')?.toString() || new Date().toISOString().split('T')[0];
+		const lastDoc = await documentService.getActiveAtDate(
+			id,
+			new Date().toISOString().split('T')[0]
+		);
 		await documentService.create({
 			type: 'dismissal',
-			date: form.get('date')?.toString() || '',
+			date,
 			docNumber: form.get('docNumber')?.toString() || null,
 			employeeId: id,
 			departmentId: lastDoc?.departmentId ?? 0,
 			positionId: lastDoc?.positionId ?? 0
 		});
+		// Снимаем текущие пропуска и графики с даты увольнения
+		await passService.closeCurrent(id, date);
+		await scheduleService.closeCurrentSchedule(id, date);
 		redirect(302, `/native/apps/tabel/employees/${id}/docs`);
 	},
 
