@@ -3,6 +3,7 @@ import { turnstileEventTracker } from '../tables/turnstile-event-tracker';
 import { turnstileEvent } from '../tables/turnstile-event';
 import { pass } from '../tables/pass';
 import { employee } from '../tables/employee';
+import { hrDocument } from '../tables/document';
 import { eq, and, between, desc, like, or, asc, count, sql, gte, lte, ilike } from 'drizzle-orm';
 
 export const turnstileEventTrackerService = {
@@ -65,10 +66,12 @@ export const turnstileEventTrackerService = {
 		eventId?: number | null;
 		dateFrom?: string | null;
 		dateTo?: string | null;
+		/** null — без ограничения по отделам (admin); массив — только эти отделы */
+		departmentIds?: number[] | null;
 		page: number;
 		pageSize: number;
 	}) => {
-		const { search, eventId, dateFrom, dateTo, page, pageSize } = params;
+		const { search, eventId, dateFrom, dateTo, departmentIds, page, pageSize } = params;
 		const offset = (page - 1) * pageSize;
 
 		const conds: any[] = [];
@@ -79,6 +82,20 @@ export const turnstileEventTrackerService = {
 					ilike(employee.firstName, `%${search}%`),
 					ilike(sql`CAST(${employee.number} AS TEXT)`, `%${search}%`)
 				)
+			);
+		}
+		if (departmentIds) {
+			// Сотрудник относится к подразделению, если его последний кадровый
+			// документ (по дате) — по этому подразделению (вкл. уволенных)
+			conds.push(
+				sql`${employee.id} IN (
+					SELECT d.employee_id FROM ${hrDocument} d
+					WHERE d.department_id = ANY(${departmentIds})
+					AND NOT EXISTS (
+						SELECT 1 FROM ${hrDocument} d2
+						WHERE d2.employee_id = d.employee_id AND d2.date > d.date
+					)
+				)`
 			);
 		}
 		if (eventId) {

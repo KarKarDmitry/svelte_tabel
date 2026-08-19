@@ -2,6 +2,7 @@ import type { PageServerLoad } from './$types';
 import { turnstileEventTrackerService } from '$lib/server/db/apps/tabel/services/turnstile-event-tracker.service';
 import { db } from '$lib/server/db';
 import { turnstileEvent } from '$lib/server/db/apps/tabel/tables/turnstile-event';
+import { getControlledDepartmentIds } from '$lib/server/permissions';
 
 const PAGE_SIZE = 50;
 
@@ -13,6 +14,9 @@ export const load: PageServerLoad = async (event) => {
 	const dateTo = url.searchParams.get('dateTo') || '';
 	const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
 
+	// Не-админ видит события только сотрудников подконтрольных подразделений
+	const departmentIds = await getControlledDepartmentIds(event.locals.user);
+
 	const [result, eventTypes] = await Promise.all([
 		turnstileEventTrackerService.searchWithFilters({
 			search,
@@ -20,7 +24,8 @@ export const load: PageServerLoad = async (event) => {
 			dateFrom: dateFrom || null,
 			dateTo: dateTo || null,
 			page,
-			pageSize: PAGE_SIZE
+			pageSize: PAGE_SIZE,
+			departmentIds
 		}),
 		db.select().from(turnstileEvent).orderBy(turnstileEvent.name)
 	]);

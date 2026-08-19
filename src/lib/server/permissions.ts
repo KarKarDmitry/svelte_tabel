@@ -91,3 +91,30 @@ export async function isDepartmentControlled(
 	const ids = await getControlledDepartmentIds(user);
 	return ids === null || ids.includes(departmentId);
 }
+
+/**
+ * Слой прав на чтение (для load +page.server.ts / +layout.server.ts):
+ * бросает error(403), если сотрудник вне подконтрольных пользователю
+ * подразделений. admin — всегда разрешено; «ожидающие» (без кадровых
+ * документов) — видны всем залогиненным.
+ */
+export async function requireCanReadEmployee(
+	user: PermUser,
+	employeeId: number,
+	date?: string
+): Promise<void> {
+	if (isAdmin(user)) return;
+	const controlled = await getControlledDepartmentIds(user);
+	const d = date ?? new Date().toISOString().split('T')[0];
+	const dept = await employeeService.getDepartmentAtDate(employeeId, d);
+	if (dept) {
+		if (controlled?.includes(dept.id)) return;
+		throw error(403, 'Нет доступа к данным этого сотрудника');
+	}
+	// Уволенный / без активного отдела — проверяем последний не-dismissal отдел
+	const docs = await documentService.getByEmployee(employeeId);
+	if (docs.length === 0) return; // «ожидающий»
+	const lastNonDismissal = docs.find((x) => x.type !== 'dismissal');
+	if (lastNonDismissal && controlled?.includes(lastNonDismissal.departmentId)) return;
+	throw error(403, 'Нет доступа к данным этого сотрудника');
+}

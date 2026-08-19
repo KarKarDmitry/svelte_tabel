@@ -15,7 +15,8 @@ export const load: PageServerLoad = async (event) => {
 
 export const actions: Actions = {
 	create: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
+		// Подразделения создаёт только администратор
+		const denied = denyIfNotAdmin(event.locals.user);
 		if (denied) return denied;
 		const name = (await event.request.formData()).get('name')?.toString();
 		if (!name) return fail(400, { message: 'Название обязательно' });
@@ -24,6 +25,7 @@ export const actions: Actions = {
 	},
 
 	update: async (event) => {
+		// Название могут редактировать admin и timekeeper
 		const denied = denyIfNoEdit(event.locals.user);
 		if (denied) return denied;
 		const form = await event.request.formData();

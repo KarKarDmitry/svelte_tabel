@@ -2,11 +2,15 @@ import { json } from '@sveltejs/kit';
 import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
 import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
 import { positionService } from '$lib/server/db/apps/tabel/services/position.service';
+import { getControlledDepartmentIds } from '$lib/server/permissions';
 
 const PAGE_SIZE = 100;
 
 export const GET = async (event) => {
 	const url = event.url;
+
+	// Не-админ видит только сотрудников подконтрольных подразделений
+	const departmentIds = await getControlledDepartmentIds(event.locals.user);
 
 	const [result, departments, positions] = await Promise.all([
 		employeeService.searchWithFilters({
@@ -14,6 +18,7 @@ export const GET = async (event) => {
 			department: url.searchParams.get('department') || '',
 			position: url.searchParams.get('position') || '',
 			status: url.searchParams.get('status') || '',
+			departmentIds,
 			sort: url.searchParams.get('sort') || 'lastName',
 			order: url.searchParams.get('order') || 'asc',
 			page: Math.max(1, Number(url.searchParams.get('page')) || 1),

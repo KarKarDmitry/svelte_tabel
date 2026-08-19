@@ -3,6 +3,7 @@ import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
 import { requireAdmin } from '$lib/server/permissions';
 
 export const GET = async (event) => {
+	requireAdmin(event.locals.user);
 	const seriaSearch = event.url.searchParams.get('seria') || '';
 	const numberSearch = event.url.searchParams.get('number') || '';
 	let passes = await passService.listWithOwners();

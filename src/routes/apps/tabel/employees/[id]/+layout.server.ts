@@ -7,7 +7,7 @@ import { positionService } from '$lib/server/db/apps/tabel/services/position.ser
 import { dayMarkService } from '$lib/server/db/apps/tabel/services/day-mark.service';
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
 import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
-import { getControlledDepartmentIds, isAdmin } from '$lib/server/permissions';
+import { getControlledDepartmentIds, isAdmin, requireCanReadEmployee } from '$lib/server/permissions';
 
 export const load: LayoutServerLoad = async (event) => {
 	const id = Number(event.params.id);
@@ -15,6 +15,9 @@ export const load: LayoutServerLoad = async (event) => {
 
 	const emp = await employeeService.getById(id);
 	if (!emp) throw error(404, 'Сотрудник не найден');
+
+	// Слой прав на чтение: не-админ — только подконтрольные подразделения
+	await requireCanReadEmployee(event.locals.user, id);
 
 	const departments = await departmentService.list();
 	const positions = await positionService.list();

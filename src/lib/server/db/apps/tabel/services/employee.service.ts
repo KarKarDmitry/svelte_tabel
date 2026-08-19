@@ -147,12 +147,15 @@ export const employeeService = {
 		department?: string;
 		position?: string;
 		status?: string;
+		/** null — без ограничения по отделам (admin); массив — только эти отделы */
+		departmentIds?: number[] | null;
 		page: number;
 		pageSize: number;
 		sort: string;
 		order: string;
 	}) => {
-		const { search, department, position, status, page, pageSize, sort, order } = params;
+		const { search, department, position, status, departmentIds, page, pageSize, sort, order } =
+			params;
 		const offset = (page - 1) * pageSize;
 		const sortCol =
 			sort === 'number' ? 'e.number' : sort === 'firstName' ? 'e.first_name' : 'e.last_name';
@@ -167,6 +170,7 @@ export const employeeService = {
 			);
 		if (department) conds.push(sql`dep.name ILIKE ${'%' + department + '%'}`);
 		if (position) conds.push(sql`pos.name ILIKE ${'%' + position + '%'}`);
+		if (departmentIds) conds.push(sql`dep.id = ANY(${departmentIds})`);
 		if (status === 'active') conds.push(sql`last_doc.type IN ('hiring', 'transfer')`);
 		if (status === 'dismissed') conds.push(sql`last_doc.type = 'dismissal'`);
 		const where = conds.length ? sql`WHERE ${sql.join(conds, sql` AND `)}` : sql``;
