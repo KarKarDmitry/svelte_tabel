@@ -24,6 +24,9 @@ export const load: PageServerLoad = async () => {
 
 export const actions: Actions = {
 	createUser: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
+
 		const formData = await event.request.formData();
 		const username = formData.get('username')?.toString() ?? '';
 		const password = formData.get('password')?.toString() ?? '';
@@ -81,6 +84,9 @@ export const actions: Actions = {
 	},
 
 	setAccess: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
+
 		const formData = await event.request.formData();
 		const userId = formData.get('userId')?.toString();
 		const role = formData.get('role')?.toString();
@@ -133,6 +139,9 @@ export const actions: Actions = {
 	},
 
 	deleteUser: async (event) => {
+		const denied = denyIfNotAdmin(event.locals.user);
+		if (denied) return denied;
+
 		const formData = await event.request.formData();
 		const userId = formData.get('userId')?.toString();
 

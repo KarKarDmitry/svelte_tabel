@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { hrDocument } from '../tables/document';
-import { eq, and, desc, lte } from 'drizzle-orm';
+import { eq, and, desc, lte, inArray } from 'drizzle-orm';
 
 export const documentService = {
 	list: () => db.select().from(hrDocument).orderBy(desc(hrDocument.date)),
@@ -62,5 +62,26 @@ export const documentService = {
 			.where(and(eq(hrDocument.employeeId, employeeId), lte(hrDocument.date, date)))
 			.orderBy(desc(hrDocument.date))
 			.limit(1)
-			.then((r) => r[0])
+			.then((r) => r[0]),
+
+	/** Статусы сотрудников по последнему hr_document (для badge): один запрос на множество id */
+	getLastStatusByEmployeeIds: async (ids: number[]) => {
+		const out = new Map<number, string>();
+		if (ids.length === 0) return out;
+		const lastDocs = await db
+			.select({
+				employeeId: hrDocument.employeeId,
+				type: hrDocument.type,
+				date: hrDocument.date
+			})
+			.from(hrDocument)
+			.where(inArray(hrDocument.employeeId, ids))
+			.orderBy(desc(hrDocument.date));
+		for (const d of lastDocs) {
+			if (!out.has(d.employeeId)) {
+				out.set(d.employeeId, d.type === 'dismissal' ? 'dismissed' : 'active');
+			}
+		}
+		return out;
+	}
 };

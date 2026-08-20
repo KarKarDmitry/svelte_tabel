@@ -18,6 +18,7 @@
   python scripts/db.py restore
   python scripts/db.py restore --dry-run
 """
+
 import calendar
 import json
 import subprocess
@@ -42,7 +43,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # --- ANSI (для non-TTY вывода) ---
 C_RESET = "\x1b[0m"
-C_PITR = "\x1b[33;1m"   # жёлтый + bold — всегда
+C_PITR = "\x1b[33;1m"  # жёлтый + bold — всегда
 C_DIM = "\x1b[2m"
 C_RED = "\x1b[31m"
 C_CYAN = "\x1b[36m"
@@ -69,12 +70,21 @@ def run(cmd):
 def in_container(*args):
     """pgbackrest внутри работающего контейнера БД, вывод — напрямую в консоль."""
     return subprocess.run(
-        ["docker", "exec", "-u", "postgres", CONTAINER,
-         "pgbackrest", "--stanza=" + STANZA, *args]
+        [
+            "docker",
+            "exec",
+            "-u",
+            "postgres",
+            CONTAINER,
+            "pgbackrest",
+            "--stanza=" + STANZA,
+            *args,
+        ]
     )
 
 
 # --- Простые команды (бэкапы) ---
+
 
 def run_simple(cmd):
     if cmd in ("full", "diff", "incr"):
@@ -113,10 +123,20 @@ def run_scheduled():
 
 # --- Восстановление ---
 
+
 def get_info():
     r = run(
-        ["docker", "exec", "-u", "postgres", CONTAINER,
-         "pgbackrest", "--stanza=" + STANZA, "info", "--output=json"]
+        [
+            "docker",
+            "exec",
+            "-u",
+            "postgres",
+            CONTAINER,
+            "pgbackrest",
+            "--stanza=" + STANZA,
+            "info",
+            "--output=json",
+        ]
     )
     if r.returncode != 0:
         eprint(C_RED + "Ошибка получения списка бэкапов:" + C_RESET)
@@ -148,8 +168,8 @@ def timeline_ends(db_id):
     """{timeline: mtime последнего WAL на этой линии} — фактический конец WAL."""
     cmd = (
         f"for d in /var/lib/pgbackrest/repo/archive/{STANZA}/{db_id}/*/; do "
-        f"tl=$(basename \"$d\"); last=$(ls -1 \"$d\" | grep '\\.gz$' | sort | tail -1); "
-        f"[ -n \"$last\" ] && echo \"$tl $(stat -c %Y \"$d/$last\")\"; done"
+        f'tl=$(basename "$d"); last=$(ls -1 "$d" | grep \'\\.gz$\' | sort | tail -1); '
+        f'[ -n "$last" ] && echo "$tl $(stat -c %Y "$d/$last")"; done'
     )
     r = run(["docker", "exec", "-u", "postgres", CONTAINER, "sh", "-c", cmd])
     ends = {}
@@ -165,6 +185,7 @@ def fmt_dt(ts):
 
 
 # --- Выбор точки из списка ---
+
 
 def select_row(rows, wal_line):
     if not sys.stdin.isatty():
@@ -190,10 +211,12 @@ def render_list_text(rows, idx, top, height, wal_line):
         if row["pitr"]:
             segments.append(("class:pitr", "  *PITR*"))
         segments.append(("", "\n"))
-    segments.append((
-        "class:help",
-        "↑/↓ — движение, PgUp/PgDn — ±5, Home/End — край, Enter — выбор, Esc/Ctrl+C — отмена"
-    ))
+    segments.append(
+        (
+            "class:help",
+            "↑/↓ — движение, PgUp/PgDn — ±5, Home/End — край, Enter — выбор, Esc/Ctrl+C — отмена",
+        )
+    )
     return FormattedText(segments)
 
 
@@ -201,7 +224,7 @@ def select_row_ptk(rows, wal_line):
     from prompt_toolkit.application import Application
     from prompt_toolkit.formatted_text import FormattedText
     from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.layout import Layout, Window, FormattedTextControl
+    from prompt_toolkit.layout import FormattedTextControl, Layout, Window
     from prompt_toolkit.styles import Style
 
     height = min(len(rows), 12)
@@ -316,23 +339,27 @@ def ask_target_ptk(row, lo_ts, hi_ts):
     from prompt_toolkit.application import Application
     from prompt_toolkit.formatted_text import FormattedText
     from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.layout import Layout, Window, FormattedTextControl
+    from prompt_toolkit.layout import FormattedTextControl, Layout, Window
     from prompt_toolkit.styles import Style
 
     lo = datetime.fromtimestamp(lo_ts).replace(second=0, microsecond=0)
     hi = datetime.fromtimestamp(hi_ts).replace(second=0, microsecond=0)
 
     state = {
-        "year": lo.year, "month": lo.month, "day": lo.day,
-        "hour": lo.hour, "minute": lo.minute,
+        "year": lo.year,
+        "month": lo.month,
+        "day": lo.day,
+        "hour": lo.hour,
+        "minute": lo.minute,
         "field": 4,
         "sel": "backup",  # "backup" (конец бэкапа) | "time" (PITR)
         "error": "",
     }
 
     def current_dt():
-        return datetime(state["year"], state["month"], state["day"],
-                        state["hour"], state["minute"])
+        return datetime(
+            state["year"], state["month"], state["day"], state["hour"], state["minute"]
+        )
 
     def clamp_day():
         max_day = calendar.monthrange(state["year"], state["month"])[1]
@@ -426,8 +453,14 @@ def ask_target_ptk(row, lo_ts, hi_ts):
 
     def get_text():
         parts = [
-            ("class:header", f"Точка: {row['label']} ({row['type']}, {fmt_dt(row['stop'])}, timeline {row['timeline']}, локальное)\n"),
-            ("class:help", f"PITR-окно: {fmt_dt(lo_ts)} … {fmt_dt(hi_ts)} (локальное)\n\n"),
+            (
+                "class:header",
+                f"Точка: {row['label']} ({row['type']}, {fmt_dt(row['stop'])}, timeline {row['timeline']}, локальное)\n",
+            ),
+            (
+                "class:help",
+                f"PITR-окно: {fmt_dt(lo_ts)} … {fmt_dt(hi_ts)} (локальное)\n\n",
+            ),
         ]
         # Переключатель режима
         if state["sel"] == "backup":
@@ -446,15 +479,19 @@ def ask_target_ptk(row, lo_ts, hi_ts):
                 parts.append(("class:selected" if i == state["field"] else "", text))
                 parts.append(("", "  "))
             parts.append(("", "\n"))
-            parts.append((
-                "class:help",
-                "←/→ — поле, ↑/↓ — ±1, Enter — принять время, Tab — режим, Esc — отмена"
-            ))
+            parts.append(
+                (
+                    "class:help",
+                    "←/→ — поле, ↑/↓ — ±1, Enter — принять время, Tab — режим, Esc — отмена",
+                )
+            )
         else:
-            parts.append((
-                "class:help",
-                "Будет восстановлен конец выбранного бэкапа. Tab — режим, Enter — подтвердить, Esc — отмена"
-            ))
+            parts.append(
+                (
+                    "class:help",
+                    "Будет восстановлен конец выбранного бэкапа. Tab — режим, Enter — подтвердить, Esc — отмена",
+                )
+            )
         if state["error"]:
             parts.append(("class:error", "\n" + state["error"]))
         return FormattedText(parts)
@@ -472,11 +509,15 @@ def ask_target_ptk(row, lo_ts, hi_ts):
 
 
 def ask_target_non_tty(row, lo_ts, hi_ts):
-    eprint(f"Точка: {row['label']} ({row['type']}, {fmt_dt(row['stop'])}, timeline {row['timeline']}, локальное).")
+    eprint(
+        f"Точка: {row['label']} ({row['type']}, {fmt_dt(row['stop'])}, timeline {row['timeline']}, локальное)."
+    )
     eprint(f"PITR доступен: от {fmt_dt(lo_ts)} до {fmt_dt(hi_ts)} (локальное время).")
     while True:
         try:
-            ans = input("Введите время 'YYYY-MM-DD HH:MM' (локальное) или Enter — конец бэкапа: ").strip()
+            ans = input(
+                "Введите время 'YYYY-MM-DD HH:MM' (локальное) или Enter — конец бэкапа: "
+            ).strip()
         except EOFError:
             return "immediate", ""
         if not ans:
@@ -499,9 +540,15 @@ def ask_target_non_tty(row, lo_ts, hi_ts):
 
 def perform_restore(label, mode, target, timeline):
     """Подтверждение и само восстановление через docker."""
-    desc = f"(PITR до {target} UTC, timeline {timeline})" if mode == "time" and target else "(конец бэкапа)"
+    desc = (
+        f"(PITR до {target} UTC, timeline {timeline})"
+        if mode == "time" and target
+        else "(конец бэкапа)"
+    )
     print(f"Восстановление из {label} {desc}")
-    confirm = input(f"Восстановить '{label}'? Текущие данные будут заменены. Введите yes: ").strip()
+    confirm = input(
+        f"Восстановить '{label}'? Текущие данные будут заменены. Введите yes: "
+    ).strip()
     if confirm != "yes":
         print("Отменено.")
         sys.exit(1)
@@ -513,13 +560,23 @@ def perform_restore(label, mode, target, timeline):
         sys.exit(1)
 
     args = [
-        "docker", "run", "--rm", "--name", "pgbackrest-restore",
-        "--user", "postgres",
-        "-v", f"{PGDATA_VOLUME}:/var/lib/postgresql",
-        "-v", f"{BACKUP_VOLUME}:/var/lib/pgbackrest",
-        "-v", f"{PROJECT_ROOT / 'pgbackrest.conf'}:/etc/pgbackrest.conf:ro",
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        "pgbackrest-restore",
+        "--user",
+        "postgres",
+        "-v",
+        f"{PGDATA_VOLUME}:/var/lib/postgresql",
+        "-v",
+        f"{BACKUP_VOLUME}:/var/lib/pgbackrest",
+        "-v",
+        f"{PROJECT_ROOT / 'pgbackrest.conf'}:/etc/pgbackrest.conf:ro",
         IMAGE,
-        "pgbackrest", "--stanza=" + STANZA, "--set=" + label,
+        "pgbackrest",
+        "--stanza=" + STANZA,
+        "--set=" + label,
     ]
     if mode == "time" and target:
         args += ["--type=time", "--target=" + target, f"--target-timeline={timeline}"]
@@ -533,7 +590,9 @@ def perform_restore(label, mode, target, timeline):
     print("Восстанавливаю...")
     r = subprocess.run(args)
     if r.returncode != 0:
-        print("ОШИБКА: восстановление не удалось. БД остановлена, смотри логи pgBackRest.")
+        print(
+            "ОШИБКА: восстановление не удалось. БД остановлена, смотри логи pgBackRest."
+        )
         sys.exit(1)
 
     print("Запускаю db и app...")
@@ -549,9 +608,16 @@ def perform_restore(label, mode, target, timeline):
     for _ in range(15):
         time.sleep(2)
         p = subprocess.run(
-            ["docker", "exec", CONTAINER, "sh", "-c",
-             'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select 1"'],
-            capture_output=True, text=True
+            [
+                "docker",
+                "exec",
+                CONTAINER,
+                "sh",
+                "-c",
+                'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select 1"',
+            ],
+            capture_output=True,
+            text=True,
         )
         if p.returncode == 0 and p.stdout.strip() == "1":
             ok = True
@@ -559,7 +625,9 @@ def perform_restore(label, mode, target, timeline):
     if not ok:
         print("ОШИБКА: БД не отвечает после восстановления.")
         print("Вероятно, PITR-цель недостижима (не хватает WAL на timeline точки).")
-        print("Повторите: npm run db:restore и выберите «конец бэкапа» (Enter) или время раньше.")
+        print(
+            "Повторите: npm run db:restore и выберите «конец бэкапа» (Enter) или время раньше."
+        )
         sys.exit(1)
     print(f"OK: восстановлено из {label}")
 
@@ -586,23 +654,27 @@ def run_restore(dry_run=False):
             and (wal_min_ts is None or stop >= wal_min_ts)
             and (tl_end is not None and tl_end > stop + 120)
         )
-        rows.append({
-            "label": b["label"],
-            "type": b["type"],
-            "stop": stop,
-            "size_mb": round(b["info"]["size"] / 1048576, 1),
-            "pitr": pitr,
-            "timeline": timeline,
-        })
+        rows.append(
+            {
+                "label": b["label"],
+                "type": b["type"],
+                "stop": stop,
+                "size_mb": round(b["info"]["size"] / 1048576, 1),
+                "pitr": pitr,
+                "timeline": timeline,
+            }
+        )
 
     if not rows:
         eprint(C_RED + "Нет ни одной точки восстановления." + C_RESET)
         sys.exit(1)
 
     wal_line = (
-        "WAL-окно: " + (fmt_dt(wal_min_ts) if wal_min_ts else "—") +
-        " … " + (fmt_dt(wal_mtime(wal_max, db_id)) if wal_max else "—") +
-        " (локальное)"
+        "WAL-окно: "
+        + (fmt_dt(wal_min_ts) if wal_min_ts else "—")
+        + " … "
+        + (fmt_dt(wal_mtime(wal_max, db_id)) if wal_max else "—")
+        + " (локальное)"
     )
 
     row = select_row(rows, wal_line)
@@ -618,8 +690,10 @@ def run_restore(dry_run=False):
     if tl_end:
         hi_ts = min(hi_ts, tl_end - 60)
     if hi_ts - lo_ts < 60:
-        eprint(C_RED + f"ВНИМАНИЕ: для точки {row['label']} PITR практически недоступен — "
-               f"WAL после неё почти нет (до {fmt_dt(tl_end) if tl_end else '—'}).")
+        eprint(
+            C_RED + f"ВНИМАНИЕ: для точки {row['label']} PITR практически недоступен — "
+            f"WAL после неё почти нет (до {fmt_dt(tl_end) if tl_end else '—'})."
+        )
         eprint("Будет выполнено восстановление на конец бэкапа." + C_RESET)
         mode, target = "immediate", ""
     else:

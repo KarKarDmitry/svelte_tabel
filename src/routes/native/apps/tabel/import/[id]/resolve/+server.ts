@@ -13,7 +13,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	const fd = await request.formData();
 	const unresolved = proc.status.unresolved ?? [];
-	const picks: { seria: string; number: string; employeeId: number }[] = [];
+	const picks: {
+		seria: string;
+		number: string;
+		passId?: number | null;
+		employeeId: number;
+		dateFrom?: string;
+	}[] = [];
 
 	for (const [k, v] of fd.entries()) {
 		if (!k.startsWith('pick_')) continue;
@@ -21,7 +27,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		const u = (unresolved as any[])[i];
 		if (!u) continue;
 		const empId = Number(v) || 0;
-		picks.push({ seria: u.seria, number: u.number, employeeId: empId });
+		picks.push({
+			seria: u.seria,
+			number: u.number,
+			passId: u.passId ?? null,
+			employeeId: empId,
+			dateFrom: u.firstDate ?? undefined
+		});
 	}
 
 	setPicks(proc.id, picks);

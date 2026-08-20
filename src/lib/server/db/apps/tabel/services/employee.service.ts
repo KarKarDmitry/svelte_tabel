@@ -33,6 +33,18 @@ export const employeeService = {
 			)
 			.orderBy(employee.lastName),
 
+	/** Все сотрудники для сопоставления по ФИО в памяти (поля поиска кандидатов) */
+	getAllForMatching: () =>
+		db
+			.select({
+				id: employee.id,
+				number: employee.number,
+				lastName: employee.lastName,
+				firstName: employee.firstName,
+				middleName: employee.middleName
+			})
+			.from(employee),
+
 	create: (data: {
 		number: string;
 		lastName: string;

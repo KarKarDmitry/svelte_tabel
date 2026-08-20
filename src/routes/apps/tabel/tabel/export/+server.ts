@@ -3,9 +3,11 @@ import type { RequestHandler } from './$types';
 import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { buildT12 } from '$lib/server/db/apps/tabel/reports/T-12_builder';
-import { getControlledDepartmentIds } from '$lib/server/permissions';
+import { getControlledDepartmentIds, requireEdit } from '$lib/server/permissions';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
+	requireEdit(locals.user);
+
 	const { year, month } = await request.json();
 
 	if (!year || !month) {

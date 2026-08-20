@@ -818,7 +818,9 @@
 			</Button>
 		</div>
 
-		<Button size="sm" onclick={openExportDialog}>Экспорт</Button>
+		{#if canEdit}
+			<Button size="sm" onclick={openExportDialog}>Экспорт</Button>
+		{/if}
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">

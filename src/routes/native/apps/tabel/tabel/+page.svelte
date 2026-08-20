@@ -284,7 +284,9 @@
 		<a href={`?year=${data.year}&month=${data.month}&actual=1`}> Фактическое время </a>
 	{/if}
 	<span class="native-sep">|</span>
-	{@html `<button type="button" class="native-btn native-btn-small" onclick="xpToggle('export_card')">Экспорт</button>`}
+	{#if data.canEdit}
+		{@html `<button type="button" class="native-btn native-btn-small" onclick="xpToggle('export_card')">Экспорт</button>`}
+	{/if}
 </div>
 
 <div id="export_card" style="display: none">

@@ -3,12 +3,14 @@ import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.ser
 import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
 import { buildT12, type ExportOptions } from '$lib/server/db/apps/tabel/reports/T-12_builder';
-import { getControlledDepartmentIds } from '$lib/server/permissions';
+import { getControlledDepartmentIds, requireEdit } from '$lib/server/permissions';
 
 const boolParam = (v: string | null, def: boolean) =>
 	v === null ? def : v === '1' || v === 'true';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
+	requireEdit(locals.user);
+
 	const year = Number(url.searchParams.get('year'));
 	const month = Number(url.searchParams.get('month'));
 

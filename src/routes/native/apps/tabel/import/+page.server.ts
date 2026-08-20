@@ -25,8 +25,7 @@ export const actions: Actions = {
 		}
 
 		const buf = Buffer.from(await file.arrayBuffer());
-		const cookie = event.request.headers.get('cookie') ?? '';
-		const id = createProcess(buf, file.name, event.url.origin, cookie);
+		const id = createProcess(buf, file.name);
 
 		// Fire-and-forget: импорт идёт в фоне, страница статуса опрашивает сервер
 		void runImportProcess(id);
