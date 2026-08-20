@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Проект: **mettem** — табельный учёт рабочего времени (SvelteKit 5 + Postgres + Drizzle + better-auth).
+Проект: **mettem** — табельный учёт рабочего времени (SvelteKit 2 + Svelte 5 + Postgres + Drizzle + better-auth).
 Коммиты и документация — на русском; код — англ. идентификаторы.
 
 ## Технологии
@@ -10,13 +10,14 @@
 - ExcelJS / xlsx — экспорт Т-12, импорт событий турникетов
 - Импорт из MSSQL (TS и Python-скрипты), pgBackRest для бэкапов
 - Второе дерево маршрутов `/native/**` — для старых браузеров (Windows XP, ES5, `static/native-*.js`)
+- Проектные скиллы opencode по разделам — `.opencode/skills/*` (табель, кадры, турникеты, импорт MSSQL, права/безопасность, два дерева, БД, compile-check) — грузить при работе с соответствующим разделом
 
 ## Команды
 - `npm run dev` — dev-сервер (Vite, порт 5173; БД: `docker compose up -d db`)
 - `npm run build` — сборка; `npm run preview` — предпросмотр
 - `npm run check` — типы (svelte-check); `npm run lint` — prettier --check
-- `npm run check:compile` — быстрая проверка компиляции (svelte/compiler + ts transpile; ~2с вместо svelte-check)
-- `npm run db:push` — применить схему Drizzle; `db:migrate` — миграции
+- `npm run check:compile` — быстрая проверка компиляции (svelte/compiler + ts transpile; ~2с вместо svelte-check); `-- -f <path>` — один файл
+- `npm run db:generate` — миграция из схемы; `db:migrate` — применить; `db:push` — быстрое применение (dev)
 - `npm run db:bootstrap` — первый админ; `db:seed` — тестовые данные
 - `npm run db:import` — импорт из MSSQL (TS); `python .../import/import.py` — полный
 - `npm run db:backup` / `db:restore` — pgBackRest через `scripts/db.py`
@@ -25,7 +26,8 @@
 
 ## Конвенции
 - Доменная логика — в сервисах `src/lib/server/db/apps/tabel/services/*`, роуты только оркеструют.
-- Права: `src/lib/server/permissions.ts` — `canEdit`/`isAdmin`/`denyIfNoEdit`/`requireEdit`/`requireAdmin`/`denyIfCannotEditEmployee`/`getControlledDepartmentIds`. Проверять их в **каждом** action/endpoint, не полагаться только на хук.
+- Права: `src/lib/server/permissions.ts` — `canEdit`/`isAdmin`/`denyIfNoEdit`/`denyIfNotAdmin`/`requireEdit`/`requireAdmin`/`denyIfCannotEditEmployee`/`getControlledDepartmentIds`/`isDepartmentControlled`/`requireCanReadEmployee` (слой чтения). Проверять их в **каждом** action/endpoint, не полагаться только на хук.
+- Слой прав на чтение (п.7): не-админ видит только подконтрольные отделы (`master`); в списки сотрудников/турникетов прокидывать `departmentIds` в `searchWithFilters`; константы и пропуска — только admin; создание подразделений — только admin.
 - Запросы — только через Drizzle/параметризованный `sql`; **запрещено** конкатенировать пользовательский ввод в SQL (см. SQLi ниже).
 - Общая расцветка ячеек — `src/lib/apps/tabel/cell-style.ts`; НЕ плодить копии в деревьях.
 - Новые секреты — только в `.env` (в git не коммитить), фолбэков-секретов не оставлять.
@@ -57,13 +59,14 @@
 10. ✅ `login/+page.server.ts` логировал ответ signIn (session-токен) — убрано (вместе с rate-limit).
 11. Фолбэк-секрет в `compose.yaml` (`BETTER_AUTH_SECRET=dev-secret-...`); `API_TOKEN` нигде не используется.
 12. CSRF не покрывает `+server.ts`; куки не `Secure` (HTTP); `{@html}` в native-компонентах с `esc()` не экранирует одинарные кавычки.
+13. ✅ **Native-увольнение не снимало пропуска и графики** — исправлено (`227d099`): в native `dismiss` добавлены `passService.closeCurrent` / `scheduleService.closeCurrentSchedule` и фолбэк даты на сегодня (по аналогии с modern). Не откатывать.
 
 ### Архитектура / качество
-13. Дублирование `/apps` vs `/native/apps`: 50 файлов с одинаковыми путями, ~1700 LOC дублированного backend+JS; native заново реализует actions в `+server.ts`. Цель — одно дерево + общие сервисы/компоненты, либо переиспользование общих `+server.ts`.
-14. Баг: `native/.../tabel/employee/[id]/+page.svelte:71` POSTит на `/apps/tabel/tabel/employee-events` (современный) — на XP молча теряется тело.
-15. Крупные файлы: `import/+server.ts` (1146), `T-12_builder*.ts` (ок. 950), `tabel/+page.svelte` (912), `worktime.service.ts` (644) — декомпозировать.
-16. `worktime.service.ts`: дублируется загрузка SHIFT_MARK_SHORTNAMES (`getShiftMarkShortnames` и повтор в Promise.all, строки 334-353); `totalReport/Night` смешивают `report*` и `shift*` через `??` — проверить бизнес-правило.
-17. Тестов нет — перед рефакторингом бизнес-логики писать тесты (ночные часы, округления, сегменты, Т-12).
+14. Дублирование `/apps` vs `/native/apps`: 50 файлов с одинаковыми путями, ~1700 LOC дублированного backend+JS; native заново реализует actions в `+server.ts`. Цель — одно дерево + общие сервисы/компоненты, либо переиспользование общих `+server.ts`.
+15. Баг: `native/.../tabel/employee/[id]/+page.svelte:71` POSTит на `/apps/tabel/tabel/employee-events` (современный) — на XP молча теряется тело.
+16. Крупные файлы: `import/+server.ts` (1146), `T-12_builder*.ts` (ок. 950), `tabel/+page.svelte` (912), `worktime.service.ts` (644) — декомпозировать.
+17. `worktime.service.ts`: дублируется загрузка SHIFT_MARK_SHORTNAMES (`getShiftMarkShortnames` и повтор в Promise.all, строки 334-353); `totalReport/Night` смешивают `report*` и `shift*` через `??` — проверить бизнес-правило.
+18. Тестов нет — перед рефакторингом бизнес-логики писать тесты (ночные часы, округления, сегменты, Т-12).
 
 ## Подсказки для работы в этом репозитории
 - Даты в БД и коде — строки `YYYY-MM-DD`; время — целые **минуты** (не часы с плавающей точкой).
@@ -72,9 +75,11 @@
 - Native-страницы обязаны оставаться ES5-совместимыми на клиенте (inline-обработчики в `svelte:head` + `static/native-*.js`); не переносить на них `svelte 5`-зависимые клиентские API без проверки на XP.
 - Перед изменением `src/lib/server/db/apps/tabel/schema.ts` / таблиц — `npm run db:generate` (миграция) и согласование, т.к. это прод-БД.
 
-## Текущая незавершённая работа (на момент ревью, commit 6c66a0a)
+## Текущая незавершённая работа
 - Нативный табель: планируется переключение месяца без перезагрузки (клиентское переключение через новый JSON-эндпоинт месяца + серверный кэш `getMonthGrouped` с инвалидацией при записи; `actual` в состояние).
-- BulkAssign (modern+нативный), EmployeeEvents-диалог со стилями, тёмная тема, общий `cell-style.ts`, `Dialog.svelte` — закоммичено в `0af1d5d` вместе с харденингом безопасности.
+- Открытые пункты ревью: п.8 (экспорт/статус импорта, `import-process.ts`), п.9 (`/admin` без явных проверок в actions), Low п.11-12 (фолбэк-секрет в `compose.yaml`, CSRF/куки), архитектурные п.14-18.
+- **Сменить пароли** (критично): MSSQL `Editor` и PG-пароль из старой истории **всё ещё рабочие** — сменить в БД и в `.env` (см. ниже).
+- Выполнено (закоммичено): харденинг безопасности (п.1-7, 10, 13), слой прав на чтение (`29e399a`), native-увольнение (`227d099`), скиллы opencode, `check:compile`.
 
 ## Сменить пароли (обязательно после rewrite истории)
 - MSSQL `Editor` (`1111` в старой истории) и PG-пароль (`88afa887…`) **всё ещё рабочие** — сменить в БД и в `.env`, даже после scrub истории (старые клоны/бэкапы/GitHub могут хранить их).
