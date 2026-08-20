@@ -28,7 +28,8 @@
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
 	}
 
 	// Вся интерактивная разметка через {@html}: Svelte запрещает строковые onclick.

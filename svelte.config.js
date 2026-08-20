@@ -7,8 +7,11 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
+		// Встроенная CSRF-защита SvelteKit покрывает только form content-types и
+		// блокирует запросы без Origin (ломает native на XP). CSRF для всех
+		// state-changing запросов (+server.ts) реализован в hooks.server.ts (handleCsrf).
 		csrf: {
-			checkOrigin: false
+			trustedOrigins: ['*']
 		},
 		adapter: adapter(),
 		typescript: {

@@ -16,13 +16,14 @@
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
 	}
 
 	// Заголовок через {@html}: Svelte запрещает строковые onclick на элементах.
 	// По умолчанию группа свёрнута (xp-content: display:none, индикатор [+])
 	const headerHtml = $derived(
-		`<div class="xp-header" onclick="xpToggle('${id}')">${esc(title)} <span id="${id}_ind" class="xp-indicator">[+]</span></div>`
+		`<div class="xp-header" onclick="xpToggle('${esc(id)}')">${esc(title)} <span id="${esc(id)}_ind" class="xp-indicator">[+]</span></div>`
 	);
 </script>
 

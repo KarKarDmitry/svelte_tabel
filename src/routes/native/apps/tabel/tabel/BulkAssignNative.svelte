@@ -53,7 +53,8 @@
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
 	}
 
 	// Кнопки дней — через {@html} (инлайн onclick для XP)

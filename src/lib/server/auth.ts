@@ -9,6 +9,10 @@ import { db } from '$lib/server/db';
 export const auth = betterAuth({
 	baseURL: env.ORIGIN,
 	secret: env.BETTER_AUTH_SECRET,
+	advanced: {
+		// Secure-куки только при https (prod за nginx); dev (http) — обычные
+		useSecureCookies: env.ORIGIN.startsWith('https://')
+	},
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: {
 		enabled: true,

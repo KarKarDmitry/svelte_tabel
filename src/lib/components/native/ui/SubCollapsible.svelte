@@ -16,12 +16,13 @@
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
 			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;');
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
 	}
 
 	// По умолчанию подразделение развёрнуто (xp-sub-content: display:block, индикатор [-])
 	const headerHtml = $derived(
-		`<div class="xp-sub-header" onclick="xpToggle('${id}')">${esc(title)} <span id="${id}_ind" class="xp-indicator">[-]</span></div>`
+		`<div class="xp-sub-header" onclick="xpToggle('${esc(id)}')">${esc(title)} <span id="${esc(id)}_ind" class="xp-indicator">[-]</span></div>`
 	);
 </script>
 

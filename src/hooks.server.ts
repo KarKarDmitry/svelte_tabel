@@ -4,6 +4,7 @@ import { building } from '$app/environment';
 import { auth } from '$lib/server/auth';
 import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { redirect } from '@sveltejs/kit';
+import { env } from '$env/dynamic/private';
 import type { AppUser } from './app.d';
 
 const handleBetterAuth: Handle = async ({ event, resolve }) => {
@@ -15,6 +16,30 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 	}
 
 	return svelteKitHandler({ event, resolve, auth, building });
+};
+
+// CSRF: для state-changing запросов проверяем Origin (встроенная защита SvelteKit
+// покрывает только form content-types и блокирует запросы без Origin — ломает XP).
+// Запросы без Origin пропускаем (XP/curl); запросы с несовпадающим Origin — 403.
+const handleCsrf: Handle = async ({ event, resolve }) => {
+	if (event.url.pathname.startsWith('/api/auth')) {
+		return resolve(event);
+	}
+
+	const method = event.request.method;
+	if (method !== 'POST' && method !== 'PUT' && method !== 'PATCH' && method !== 'DELETE') {
+		return resolve(event);
+	}
+
+	const origin = event.request.headers.get('origin');
+	if (origin) {
+		const allowed = new Set([env.ORIGIN, event.url.origin]);
+		if (!allowed.has(origin)) {
+			return new Response('Cross-site request forbidden', { status: 403 });
+		}
+	}
+
+	return resolve(event);
 };
 
 const handleNativeMode: Handle = async ({ event, resolve }) => {
@@ -50,10 +75,7 @@ const handleNativeMode: Handle = async ({ event, resolve }) => {
 };
 
 const handleAuthGuard: Handle = async ({ event, resolve }) => {
-	if (
-		event.url.pathname.startsWith('/auth') ||
-		event.url.pathname.startsWith('/_app')
-	) {
+	if (event.url.pathname.startsWith('/auth') || event.url.pathname.startsWith('/_app')) {
 		return resolve(event);
 	}
 
@@ -69,4 +91,4 @@ const handleAuthGuard: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(handleBetterAuth, handleNativeMode, handleAuthGuard);
+export const handle = sequence(handleBetterAuth, handleCsrf, handleNativeMode, handleAuthGuard);
