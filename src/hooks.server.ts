@@ -33,7 +33,14 @@ const handleCsrf: Handle = async ({ event, resolve }) => {
 
 	const origin = event.request.headers.get('origin');
 	if (origin) {
-		const allowed = new Set([env.ORIGIN, event.url.origin]);
+		// Разрешаем фактический Origin запроса (proto + Host от nginx), а не только
+		// жёсткий ORIGIN из env — иначе доступ по IP/домену с портом (например
+		// 192.168.1.42:8080 при ORIGIN=http://192.168.1.242 без порта) даёт 403
+		// для всех state-changing запросов. Будущий mettem.apps:8080 тоже пройдёт.
+		const proto =
+			event.request.headers.get('x-forwarded-proto') || event.url.protocol.replace(':', '');
+		const host = event.request.headers.get('host');
+		const allowed = new Set([env.ORIGIN, event.url.origin, `${proto}://${host}`]);
 		if (!allowed.has(origin)) {
 			return new Response('Cross-site request forbidden', { status: 403 });
 		}
