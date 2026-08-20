@@ -194,7 +194,7 @@ export const employeeService = {
 			LEFT JOIN LATERAL (SELECT d.* FROM ${hrDocument} d WHERE d.employee_id = e.id ORDER BY d.date DESC LIMIT 1) last_doc ON true
 			LEFT JOIN ${sql.identifier('department')} dep ON dep.id = last_doc.department_id
 			LEFT JOIN ${sql.identifier('position')} pos ON pos.id = last_doc.position_id
-			${sql.raw(where)}
+			${where}
 			ORDER BY ${sql.raw(sortCol)} ${sql.raw(sortDir)}
 			LIMIT ${pageSize} OFFSET ${offset}
 		`;
@@ -204,7 +204,7 @@ export const employeeService = {
 			LEFT JOIN LATERAL (SELECT d.* FROM ${hrDocument} d WHERE d.employee_id = e.id ORDER BY d.date DESC LIMIT 1) last_doc ON true
 			LEFT JOIN ${sql.identifier('department')} dep ON dep.id = last_doc.department_id
 			LEFT JOIN ${sql.identifier('position')} pos ON pos.id = last_doc.position_id
-			${sql.raw(where)}
+			${where}
 		`;
 
 		const rows: any[] = await db.execute(query).then((r: any) => r || []);
