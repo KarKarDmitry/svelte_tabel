@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { parse } from 'devalue';
+	import { cellStyle } from '$lib/apps/tabel/cell-style';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import {
@@ -167,112 +168,13 @@
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function getCellColor(day: any, schedule: any): string {
-		if (!day) return '';
-
-		// Заблокированные дни — без стиля, диагональ уже в inline
-		if (day.blocked) return '';
-
-		const isShift =
-			shiftMarks.includes(day.dayMarkCode) || day.dayMarkCode === 'I' || day.dayMarkCode === 'N';
-		// Отчётные часы приоритетны; если табельщик их ещё не проставил — берём сменные из импорта
-		const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
-		const hasHours = workMinutes != null;
-		const calDay = calendarDays[day.date];
-
-		// Собираем CSS-стили
-		const styles: string[] = [];
-
-		// Спец-цвет для отметки
-		const markRule = markColorRules[day.dayMarkCode];
-		if (markRule) {
-			if (markRule.bg) styles.push(`background-color:${markRule.bg}`);
-			if (markRule.color) styles.push(`color:${markRule.color}`);
-			if (markRule.fontWeight) styles.push(`font-weight:${markRule.fontWeight}`);
-		}
-
-		const expectedMinutes = (() => {
-			// Если есть scheduleId из записи — используем его
-			if (day.scheduleId && schedulesById[day.scheduleId]) {
-				return schedulesById[day.scheduleId].standardWorkTime;
-			}
-			// Если scheduleId нет — пытаемся подобрать по рабочим часам
-			if (workMinutes && !day.scheduleId) {
-				const matched = Object.values(schedulesById).find(
-					(s) => s.standardWorkTime === workMinutes
-				);
-				if (matched) return matched.standardWorkTime;
-			}
-			// Падаем на календарь или текущий график сотрудника
-			return calDay?.workTime ?? schedule?.standardWorkTime;
-		})();
-
-		// Кейс: сменная отметка без часов
-		if (isShift && !hasHours && cellColorRules.missingHours?.bg) {
-			styles.push(`background-color:${cellColorRules.missingHours.bg}`);
-			return styles.join(';');
-		}
-
-		// Кейс: переработка / недоработка (с допуском 3 мин на погрешность)
-		if (isShift && hasHours && expectedMinutes) {
-			const diff = Math.abs(workMinutes - expectedMinutes);
-			if (diff > 3) {
-				if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
-					styles.push(`background-color:${cellColorRules.overwork.bg}`);
-					return styles.join(';');
-				}
-				if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
-					styles.push(`background-color:${cellColorRules.underwork.bg}`);
-					return styles.join(';');
-				}
-			}
-		}
-
-		// Кейс: работа в нерабочий день
-		if (isShift && calDay) {
-			const isNonWorkDay = calDay.dayType === 'weekend' || calDay.dayType === 'holiday';
-			if (isNonWorkDay && cellColorRules.weekendWork?.bg) {
-				styles.push(`background-color:${cellColorRules.weekendWork.bg}`);
-				return styles.join(';');
-			}
-		}
-
-		if (isShift && !calDay && schedule?.weekDays) {
-			const jsDay = new Date(day.date).getDay();
-			const wdDay = jsDay === 0 ? 7 : jsDay;
-			try {
-				const workDays: number[] = JSON.parse(schedule.weekDays);
-				if (!workDays.includes(wdDay) && cellColorRules.weekendWork?.bg) {
-					styles.push(`background-color:${cellColorRules.weekendWork.bg}`);
-					return styles.join(';');
-				}
-			} catch {}
-		}
-
-		// Кейс: пропущенный рабочий день
-		if (!day.dayMarkCode && !hasHours) {
-			if (calDay) {
-				const isWorkDay =
-					calDay.dayType === 'workday' ||
-					calDay.dayType === 'preholiday' ||
-					calDay.dayType === 'transferred_workday';
-				if (isWorkDay && cellColorRules.missedWorkday?.bg) {
-					styles.push(`background-color:${cellColorRules.missedWorkday.bg}`);
-					return styles.join(';');
-				}
-			} else if (schedule?.weekDays) {
-				const jsDay = new Date(day.date).getDay();
-				const wdDay = jsDay === 0 ? 7 : jsDay;
-				try {
-					const workDays: number[] = JSON.parse(schedule.weekDays);
-					if (workDays.includes(wdDay) && cellColorRules.missedWorkday?.bg) {
-						styles.push(`background-color:${cellColorRules.missedWorkday.bg}`);
-						return styles.join(';');
-					}
-				} catch {}
-			}
-		}
-
-		return styles.join(';');
+		return cellStyle(day, schedule, {
+			shiftMarks,
+			calendarDays,
+			schedulesById,
+			cellColorRules,
+			markColorRules
+		});
 	}
 
 	function queueUpdate(employeeId: number, date: string, shortName: string) {

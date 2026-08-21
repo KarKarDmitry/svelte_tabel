@@ -5,6 +5,7 @@
 		CollapsibleTrigger
 	} from '$lib/components/ui/collapsible';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
+	import { cellStyle } from '$lib/apps/tabel/cell-style';
 
 	let {
 		day,
@@ -28,91 +29,13 @@
 	}
 
 	function getCellStyle(): string {
-		const style: string[] = [];
-		const calDay = day.calendarDay;
-
-		// Спец-цвет для отметки
-		const markRule = markColorRules[day.dayMarkCode];
-		if (markRule) {
-			if (markRule.bg) style.push(`background-color:${markRule.bg}`);
-			if (markRule.color) style.push(`color:${markRule.color}`);
-			if (markRule.fontWeight) style.push(`font-weight:${markRule.fontWeight}`);
-		}
-
-		const isShift =
-			shiftMarks.includes(day.dayMarkCode) || day.dayMarkCode === 'I' || day.dayMarkCode === 'N';
-		// Отчётные часы приоритетны; если табельщик их ещё не проставил — берём сменные из импорта
-		const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
-		const hasHours = workMinutes != null;
-		const expectedMinutes = calDay?.workTime ?? empSchedule?.standardWorkTime;
-
-		// Сменная отметка без часов
-		if (isShift && !hasHours && cellColorRules.missingHours?.bg) {
-			style.push(`background-color:${cellColorRules.missingHours.bg}`);
-			return style.join(';');
-		}
-
-		// Переработка / недоработка (допуск 3 мин)
-		if (isShift && hasHours && expectedMinutes) {
-			const diff = Math.abs(workMinutes - expectedMinutes);
-			if (diff > 3) {
-				if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
-					style.push(`background-color:${cellColorRules.overwork.bg}`);
-					return style.join(';');
-				}
-				if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
-					style.push(`background-color:${cellColorRules.underwork.bg}`);
-					return style.join(';');
-				}
-			}
-		}
-
-		// Работа в нерабочий день
-		if (isShift) {
-			if (calDay) {
-				const isNonWorkDay = calDay.dayType === 'weekend' || calDay.dayType === 'holiday';
-				if (isNonWorkDay && cellColorRules.weekendWork?.bg) {
-					style.push(`background-color:${cellColorRules.weekendWork.bg}`);
-					return style.join(';');
-				}
-			} else if (empSchedule?.weekDays) {
-				const jsDay = new Date(day.date).getDay();
-				const wdDay = jsDay === 0 ? 7 : jsDay;
-				try {
-					const workDays: number[] = JSON.parse(empSchedule.weekDays);
-					if (!workDays.includes(wdDay) && cellColorRules.weekendWork?.bg) {
-						style.push(`background-color:${cellColorRules.weekendWork.bg}`);
-						return style.join(';');
-					}
-				} catch {}
-			}
-		}
-
-		// Пропущенный рабочий день
-		if (!day.dayMarkCode && !hasHours) {
-			if (calDay) {
-				const isWorkDay =
-					calDay.dayType === 'workday' ||
-					calDay.dayType === 'preholiday' ||
-					calDay.dayType === 'transferred_workday';
-				if (isWorkDay && cellColorRules.missedWorkday?.bg) {
-					style.push(`background-color:${cellColorRules.missedWorkday.bg}`);
-					return style.join(';');
-				}
-			} else if (empSchedule?.weekDays) {
-				const jsDay = new Date(day.date).getDay();
-				const wdDay = jsDay === 0 ? 7 : jsDay;
-				try {
-					const workDays: number[] = JSON.parse(empSchedule.weekDays);
-					if (workDays.includes(wdDay) && cellColorRules.missedWorkday?.bg) {
-						style.push(`background-color:${cellColorRules.missedWorkday.bg}`);
-						return style.join(';');
-					}
-				} catch {}
-			}
-		}
-
-		return style.join(';');
+		return cellStyle(day, empSchedule, {
+			shiftMarks,
+			calendarDays: day.calendarDay ? { [day.date]: day.calendarDay } : {},
+			schedulesById: {},
+			cellColorRules,
+			markColorRules
+		});
 	}
 
 	const dayNum = $derived(Number(day.date.slice(8, 10)));
