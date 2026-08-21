@@ -1,32 +1,20 @@
 import type { PageServerLoad, Actions } from './$types';
-import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
-import { error, redirect } from '@sveltejs/kit';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { redirect } from '@sveltejs/kit';
+import { runAction } from '$lib/server/context/controller';
+import { scheduleCardData, scheduleUpdate } from '$lib/server/apps/tabel/schedules';
 
-export const load: PageServerLoad = async (event) => {
-	const id = Number(event.params.id);
-	const schedule = await scheduleService.getWithPoints(id);
-	if (!schedule) throw error(404, 'График не найден');
-	return { schedule };
-};
+export const load: PageServerLoad = async (event) => scheduleCardData(Number(event.params.id));
 
 export const actions: Actions = {
-	update: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number(event.params.id);
-		const f = await event.request.formData();
-		const name = f.get('name')?.toString() || '';
-		const hoursStr = f.get('hours')?.toString() || '08:00';
-		const [h, m] = hoursStr.split(':').map(Number);
-		const standardWorkTime = h * 60 + (m || 0);
-		const weekDays = f.getAll('weekDays').map(Number).filter(Boolean);
-
-		await scheduleService.update(id, {
-			name,
-			standardWorkTime,
-			weekDays: weekDays.length ? JSON.stringify(weekDays) : null
-		});
-		redirect(302, `/native/apps/tabel/schedules/${id}`);
-	}
+	update: (event) =>
+		runAction(async () => {
+			const id = Number(event.params.id);
+			const f = await event.request.formData();
+			await scheduleUpdate(event.locals.user, id, {
+				name: f.get('name')?.toString() || '',
+				hoursStr: f.get('hours')?.toString() || '08:00',
+				weekDays: f.getAll('weekDays').map(Number).filter(Boolean)
+			});
+			redirect(302, `/native/apps/tabel/schedules/${id}`);
+		})
 };

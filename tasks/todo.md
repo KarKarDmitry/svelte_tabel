@@ -13,7 +13,7 @@
 - [x] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева) (`e8b5480`)
 - [x] 3. employees/create + список (`dd69431`)
 - [x] 4. directories/* (`a69d71c`)
-- [ ] 5. calendar/*
+- [x] 5. calendar/* (`0fd2c1c`)
 - [ ] 6. schedules/*
 - [ ] 7. turnstile + worktime + import-load + перенос import-process/native-import
 - [ ] 8. Ядро табеля: month load, actions, export-пара, зачистка
