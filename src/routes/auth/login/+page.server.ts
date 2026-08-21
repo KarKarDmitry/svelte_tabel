@@ -3,7 +3,7 @@ import type { Actions } from './$types';
 import type { PageServerLoad } from './$types';
 import { auth } from '$lib/server/auth';
 import { toEmail } from '$lib/server/auth-utils';
-import { checkRateLimit, clearRateLimit } from '$lib/server/rate-limit';
+import { checkRateLimit, clearRateLimit } from '$lib/server/utils/rate-limit';
 import { APIError } from 'better-auth/api';
 
 // Лимиты: 5 попыток на (IP + логин) за 15 мин; агрегатно 20 попыток с IP за 15 мин.

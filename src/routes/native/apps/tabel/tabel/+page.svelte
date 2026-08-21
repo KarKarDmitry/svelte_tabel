@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cellStyle } from '$lib/apps/tabel/cell-style';
+	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 	import {
 		Collapsible,
 		SubCollapsible,

@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { parse } from 'devalue';
-	import { cellStyle } from '$lib/apps/tabel/cell-style';
+	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import {

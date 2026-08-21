@@ -1,132 +1,92 @@
-# Implementation Plan: Безопасность п.8 + п.9 (экспорт/импорт, `/admin`)
+# План рефакторинга A1: общий серверный слой для /apps и /native/apps
 
-## Overview
+Закрывает п.14–15 ревью (AGENTS.md). Слияние деревьев и декомпозиция крупных файлов
+(п.16–18) — вне скоупа, отдельный план позже.
 
-Закрыть два пункта ревью AGENTS.md:
+## Решения (финальные)
 
-- **п.8** — экспорт/статус импорта без проверки роли; `import-process.ts` хранит в памяти загруженный файл и session-cookie, ID процессов предсказуемы.
-- **п.9** — `/admin` полагается только на guard в хуке, без явных проверок в actions.
+- **A1 без ветки /api**: два дерева маршрутов сохраняются; вся серверная логика
+  (parse + validate + права + вызовы сервисов) переезжает в контроллеры
+  `src/lib/server/apps/tabel/`. Интерактивные XHR-эндпоинты остаются на своих местах
+  в деревьях и становятся тонкими обёртками над теми же контроллерами.
+- **Контроллеры транспортно-нейтральны**: принимают нормализованный контекст
+  (`CtrlCtx`) и типизированные аргументы, бросают `ControllerError(status, payload)`.
+  Транспорт адаптируется на границе: form action → `runAction()` (fail),
+  `+server.ts` → `json()`/статус из ошибки.
+- **Сначала контроллеры (новые файлы), потом переподключка**: существующие серверные
+  файлы деревьев заморожены до готовности и проверки общего слоя.
+- Имена form-actions, URL страниц и формы ответов эндпоинтов НЕ меняются
+  (Hyrum's law; клиенты XP не трогаем вообще).
+- Структура папок с прицелом на будущие подприложения:
+  - `src/lib/server/context/` — инфраструктура контроллеров (общая для всех apps)
+  - `src/lib/server/utils/` — общие серверные утилиты (rate-limit и будущие)
+  - `src/lib/apps/<app>/utils/` — изоморфные утилиты подприложения (cell-style)
+  - `src/lib/server/apps/<app>/` — контроллеры подприложения (+ их utils)
+  - `src/lib/server/db/apps/<app>/` — БД-слой (сервисы Drizzle) — БЕЗ ИЗМЕНЕНИЙ
+- Расцветка ячеек: канон — логика modern, единый источник `cell-style.ts` (готово, 0b).
+- Коммиты после каждого слайса (русские сообщения), **без push**.
+- Смоук на реальном XP — вручную пользователем после слайсов 1 и 8.
 
-По решению пользователя:
+## Целевая структура
 
-- Экспорт Т-12 — роль `canEdit` (admin | timekeeper).
-- Мёртвый POST-эндпоинт экспорта (`apps/tabel/tabel/export/+server.ts`) оставляем с проверкой роли.
-- Импорт рефакторим сразу: конвейер выносим в общий сервис, native вызывает напрямую (без self-HTTP и сохранённой cookie).
+```
+src/lib/server/context/controller.ts   ← CtrlUser, CtrlCtx, ctxFrom(),
+                                         ControllerError, runAction(), readJson(),
+                                         strField(), numField()
+src/lib/server/utils/rate-limit.ts     ← перенос из src/lib/server/rate-limit.ts
+src/lib/apps/tabel/utils/cell-style.ts ← перенос из src/lib/apps/tabel/cell-style.ts
 
-## Architecture Decisions
+src/lib/server/apps/tabel/
+    tabel-core.ts    ← updateDayMark/updateExtraMark/bulkAssign/employee-events/month load
+    employees.ts     ← [id]/{layout,main,docs,schedule,pass,events}, create, список
+    directories.ts   ← constants, passes, marks, positions, departments, department-groups
+    calendar.ts, schedules.ts, turnstile.ts, worktime.ts, export.ts
+    import-process.ts, native-import.ts  ← перенос из src/lib/server/ (слайс 7)
+    utils/day-style.ts                   ← дедуп buildDayStyle/buildUpdatedStyles
 
-- **Общий сервис импорта** — `src/lib/server/db/apps/tabel/services/turnstile-import.service.ts` (по конвенции AGENTS.md: доменная логика в `services/*`). Роуты только оркеструют (SSE-обёртка).
-- **Единый тип события импорта** `ImportEvent` — `{ stage, current, total, message, employee?, unresolved? }`; modern SSE и native-статус маппятся из него.
-- **`import-process.ts`** — после рефакторинга не хранит `cookie`/`origin`; ID = `crypto.randomUUID()`; автоочистка по завершении + TTL.
-- **Файл остаётся в памяти** только на время сессии импорта (нужен для ре-рана фазы 1 после resolve) — риск закрывается UUID + TTL + admin-only.
-- **Права** — `requireEdit` (экспорт), `requireAdmin` (импорт-статус), `denyIfNotAdmin` (actions `/admin`). Проверки в каждом endpoint, не только хук.
+src/routes/apps/**          ← шеллы-делегаты (load/action = 1–3 строки)
+src/routes/native/apps/**   ← те же делегаты + свои тонкие XHR-обёртки на местах
+src/lib/server/db/apps/tabel/**  ← БД-слой, БЕЗ ИЗМЕНЕНИЙ
+```
 
-## Task List
+## Слайсы
 
-### Phase 1: Быстрый харденинг (без рефакторинга)
+| # | Что делаем | Объём | Статус |
+|---|---|---|---|
+| 0a | Фикс п.15: URL employee-events в native employee/[id] | XS | ✅ `75c1305` |
+| 0b | cell-style: modern-логика канонична, 3 копии modern UI → делегирование | S | ✅ `1eea231` |
+| 0c | Каркас папок: context/controller.ts (из незакоммиченного shared.ts), переносы rate-limit.ts и cell-style.ts + импорты, удалить shared.ts | S | ☐ |
+| 1 | Ядро табеля: tabel-core.ts + utils/day-style.ts (заморозка деревьев) → проверка → переподключка modern employee-events и native marks/bulk/employee-events как делегатов, удаление дублей внутри | M→L | ☐ |
+| 2 | Сотрудники [id]/{layout,main,docs,schedule,pass,events}: контроллеры + шеллы ×2 | M | ☐ |
+| 3 | employees/create + список сотрудников | M | ☐ |
+| 4 | directories/* (6 страниц) | M | ☐ |
+| 5 | calendar/* | M | ☐ |
+| 6 | schedules/* | S | ☐ |
+| 7 | turnstile + worktime + import-load + перенос import-process/native-import | M | ☐ |
+| 8 | Ядро табеля: month load, actions, export-пара, финальная зачистка | L | ☐ |
 
-- [ ] Task 1: Экспорт — `requireEdit` на 3 эндпоинтах + скрыть кнопки в UI
-- [ ] Task 2: Статус импорта — `requireAdmin`
-- [ ] Task 3: `import-process.ts` — UUID + автоочистка по TTL
+Чекпоинты после 1, 4, 8: `npm run check && npm run lint && npm run build` + смоук;
+grep-аудит прав после 8.
 
-### Checkpoint: T1–T3
-- [ ] `npm run check:compile` / `npm run check` зелёные
-- [ ] Экспорт недоступен `user`, статус импорта недоступен `user`
-- [ ] Ревью с автором перед рефакторингом
+## Приёмы сокращения работы
 
-### Phase 2: Рефакторинг импорта
+1. Контроллеры создаются `cp` существующего файла + правка импортов (логика дословно).
+2. Шеллы modern/native идентичны (`./$types` относительный) — один текст, раскладка cp.
+3. Перед слайсом `git diff --no-index <modern> <native>` — дельта определяет параметризацию.
+4. Порядок по сходству пар (от 100% к сложным).
+5. `check:compile` (~2с) после каждого слайса.
 
-- [ ] Task 4: Вынести конвейер импорта в `services/turnstile-import.service.ts` (`runTurnstileImport` + `resolvePassPicks`), `+server.ts` — тонкая SSE-обёртка
-- [ ] Task 5: Native — импорт напрямую через сервис, без self-HTTP и без cookie; убрать `origin`/`cookie` из `ImportProcess`
+## Риски
 
-### Checkpoint: T4–T5
-- [ ] Современный и нативный импорт пройдены вручную (оба флоу)
-- [ ] `grep cookie` в `import-process`/`native-import` → 0
-- [ ] Ревью с автором (поведение не изменилось)
+| Риск | Митигация |
+|---|---|
+| Права потеряны при переезде в контроллеры | Чек-лист permissions-security на каждый контроллер; grep-аудит в конце |
+| Поломка форм native при переезде | Имена actions/URL/ответы не меняются; смоук пользователем на XP |
+| Клиентские правки | Запрещены по плану (кроме уже сделанных 0a/0b) |
 
-### Phase 3: `/admin`
+## Вне скоупа
 
-- [ ] Task 6: `/admin` — `denyIfNotAdmin` в `createUser`/`setAccess`/`deleteUser`
-
-### Checkpoint: Полное завершение
-- [ ] `npm run check`, `npm run build`, `npm run lint`, `npm run check:compile` — зелёные
-- [ ] Dead code audit: `deleteProcess` вызывается; старый fetch-код в `native-import` удалён; `apps/.../import/logger.ts` перенесён
-- [ ] Проверка безопасности отдельным субагентом (не в основном окне)
-- [ ] Все acceptance criteria выполнены
-
-## Tasks (детали)
-
-### Task 1: Экспорт — проверка роли `canEdit` + скрытие кнопок
-**Description:** Добавить `requireEdit(locals.user)` в начало трёх экспорт-эндпоинтов. В UI скрыть кнопку экспорта для не-`canEdit`.
-**Acceptance criteria:**
-- [ ] `export/stream` GET, native `export` GET, `apps/.../export` POST → read-only `user` получает 403
-- [ ] Кнопка «Экспорт» (modern `tabel/+page.svelte:821`) скрыта при `!canEdit`; native-переключатель экспорта скрыт при `!data.canEdit`
-**Verification:** `npm run check:compile`, `npm run build`; manual: вход user → 403 на export, кнопок нет.
-**Files:** `apps/tabel/tabel/export/+server.ts`, `apps/tabel/tabel/export/stream/+server.ts`, `native/.../export/+server.ts`, `apps/.../tabel/+page.svelte`, `native/.../tabel/+page.svelte`
-**Dependencies:** None
-**Scope:** S
-
-### Task 2: Статус импорта — только admin
-**Description:** `GET /native/apps/tabel/import/[id]/status` без проверки роли → `requireAdmin(locals.user)`.
-**Acceptance criteria:**
-- [ ] Не-админ получает 403 на статус импорта
-**Verification:** `npm run check:compile`
-**Files:** `native/.../import/[id]/status/+server.ts`
-**Dependencies:** None
-**Scope:** XS
-
-### Task 3: `import-process.ts` — непредсказуемые ID + автоочистка
-**Description:** Заменить `Date.now()-counter` на `crypto.randomUUID()`. Добавить `createdAt`; удалять процесс по завершении (done/error) с отсрочкой и отбрасывать «зависшие» старше TTL (30 мин).
-**Acceptance criteria:**
-- [ ] ID — UUID
-- [ ] Процесс удаляется из памяти после завершения (отсрочка) и по TTL
-**Verification:** `npm run check:compile`
-**Files:** `src/lib/server/import-process.ts`, вызовы очистки в `native-import.ts`
-**Dependencies:** None
-**Scope:** S
-
-### Task 4: Вынести конвейер импорта в общий сервис
-**Description:** Из `apps/tabel/import/+server.ts` (1230 стр.) выделить в `src/lib/server/db/apps/tabel/services/turnstile-import.service.ts`:
-- `runTurnstileImport({ file, skipPasses, emit })` — весь POST-боди (фаза 1);
-- `resolvePassPicks(picks)` — весь PUT-боди (создать/переназначить пропуска → `{ created, linked, reassigned, skipList }`);
-- помощники (`normDate`, `normTime`, `parseTime`, `formatTime`, `splitFullName`, `excelSerialToDate`) и `logger.ts` перенести в lib. `+server.ts` — тонкая SSE-обёртка.
-**Acceptance criteria:**
-- [ ] Современный импорт работает без изменений поведения (все SSE-стадии, unresolved, re-POST с skipPasses после PUT)
-- [ ] `+server.ts` не содержит доменной логики
-**Verification:** `npm run check:compile`, `npm run build`, manual импорт через `/apps/tabel/import`
-**Files:** новый `services/turnstile-import.service.ts`, `services/import-logger.ts`, `apps/tabel/import/+server.ts` (утончение), удалить `apps/tabel/import/logger.ts`
-**Dependencies:** None
-**Scope:** L
-
-### Task 5: Native — импорт без self-HTTP и без cookie
-**Description:** `native-import.ts` вызывает `runTurnstileImport`/`resolvePassPicks` напрямую (emit → `setStatus`), без `fetch(proc.origin...)` и без cookie. Убрать `origin`/`cookie` из `ImportProcess` и из `createProcess`.
-**Acceptance criteria:**
-- [ ] В памяти не хранится session-cookie
-- [ ] Нет HTTP-запроса к собственному origin (grep `fetch(proc.origin` → 0)
-- [ ] Нативный флоу: upload → статус → unresolved → resolve → done работает без изменений UI
-**Verification:** `npm run check:compile`, `npm run build`, manual нативный импорт (вкл. unresolved → resolve)
-**Files:** `src/lib/server/native-import.ts`, `src/lib/server/import-process.ts`, `native/.../import/+page.server.ts`
-**Dependencies:** Task 4
-**Scope:** M
-
-### Task 6: `/admin` — явные проверки в actions
-**Description:** Добавить `denyIfNotAdmin(event.locals.user)` в начало `createUser`, `setAccess`, `deleteUser` (в `updateUser` уже есть). Опционально — guard в `load` (`requireAdmin`).
-**Acceptance criteria:**
-- [ ] Каждый action возвращает `fail(403)` для не-админа (без опоры на хук)
-**Verification:** `npm run check:compile`
-**Files:** `src/routes/admin/+page.server.ts`
-**Dependencies:** None
-**Scope:** S
-
-## Risks and Mitigations
-
-| Риск | Влияние | Митигация |
-|---|---|---|
-| Рефакторинг 1230-строчного конвейера без авто-тестов (в репо тестов нет) | Med | Task 4 = перемещение кода без изменения логики; мануальный чек-лист импорта (modern + native, оба флоу); рассмотреть тест-харнесс отдельным таском |
-| Изменение доступа к экспорту (read-only `user` теряет экспорт) | Low | Согласовано; скрываем кнопки, документируем в AGENTS.md |
-| Удержание файла в памяти на время импорта | Low | UUID + TTL + admin-only; cookie полностью убрана |
-
-## Open Questions
-
-- Писать ли тест-харнесс на `turnstile-import.service.ts` сейчас (репо без тестов)? Предложение: мануальная проверка сейчас, тесты — отдельным таском после (п.18).
-- Расположение сервиса: `services/turnstile-import.service.ts` (по конвенции). Альтернатива — `src/lib/server/import/`.
+- vitest + декомпозиция worktime.service.ts, T-12_builder, tabel/+page.svelte (п.16–18)
+- Ветка /api (отменена: парных JSON-эндпоинтов только 2, клиентские правки неоправданны);
+  при необходимости — тонкий маршрут над готовым контроллером в будущем
+- Слияние деревьев, сплит permissions.ts

@@ -14,7 +14,7 @@ import { turnstileEventTracker } from '../tables/turnstile-event-tracker';
 import { turnstileEvent } from '../tables/turnstile-event';
 import { pass } from '../tables/pass';
 import { worktimeTracker } from '../tables/worktime-tracker';
-import { cellStyle } from '$lib/apps/tabel/cell-style';
+import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 import { db } from '$lib/server/db';
 import { eq, and, or, gte, lte, isNull } from 'drizzle-orm';
 

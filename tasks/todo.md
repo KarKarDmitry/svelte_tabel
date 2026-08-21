@@ -1,31 +1,25 @@
-# Todo: Безопасность п.8 + п.9 (экспорт/импорт, /admin)
+# Todo: рефакторинг A1 (общий серверный слой)
 
-План: см. `tasks/plan.md`.
+План: `tasks/plan.md`. Коммит после каждого слайса, без push. Клиентский код не трогаем.
 
-## Phase 1: Быстрый харденинг
-- [x] Task 1: Экспорт — `requireEdit` на 3 эндпоинтах + скрыть кнопки в UI
-- [x] Task 2: Статус импорта — `requireAdmin`
-- [x] Task 3: `import-process.ts` — UUID + автоочистка по TTL
+## Слайсы
 
-### Checkpoint T1–T3
-- [x] `npm run check:compile` / `npm run check` зелёные
-- [x] Экспорт недоступен `user`, статус импорта недоступен `user`
-- [x] Ревью с автором перед рефакторингом
+- [x] 0a. Фикс п.15: URL employee-events в native employee/[id] (`75c1305`)
+- [x] 0b. cell-style.ts ← modern-логика, переподключить потребителей (`1eea231`)
+- [ ] 0c. Каркас: server/context/controller.ts (из shared.ts), server/utils/rate-limit.ts ← перенос,
+      apps/tabel/utils/cell-style.ts ← перенос + импорты, удалить shared.ts
+- [ ] 1. tabel-core.ts + utils/day-style.ts (деревья заморожены) → переподключка
+        modern employee-events + native marks/bulk/employee-events как делегатов
+- [ ] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева)
+- [ ] 3. employees/create + список
+- [ ] 4. directories/*
+- [ ] 5. calendar/*
+- [ ] 6. schedules/*
+- [ ] 7. turnstile + worktime + import-load + перенос import-process/native-import
+- [ ] 8. Ядро табеля: month load, actions, export-пара, зачистка
 
-## Phase 2: Рефакторинг импорта
-- [x] Task 4: Вынести конвейер импорта в `services/turnstile-import.service.ts`
-- [x] Task 5: Native — импорт без self-HTTP и без cookie
+## Чекпоинты
 
-### Checkpoint T4–T5
-- [ ] Современный и нативный импорт пройдены вручную (оба флоу)
-- [x] `grep cookie` в `import-process`/`native-import` → 0
-- [x] Ревью с автором
-
-## Phase 3: /admin
-- [x] Task 6: `/admin` — `denyIfNotAdmin` в createUser/setAccess/deleteUser
-
-## Финал
-- [x] `npm run check`, `build`, `lint`, `check:compile` зелёные
-- [x] Dead code audit (deleteProcess вызывается, fetch-код удалён, logger перенесён)
-- [x] Проверка безопасности отдельным субагентом
-- [ ] Все acceptance criteria выполнены
+- [ ] После 1: check+lint+build, смоук, XP-смоук (пользователь)
+- [ ] После 4: check+lint+build
+- [ ] После 8: check+lint+build, grep-аудит прав, XP-смоук (пользователь), обновить AGENTS.md (п.14–15)

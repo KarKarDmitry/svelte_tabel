@@ -6,7 +6,7 @@
 	import ETable from '$lib/components/ETable/ETable.svelte';
 	import { toast } from 'svelte-sonner';
 	import { mode } from 'mode-watcher';
-	import { cellStyle } from '$lib/apps/tabel/cell-style';
+	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 
 	let {
 		show = $bindable(false),

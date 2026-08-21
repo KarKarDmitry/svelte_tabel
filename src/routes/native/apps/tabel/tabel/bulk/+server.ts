@@ -7,7 +7,7 @@ import { appConstantService } from '$lib/server/db/apps/tabel/services/app-const
 import { scheduleService } from '$lib/server/db/apps/tabel/services/schedule.service';
 import { canEdit, getControlledDepartmentIds } from '$lib/server/permissions';
 import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
-import { cellStyle } from '$lib/apps/tabel/cell-style';
+import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 
 const CONST_KEYS = ['CELL_COLOR_RULES', 'MARK_COLOR_RULES', 'SHIFT_MARK_SHORTNAMES'] as const;
 

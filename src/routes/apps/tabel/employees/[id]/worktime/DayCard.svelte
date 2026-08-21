@@ -5,7 +5,7 @@
 		CollapsibleTrigger
 	} from '$lib/components/ui/collapsible';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
-	import { cellStyle } from '$lib/apps/tabel/cell-style';
+	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 
 	let {
 		day,
