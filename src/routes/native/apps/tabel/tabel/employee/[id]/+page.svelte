@@ -68,7 +68,7 @@
 				});
 			}
 			var xhr = new XMLHttpRequest();
-			xhr.open('POST', '/apps/tabel/tabel/employee-events', true);
+			xhr.open('POST', '/native/apps/tabel/tabel/employee-events', true);
 			xhr.setRequestHeader('Content-Type', 'application/json');
 			xhr.onreadystatechange = function () {
 				if (xhr.readyState !== 4) return;
