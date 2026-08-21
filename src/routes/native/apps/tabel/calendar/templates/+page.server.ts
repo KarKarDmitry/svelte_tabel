@@ -1,7 +1,13 @@
-import type { Actions } from './$types';
+import type { PageServerLoad, Actions } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { runAction } from '$lib/server/context/controller';
-import { templateCreate, templateDelete } from '$lib/server/apps/tabel/calendar';
+import {
+	templateCreate,
+	templateDelete,
+	templateListData
+} from '$lib/server/apps/tabel/calendar';
+
+export const load: PageServerLoad = async () => templateListData();
 
 export const actions: Actions = {
 	create: (event) =>

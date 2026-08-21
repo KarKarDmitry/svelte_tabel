@@ -66,6 +66,12 @@ export async function templateCreate(user: CtrlUser, name: string) {
 	});
 }
 
+/** Список шаблонов календарей */
+export async function templateListData() {
+	const templates = await calendarService.listTemplates();
+	return { templates };
+}
+
 export async function templateDelete(user: CtrlUser, id: number) {
 	assertEdit(user);
 	await calendarService.removeTemplate(id);

@@ -15,7 +15,7 @@
 - [x] 4. directories/* (`a69d71c`)
 - [x] 5. calendar/* (`0fd2c1c`)
 - [x] 6. schedules/* (`9ad6cd8`)
-- [ ] 7. turnstile + worktime + import-load + перенос import-process/native-import
+- [x] 7. turnstile + worktime + import-load + перенос import-process/native-import (`cfc427c`)
 - [ ] 8. Ядро табеля: month load, actions, export-пара, зачистка
 
 ## Чекпоинты

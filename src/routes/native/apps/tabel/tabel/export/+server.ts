@@ -1,10 +1,9 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { worktimeService } from '$lib/server/db/apps/tabel/services/worktime.service';
-import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-import { buildT12, type ExportOptions } from '$lib/server/db/apps/tabel/reports/T-12_builder';
-import { getControlledDepartmentIds, requireEdit } from '$lib/server/permissions';
+import { requireEdit } from '$lib/server/permissions';
+import { buildT12Workbook, roundingRulesFromConstants } from '$lib/server/apps/tabel/export';
+import type { ExportOptions } from '$lib/server/db/apps/tabel/reports/T-12_builder';
 
 /**
  * Bool-параметр: чекбокс (value=1) + hidden (value=0) с одним name отправляют
@@ -14,6 +13,17 @@ const boolParam = (url: URL, name: string, def: boolean): boolean => {
 	const vals = url.searchParams.getAll(name);
 	if (vals.length === 0) return def;
 	return vals.includes('1') || vals.includes('true');
+};
+
+const numOrNull = (v: string | null): number | null => {
+	if (v == null || v === '') return null;
+	const n = Number(v);
+	return isNaN(n) ? null : n;
+};
+
+const numOr = (v: string | null, def: number): number => {
+	const n = numOrNull(v);
+	return n == null ? def : n;
 };
 
 /** Экспорт табеля в XLSX (нативный вариант — скачивание по навигации, без прогресса) */
@@ -55,61 +65,18 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 				standardRight: numOr(url.searchParams.get('standardRight'), 0)
 			};
 		} else {
-			const rules = await appConstantService.getByKey('ROUNDING_RULES');
-			try {
-				const parsed = rules?.value ? JSON.parse(rules.value) : {};
-				roundingConfig = {
-					roundingPoint: parsed.roundingPoint ?? null,
-					roundingFrom: parsed.roundingFrom ?? null,
-					roundingTo: parsed.roundingTo ?? null,
-					standardLeft: parsed.standardLeft ?? 0,
-					standardRight: parsed.standardRight ?? 0
-				};
-			} catch {
-				roundingConfig = null;
-			}
+			roundingConfig = await roundingRulesFromConstants();
 		}
 	}
 
-	const [data, groups] = await Promise.all([
-		worktimeService.getMonthGrouped(year, month, { calendarId }),
-		departmentGroupService.listWithDepartments()
-	]);
-
-	// Не-админ экспортирует только подконтрольные подразделения
-	const controlled = await getControlledDepartmentIds(locals.user);
-	let departments = data.departments;
-	if (controlled !== null) {
-		const set = new Set(controlled);
-		departments = data.departments.filter((d: any) => set.has(d.id));
-	}
-
-	// Извлекаем праздничные дни месяца из calendarDays
-	const holidays = new Set<number>();
-	if (data.calendarDays) {
-		for (const [dateStr, dayInfo] of Object.entries(data.calendarDays)) {
-			if (dayInfo.dayType === 'holiday') {
-				const day = parseInt(dateStr.split('-')[2], 10);
-				holidays.add(day);
-			}
-		}
-	}
-
-	const buffer = await buildT12(
-		groups,
-		departments,
-		data.dayMarks,
+	const buffer = await buildT12Workbook(locals.user, {
 		year,
 		month,
-		data.lastDay,
-		undefined,
-		holidays,
-		roundingConfig,
-		data.calendarDays,
-		data.shiftMarks,
+		calendarId,
 		options,
-		(await appConstantService.getByKey('AUTO_ABSENCE_MARK'))?.value
-	);
+		roundingConfig,
+		autoAbsenceMark: (await appConstantService.getByKey('AUTO_ABSENCE_MARK'))?.value
+	});
 
 	const fileName = `Табель_${year}_${String(month).padStart(2, '0')}.xlsx`;
 
@@ -122,14 +89,3 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 		}
 	});
 };
-
-function numOrNull(v: string | null): number | null {
-	if (v == null || v === '') return null;
-	const n = Number(v);
-	return isNaN(n) ? null : n;
-}
-
-function numOr(v: string | null, def: number): number {
-	const n = numOrNull(v);
-	return n == null ? def : n;
-}
