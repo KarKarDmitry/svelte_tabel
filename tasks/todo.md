@@ -8,8 +8,8 @@
 - [x] 0b. cell-style.ts ← modern-логика, переподключить потребителей (`1eea231`)
 - [x] 0c. Каркас: server/context/controller.ts (из shared.ts), server/utils/rate-limit.ts ← перенос,
       apps/tabel/utils/cell-style.ts ← перенос + импорты, удалить shared.ts (`0a111f1`)
-- [ ] 1. tabel-core.ts + utils/day-style.ts (деревья заморожены) → переподключка
-        modern employee-events + native marks/bulk/employee-events как делегатов
+- [x] 1. tabel-core.ts + utils/day-style.ts → переподключка интерактивных эндпоинтов
+        как делегатов (`eba15e5`)
 - [ ] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева)
 - [ ] 3. employees/create + список
 - [ ] 4. directories/*
