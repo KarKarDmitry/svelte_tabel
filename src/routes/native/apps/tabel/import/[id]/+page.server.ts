@@ -1,6 +1,6 @@
 import type { PageServerLoad } from './$types';
 import { error, redirect } from '@sveltejs/kit';
-import { getProcess } from '$lib/server/import-process';
+import { getProcess } from '$lib/server/apps/tabel/import-process';
 import { isAdmin } from '$lib/server/permissions';
 
 export const load: PageServerLoad = async (event) => {

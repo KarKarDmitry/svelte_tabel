@@ -14,7 +14,7 @@
 - [x] 3. employees/create + список (`dd69431`)
 - [x] 4. directories/* (`a69d71c`)
 - [x] 5. calendar/* (`0fd2c1c`)
-- [ ] 6. schedules/*
+- [x] 6. schedules/* (`9ad6cd8`)
 - [ ] 7. turnstile + worktime + import-load + перенос import-process/native-import
 - [ ] 8. Ядро табеля: month load, actions, export-пара, зачистка
 

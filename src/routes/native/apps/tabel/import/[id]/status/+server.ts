@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getProcess } from '$lib/server/import-process';
+import { getProcess } from '$lib/server/apps/tabel/import-process';
 import { requireAdmin } from '$lib/server/permissions';
 
 export const GET: RequestHandler = async ({ params, locals }) => {

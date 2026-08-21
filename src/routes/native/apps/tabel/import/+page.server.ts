@@ -1,8 +1,8 @@
 import type { PageServerLoad, Actions } from './$types';
 import { fail, redirect } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/permissions';
-import { createProcess } from '$lib/server/import-process';
-import { runImportProcess } from '$lib/server/native-import';
+import { createProcess } from '$lib/server/apps/tabel/import-process';
+import { runImportProcess } from '$lib/server/apps/tabel/native-import';
 
 export const load: PageServerLoad = async (event) => {
 	if (!isAdmin(event.locals.user)) {

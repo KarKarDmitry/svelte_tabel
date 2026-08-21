@@ -1,7 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getProcess, setPicks } from '$lib/server/import-process';
-import { runResolveProcess } from '$lib/server/native-import';
+import { getProcess, setPicks } from '$lib/server/apps/tabel/import-process';
+import { runResolveProcess } from '$lib/server/apps/tabel/native-import';
 import { isAdmin } from '$lib/server/permissions';
 
 /** Продолжить импорт после выбора сотрудников (без файла — он в процессе) */
