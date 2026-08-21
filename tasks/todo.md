@@ -12,7 +12,7 @@
         как делегатов (`eba15e5`)
 - [x] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева) (`e8b5480`)
 - [x] 3. employees/create + список (`dd69431`)
-- [ ] 4. directories/*
+- [x] 4. directories/* (`a69d71c`)
 - [ ] 5. calendar/*
 - [ ] 6. schedules/*
 - [ ] 7. turnstile + worktime + import-load + перенос import-process/native-import
@@ -21,5 +21,5 @@
 ## Чекпоинты
 
 - [ ] После 1: check+lint+build, смоук, XP-смоук (пользователь)
-- [ ] После 4: check+lint+build
+- [x] После 4: check+lint+build (`7c3be97`; check: 1 ошибка punycode — окружение, не код)
 - [ ] После 8: check+lint+build, grep-аудит прав, XP-смоук (пользователь), обновить AGENTS.md (п.14–15)

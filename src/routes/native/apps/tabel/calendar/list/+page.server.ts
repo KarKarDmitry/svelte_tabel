@@ -1,46 +1,32 @@
 import type { PageServerLoad, Actions } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { runAction } from '$lib/server/context/controller';
+import {
+	calendarListData,
+	calendarGenerate,
+	calendarDelete,
+	calendarSetDefault
+} from '$lib/server/apps/tabel/calendar';
 
-export const load: PageServerLoad = async () => {
-	const [calendars, templates] = await Promise.all([
-		calendarService.listCalendars(),
-		calendarService.listTemplates()
-	]);
-	return { calendars, templates };
-};
+export const load: PageServerLoad = async () => calendarListData();
 
 export const actions: Actions = {
-	generate: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const name = f.get('name')?.toString() || '';
-		const templateId = Number(f.get('templateId'));
-		const year = Number(f.get('year'));
-
-		const cal = await calendarService.createCalendar({ templateId, year, name });
-		if (!cal) return { success: false };
-
-		await calendarService.generateYear(cal.id);
-
-		redirect(303, `/native/apps/tabel/calendar/list/${cal.id}/main`);
-	},
-
-	delete: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await calendarService.removeCalendar(id);
-		redirect(303, '/native/apps/tabel/calendar/list');
-	},
-
-	setDefault: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await calendarService.setDefaultCalendar(id);
-		redirect(303, '/native/apps/tabel/calendar/list');
-	}
+	generate: (event) =>
+		runAction(async () => {
+			const cal = await calendarGenerate(event.locals.user, await event.request.formData());
+			if (!cal) return { success: false };
+			redirect(303, `/native/apps/tabel/calendar/list/${cal.id}/main`);
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await calendarDelete(event.locals.user, id);
+			redirect(303, '/native/apps/tabel/calendar/list');
+		}),
+	setDefault: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await calendarSetDefault(event.locals.user, id);
+			redirect(303, '/native/apps/tabel/calendar/list');
+		})
 };

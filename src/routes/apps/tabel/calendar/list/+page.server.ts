@@ -1,44 +1,34 @@
 import type { PageServerLoad, Actions } from './$types';
-import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
 import { redirect } from '@sveltejs/kit';
-import { denyIfNoEdit } from '$lib/server/permissions';
+import { runAction } from '$lib/server/context/controller';
+import {
+	calendarListData,
+	calendarGenerate,
+	calendarDelete,
+	calendarSetDefault
+} from '$lib/server/apps/tabel/calendar';
 
-export const load: PageServerLoad = async () => {
-	const calendars = await calendarService.listCalendars();
-	const templates = await calendarService.listTemplates();
-	return { calendars, templates };
-};
+export const load: PageServerLoad = async () => calendarListData();
 
 export const actions: Actions = {
-	generate: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const name = f.get('name')?.toString() || '';
-		const templateId = Number(f.get('templateId'));
-		const year = Number(f.get('year'));
+	generate: (event) =>
+		runAction(async () => {
+			const cal = await calendarGenerate(event.locals.user, await event.request.formData());
+			if (!cal) return { success: false };
+			redirect(303, `/apps/tabel/calendar/list/${cal.id}`);
+		}),
 
-		const cal = await calendarService.createCalendar({ templateId, year, name });
-		if (!cal) return { success: false };
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await calendarDelete(event.locals.user, id);
+			return { success: true };
+		}),
 
-		await calendarService.generateYear(cal.id);
-
-		redirect(303, `/apps/tabel/calendar/list/${cal.id}`);
-	},
-
-	delete: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await calendarService.removeCalendar(id);
-		return { success: true };
-	},
-
-	setDefault: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await calendarService.setDefaultCalendar(id);
-		return { success: true };
-	}
+	setDefault: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await calendarSetDefault(event.locals.user, id);
+			return { success: true };
+		})
 };

@@ -1,33 +1,20 @@
-import type { PageServerLoad, Actions } from './$types';
-import { calendarService } from '$lib/server/db/apps/tabel/services/calendar.service';
+import type { Actions } from './$types';
 import { redirect } from '@sveltejs/kit';
-import { denyIfNoEdit } from '$lib/server/permissions';
-
-export const load: PageServerLoad = async () => {
-	const templates = await calendarService.listTemplates();
-	return { templates };
-};
+import { runAction } from '$lib/server/context/controller';
+import { templateCreate, templateDelete } from '$lib/server/apps/tabel/calendar';
 
 export const actions: Actions = {
-	create: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const name = f.get('name')?.toString() || '';
-		const tpl = await calendarService.createTemplate({
-			name,
-			year: 0,
-			defaultWorkDays: JSON.stringify([1, 2, 3, 4, 5]),
-			defaultWorkTime: 480
-		});
-		redirect(303, `/native/apps/tabel/calendar/templates`);
-	},
+	create: (event) =>
+		runAction(async () => {
+			const name = (await event.request.formData()).get('name')?.toString() || '';
+			await templateCreate(event.locals.user, name);
+			redirect(303, '/native/apps/tabel/calendar/templates');
+		}),
 
-	delete: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await calendarService.removeTemplate(id);
-		redirect(303, '/native/apps/tabel/calendar/templates');
-	}
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await templateDelete(event.locals.user, id);
+			redirect(303, '/native/apps/tabel/calendar/templates');
+		})
 };
