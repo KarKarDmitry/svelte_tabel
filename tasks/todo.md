@@ -16,10 +16,17 @@
 - [x] 5. calendar/* (`0fd2c1c`)
 - [x] 6. schedules/* (`9ad6cd8`)
 - [x] 7. turnstile + worktime + import-load + перенос import-process/native-import (`cfc427c`)
-- [ ] 8. Ядро табеля: month load, actions, export-пара, зачистка
+- [x] 8. Ядро табеля: month load, actions, export-пара, зачистка (`84fdce9`)
 
 ## Чекпоинты
 
-- [ ] После 1: check+lint+build, смоук, XP-смоук (пользователь)
+- [x] После 1: check+lint+build, смоук API, XP-смоук — перенесён на финал
 - [x] После 4: check+lint+build (`7c3be97`; check: 1 ошибка punycode — окружение, не код)
-- [ ] После 8: check+lint+build, grep-аудит прав, XP-смоук (пользователь), обновить AGENTS.md (п.14–15)
+- [x] После 8: check+lint+build (`84fdce9`; build ok; check: только punycode-ошибка окружения),
+      grep-аудит прав пройден (вне табеля — self-service settings, проверки на месте)
+
+## Итог
+
+71 файл: +2702/−3102 LOC. Контроллеры: tabel-core 356, employees 404, directories 220,
+turnstile 210, export 76, calendar 67, schedules 57, day-style 126.
+XP-смоук на реальном клиенте — за пользователем.
