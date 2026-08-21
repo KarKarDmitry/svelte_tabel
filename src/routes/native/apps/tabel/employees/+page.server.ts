@@ -1,43 +1,5 @@
 import type { PageServerLoad } from './$types';
-import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
-import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
-import { positionService } from '$lib/server/db/apps/tabel/services/position.service';
-import { getControlledDepartmentIds } from '$lib/server/permissions';
+import { employeesListData } from '$lib/server/apps/tabel/employees';
 
-const PAGE_SIZE = 100;
-
-export const load: PageServerLoad = async (event) => {
-	const url = event.url;
-
-	// Не-админ видит только сотрудников подконтрольных подразделений
-	const departmentIds = await getControlledDepartmentIds(event.locals.user);
-
-	const result = await employeeService.searchWithFilters({
-		search: url.searchParams.get('search') || '',
-		department: url.searchParams.get('department') || '',
-		position: url.searchParams.get('position') || '',
-		status: url.searchParams.get('status') || '',
-		departmentIds,
-		sort: url.searchParams.get('sort') || 'lastName',
-		order: url.searchParams.get('order') || 'asc',
-		page: Math.max(1, Number(url.searchParams.get('page')) || 1),
-		pageSize: PAGE_SIZE
-	});
-
-	const [departments, positions] = await Promise.all([
-		departmentService.list(),
-		positionService.list()
-	]);
-
-	return {
-		...result,
-		totalPages: Math.ceil(result.total / PAGE_SIZE),
-		page: Math.max(1, Number(url.searchParams.get('page')) || 1),
-		departments,
-		positions,
-		search: url.searchParams.get('search') || '',
-		department: url.searchParams.get('department') || '',
-		position: url.searchParams.get('position') || '',
-		status: url.searchParams.get('status') || ''
-	};
-};
+export const load: PageServerLoad = async (event) =>
+	employeesListData(event.locals.user, event.url);

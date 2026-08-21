@@ -318,3 +318,144 @@ export async function passRemove(user: CtrlUser, recordId: number) {
 	assertAllowed(rec ? await denyIfCannotEditEmployee(user, rec.employeeId) : denyIfNoEdit(user));
 	await passService.closeEmployeePass(recordId, todayStr());
 }
+
+// ---------- Список сотрудников ----------
+
+const PAGE_SIZE = 100;
+
+/** Список сотрудников с фильтрами (не-админ — только подконтрольные отделы) */
+export async function employeesListData(user: CtrlUser, url: URL) {
+	// Не-админ видит только сотрудников подконтрольных подразделений
+	const departmentIds = await getControlledDepartmentIds(user);
+
+	const result = await employeeService.searchWithFilters({
+		search: url.searchParams.get('search') || '',
+		department: url.searchParams.get('department') || '',
+		position: url.searchParams.get('position') || '',
+		status: url.searchParams.get('status') || '',
+		departmentIds,
+		sort: url.searchParams.get('sort') || 'lastName',
+		order: url.searchParams.get('order') || 'asc',
+		page: Math.max(1, Number(url.searchParams.get('page')) || 1),
+		pageSize: PAGE_SIZE
+	});
+
+	const [departments, positions] = await Promise.all([
+		departmentService.list(),
+		positionService.list()
+	]);
+
+	return {
+		...result,
+		totalPages: Math.ceil(result.total / PAGE_SIZE),
+		page: Math.max(1, Number(url.searchParams.get('page')) || 1),
+		departments,
+		positions,
+		search: url.searchParams.get('search') || '',
+		department: url.searchParams.get('department') || '',
+		position: url.searchParams.get('position') || '',
+		status: url.searchParams.get('status') || ''
+	};
+}
+
+/** Полное удаление сотрудника (каскадом) — только для администраторов */
+export async function employeeDelete(user: CtrlUser, id: number) {
+	if (!isAdmin(user)) {
+		throw new ControllerError(403, 'Требуются права администратора');
+	}
+	if (!id) throw new ControllerError(400, 'Неверный ID сотрудника');
+	// FK в БД (hr_document, employee_pass, employee_schedule, leave_document,
+	// worktime_tracker, turnstile_event_tracker) имеют ON DELETE CASCADE
+	await employeeService.remove(id);
+}
+
+// ---------- Создание сотрудника ----------
+
+/** Справочники страницы создания (табельщик — подконтрольные отделы) */
+export async function employeeCreateData(user: CtrlUser) {
+	const [departments, positions] = await Promise.all([
+		departmentService.list(),
+		positionService.list()
+	]);
+	// Табельщик видит только подконтрольные отделы (админ — все)
+	const controlled = await getControlledDepartmentIds(user);
+	let visibleDepartments = departments;
+	if (controlled !== null) {
+		const set = new Set(controlled);
+		visibleDepartments = departments.filter((d) => set.has(d.id));
+	}
+	return { departments: visibleDepartments, positions };
+}
+
+/** Создание сотрудника (+ приём, если заданы отдел и должность). Возвращает созданного. */
+export async function employeeCreate(user: CtrlUser, form: FormData) {
+	assertAllowed(await denyIfCannotEditEmployee(user, 0, Number(form.get('departmentId'))));
+	const number = form.get('number')?.toString() || '';
+	const lastName = form.get('lastName')?.toString() || '';
+	const firstName = form.get('firstName')?.toString() || '';
+	const middleName = form.get('middleName')?.toString() || '';
+	const departmentId = Number(form.get('departmentId'));
+	const positionId = Number(form.get('positionId'));
+	const date = form.get('date')?.toString() || todayStr();
+	const docNumber = form.get('docNumber')?.toString() || null;
+
+	if (!number || !lastName || !firstName) {
+		throw new ControllerError(400, 'Заполните ФИО и табельный номер');
+	}
+
+	// Табельный номер должен быть свободен
+	const existing = await employeeService.getByNumber(number);
+	if (existing) {
+		throw new ControllerError(409, 'Номер уже занят', {
+			error: 'number_taken',
+			existing: {
+				id: existing.id,
+				number: existing.number,
+				lastName: existing.lastName,
+				firstName: existing.firstName,
+				middleName: existing.middleName
+			}
+		});
+	}
+
+	let emp;
+	try {
+		emp = await employeeService.create({
+			number,
+			lastName,
+			firstName,
+			middleName: middleName || null
+		});
+	} catch (e: any) {
+		// Редкая гонка: уникальность номера держит БД (23505 = unique_violation)
+		if (e?.code === '23505') {
+			const dup = await employeeService.getByNumber(number);
+			if (dup) {
+				throw new ControllerError(409, 'Номер уже занят', {
+					error: 'number_taken',
+					existing: {
+						id: dup.id,
+						number: dup.number,
+						lastName: dup.lastName,
+						firstName: dup.firstName,
+						middleName: dup.middleName
+					}
+				});
+			}
+		}
+		throw e;
+	}
+
+	if (departmentId && positionId) {
+		await documentService.create({
+			type: 'hiring',
+			date,
+			docNumber,
+			employeeId: emp.id,
+			departmentId,
+			positionId
+		});
+	}
+
+	return emp;
+}
