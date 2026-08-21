@@ -1,78 +1,36 @@
 import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { employeeService } from '$lib/server/db/apps/tabel/services/employee.service';
-import {
-	getEmployeeEventsData,
-	saveEmployeeEvents
-} from '$lib/server/db/apps/tabel/services/employee-events.service';
-import { canEdit, isAdmin, getControlledDepartmentIds } from '$lib/server/permissions';
+import { employeeEventsRead, employeeEventsSave } from '$lib/server/apps/tabel/tabel-core';
+import type { EmployeeEventDayInput } from '$lib/server/apps/tabel/tabel-core';
+import { ControllerError } from '$lib/server/context/controller';
 
-/** GET: загрузить данные для модального окна (логика вынесена в сервис) */
+/** GET: загрузить данные для модального окна */
 export const GET: RequestHandler = async ({ url, locals }) => {
-	const employeeId = Number(url.searchParams.get('employeeId'));
-	const year = Number(url.searchParams.get('year'));
-	const month = Number(url.searchParams.get('month'));
-
-	if (!employeeId) error(400, 'employeeId обязателен');
-	// Не-админ: сотрудник должен быть в подконтрольном отделе (на сегодня)
-	if (!isAdmin(locals.user)) {
-		const controlled = await getControlledDepartmentIds(locals.user);
-		const dep = await employeeService.getDepartmentAtDate(
-			employeeId,
-			new Date().toISOString().split('T')[0]
+	try {
+		const data = await employeeEventsRead(
+			locals.user,
+			Number(url.searchParams.get('employeeId')),
+			Number(url.searchParams.get('year')),
+			Number(url.searchParams.get('month'))
 		);
-		if (!dep || !controlled?.includes(dep.id)) {
-			error(403, 'Доступ запрещён');
-		}
+		return json(data);
+	} catch (e) {
+		if (e instanceof ControllerError) throw error(e.status, e.message);
+		throw e;
 	}
-
-	return json(await getEmployeeEventsData(employeeId, year, month));
 };
 
 /** POST: сохранить изменения из модального окна */
 export const POST: RequestHandler = async ({ request, locals }) => {
-	const { employeeId, year, month, days } = (await request.json()) as {
+	const { employeeId, days } = (await request.json()) as {
 		employeeId: number;
-		year: number;
-		month: number;
-		days: Array<{
-			date: string;
-			reportWorkTime: number | null;
-			reportNightWorkTime: number | null;
-			dayMarkCode: string;
-			extraMarkCode?: string | null;
-			extraMarkMinutes?: number | null;
-		}>;
+		days: EmployeeEventDayInput[];
 	};
-
-	if (!employeeId || !days?.length) {
-		error(400, 'employeeId and days are required');
+	try {
+		const { updated } = await employeeEventsSave(locals.user, employeeId, days);
+		return json({ updated });
+	} catch (e) {
+		if (e instanceof ControllerError) throw error(e.status, e.message);
+		throw e;
 	}
-
-	// Запись разрешена только admin/timekeeper и только в подконтрольных подразделениях
-	if (!canEdit(locals.user)) {
-		error(403, 'Недостаточно прав для редактирования');
-	}
-	if (locals.user?.role !== 'admin') {
-		const controlled = await getControlledDepartmentIds(locals.user);
-		for (const day of days) {
-			const mark = day.dayMarkCode.trim();
-			if (
-				!mark &&
-				day.reportWorkTime == null &&
-				day.reportNightWorkTime == null &&
-				!day.extraMarkCode?.trim()
-			)
-				continue;
-			const dept = await employeeService.getDepartmentAtDate(employeeId, day.date);
-			if (!dept || !controlled?.includes(dept.id)) {
-				error(403, 'Подразделение не подконтрольно');
-			}
-		}
-	}
-
-	const updatedBy = locals.user?.name ?? locals.user?.email ?? null;
-	const updated = await saveEmployeeEvents(employeeId, days, updatedBy);
-
-	return json({ updated });
 };

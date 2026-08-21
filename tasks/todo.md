@@ -6,8 +6,8 @@
 
 - [x] 0a. Фикс п.15: URL employee-events в native employee/[id] (`75c1305`)
 - [x] 0b. cell-style.ts ← modern-логика, переподключить потребителей (`1eea231`)
-- [ ] 0c. Каркас: server/context/controller.ts (из shared.ts), server/utils/rate-limit.ts ← перенос,
-      apps/tabel/utils/cell-style.ts ← перенос + импорты, удалить shared.ts
+- [x] 0c. Каркас: server/context/controller.ts (из shared.ts), server/utils/rate-limit.ts ← перенос,
+      apps/tabel/utils/cell-style.ts ← перенос + импорты, удалить shared.ts (`0a111f1`)
 - [ ] 1. tabel-core.ts + utils/day-style.ts (деревья заморожены) → переподключка
         modern employee-events + native marks/bulk/employee-events как делегатов
 - [ ] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева)
