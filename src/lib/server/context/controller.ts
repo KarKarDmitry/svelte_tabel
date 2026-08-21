@@ -12,12 +12,15 @@ import { fail } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 
 /** Минимальная форма пользователя для контроллеров (структурно совместима с AppUser) */
-export type CtrlUser = {
-	id: string;
-	role: string;
-	name?: string | null;
-	email?: string | null;
-} | null | undefined;
+export type CtrlUser =
+	| {
+			id: string;
+			role: string;
+			name?: string | null;
+			email?: string | null;
+	  }
+	| null
+	| undefined;
 
 /** Контекст запроса, нормализованный для контроллеров */
 export type CtrlCtx = {
@@ -48,9 +51,7 @@ export class ControllerError extends Error {
 }
 
 /** Обёртка form action: ControllerError → fail(), прочие исключения — наружу */
-export async function runAction<T>(
-	fn: () => Promise<T>
-): Promise<T | ReturnType<typeof fail>> {
+export async function runAction<T>(fn: () => Promise<T>): Promise<T | ReturnType<typeof fail>> {
 	try {
 		return await fn();
 	} catch (e) {

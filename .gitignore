@@ -30,3 +30,5 @@ tmp-export.xlsx
 
 # ПДн / разовые выгрузки — не коммитить
 fired.csv
+
+.check-logs/

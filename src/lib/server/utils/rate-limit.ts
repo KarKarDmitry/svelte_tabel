@@ -61,11 +61,14 @@ export function clearRateLimit(key: string) {
 }
 
 // Предохранитель от неограниченного роста Map при большом числе ключей
-setInterval(() => {
-	const cutoff = Date.now() - 60 * 60 * 1000;
-	for (const [k, e] of buckets) {
-		if (e.windowStart < cutoff && !(e.lockedUntil && e.lockedUntil > Date.now())) {
-			buckets.delete(k);
+setInterval(
+	() => {
+		const cutoff = Date.now() - 60 * 60 * 1000;
+		for (const [k, e] of buckets) {
+			if (e.windowStart < cutoff && !(e.lockedUntil && e.lockedUntil > Date.now())) {
+				buckets.delete(k);
+			}
 		}
-	}
-}, 60 * 60 * 1000).unref();
+	},
+	60 * 60 * 1000
+).unref();
