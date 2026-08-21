@@ -1,36 +1,31 @@
-import type { PageServerLoad } from './$types';
-import type { Actions } from './$types';
-import { fail } from '@sveltejs/kit';
-import { positionService } from '$lib/server/db/apps/tabel/services/position.service';
-import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
+import type { PageServerLoad, Actions } from './$types';
+import { runAction } from '$lib/server/context/controller';
+import {
+	positionsData,
+	positionCreate,
+	positionUpdate,
+	positionDelete
+} from '$lib/server/apps/tabel/directories';
 
-export const load: PageServerLoad = async (event) => {
-	const search = event.url.searchParams.get('search') || '';
-	let items = await positionService.list();
-	if (search) items = items.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
-	return { positions: items, search };
-};
+export const load: PageServerLoad = async (event) => positionsData(event.url);
 
 export const actions: Actions = {
-	create: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const name = (await event.request.formData()).get('name')?.toString();
-		if (!name) return fail(400);
-		await positionService.create({ name });
-		return { success: true };
-	},
-	update: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await positionService.update(Number(f.get('id')), { name: f.get('name')?.toString() || '' });
-		return { success: true };
-	},
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		await positionService.remove(Number((await event.request.formData()).get('id')));
-		return { success: true };
-	}
+	create: (event) =>
+		runAction(async () => {
+			const name = (await event.request.formData()).get('name')?.toString();
+			await positionCreate(event.locals.user, name);
+			return { success: true };
+		}),
+	update: (event) =>
+		runAction(async () => {
+			const f = await event.request.formData();
+			await positionUpdate(event.locals.user, Number(f.get('id')), f.get('name')?.toString());
+			return { success: true };
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await positionDelete(event.locals.user, id);
+			return { success: true };
+		})
 };

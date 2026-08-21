@@ -1,61 +1,40 @@
 import type { PageServerLoad, Actions } from './$types';
-import { departmentGroupService } from '$lib/server/db/apps/tabel/services/department-group.service';
-import { department } from '$lib/server/db/apps/tabel/tables/department';
-import { db } from '$lib/server/db';
-import { asc } from 'drizzle-orm';
-import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
 import { redirect } from '@sveltejs/kit';
+import { runAction } from '$lib/server/context/controller';
+import {
+	departmentGroupsData,
+	groupCreate,
+	groupUpdate,
+	groupRemove,
+	groupSaveDepts
+} from '$lib/server/apps/tabel/directories';
 
-export const load: PageServerLoad = async () => {
-	const groups = await departmentGroupService.listWithDepartments();
-	const allDepts = await db.select().from(department).orderBy(asc(department.name));
-	return { groups, allDepts };
-};
+export const load: PageServerLoad = async () => departmentGroupsData();
 
 export const actions: Actions = {
-	create: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await departmentGroupService.create({
-			name: f.get('name')?.toString() || '',
-			sortOrder: Number(f.get('sortOrder')) || 0
-		});
-		redirect(302, '/native/apps/tabel/directories/department-groups');
-	},
-
-	update: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await departmentGroupService.update(Number(f.get('id')), {
-			name: f.get('name')?.toString()
-		});
-		redirect(302, '/native/apps/tabel/directories/department-groups');
-	},
-
-	remove: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await departmentGroupService.remove(Number(f.get('id')));
-		redirect(302, '/native/apps/tabel/directories/department-groups');
-	},
-
-	saveDepts: async (event) => {
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const groupId = Number(f.get('groupId'));
-		const deptIds = f.getAll('departmentIds').map(Number);
-		const groups = await departmentGroupService.listWithDepartments();
-		const group = groups.find((g) => g.id === groupId);
-		if (!group) return { success: false };
-		const existing = group.departments.map((d) => d.departmentId);
-		const toRemove = existing.filter((id) => !deptIds.includes(id));
-		const toAdd = deptIds.filter((id) => !existing.includes(id));
-		if (toRemove.length) await departmentGroupService.removeDepartments(groupId, toRemove);
-		if (toAdd.length) await departmentGroupService.addDepartments(groupId, toAdd);
-		redirect(302, '/native/apps/tabel/directories/department-groups');
-	}
+	create: (event) =>
+		runAction(async () => {
+			await groupCreate(event.locals.user, await event.request.formData());
+			redirect(302, '/native/apps/tabel/directories/department-groups');
+		}),
+	update: (event) =>
+		runAction(async () => {
+			await groupUpdate(event.locals.user, await event.request.formData());
+			redirect(302, '/native/apps/tabel/directories/department-groups');
+		}),
+	remove: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await groupRemove(event.locals.user, id);
+			redirect(302, '/native/apps/tabel/directories/department-groups');
+		}),
+	saveDepts: (event) =>
+		runAction(async () => {
+			const f = await event.request.formData();
+			const groupId = Number(f.get('groupId'));
+			const deptIds = f.getAll('departmentIds').map(Number);
+			const ok = await groupSaveDepts(event.locals.user, groupId, deptIds);
+			if (!ok) return { success: false };
+			redirect(302, '/native/apps/tabel/directories/department-groups');
+		})
 };

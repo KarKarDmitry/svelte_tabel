@@ -11,7 +11,7 @@
 - [x] 1. tabel-core.ts + utils/day-style.ts → переподключка интерактивных эндпоинтов
         как делегатов (`eba15e5`)
 - [x] 2. Сотрудники [id]/*: контроллеры + делегирующие шеллы (оба дерева) (`e8b5480`)
-- [ ] 3. employees/create + список
+- [x] 3. employees/create + список (`dd69431`)
 - [ ] 4. directories/*
 - [ ] 5. calendar/*
 - [ ] 6. schedules/*

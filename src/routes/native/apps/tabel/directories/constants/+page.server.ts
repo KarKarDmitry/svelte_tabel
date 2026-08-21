@@ -1,41 +1,30 @@
 import type { PageServerLoad, Actions } from './$types';
-import { fail, redirect } from '@sveltejs/kit';
-import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
-import { denyIfNotAdmin, isAdmin } from '$lib/server/permissions';
+import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/permissions';
+import { runAction } from '$lib/server/context/controller';
+import { constantsData, constantUpsert, constantDelete } from '$lib/server/apps/tabel/directories';
 
 export const load: PageServerLoad = async (event) => {
-	if (!isAdmin(event.locals.user)) {
+	if (!isAdmin(event.locals.user))
 		throw redirect(303, '/native/apps/tabel/directories/departments');
-	}
-	const search = event.url.searchParams.get('search') || '';
-	let items = await appConstantService.list();
-	if (search) {
-		const q = search.toLowerCase();
-		items = items.filter(
-			(c) => c.key.toLowerCase().includes(q) || c.value.toLowerCase().includes(q)
-		);
-	}
-	return { constants: items, search };
+	return constantsData(event.url);
 };
 
 export const actions: Actions = {
-	upsert: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const key = f.get('key')?.toString() || '';
-		const value = f.get('value')?.toString() || '';
-		if (!key) return fail(400);
-		await appConstantService.upsert(key, value);
-		redirect(302, '/native/apps/tabel/directories/constants');
-	},
-
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const key = (await event.request.formData()).get('key')?.toString();
-		if (!key) return fail(400);
-		await appConstantService.remove(key);
-		redirect(302, '/native/apps/tabel/directories/constants');
-	}
+	upsert: (event) =>
+		runAction(async () => {
+			const f = await event.request.formData();
+			await constantUpsert(
+				event.locals.user,
+				f.get('key')?.toString() || '',
+				f.get('value')?.toString() || ''
+			);
+			redirect(302, '/native/apps/tabel/directories/constants');
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const key = (await event.request.formData()).get('key')?.toString();
+			await constantDelete(event.locals.user, key);
+			redirect(302, '/native/apps/tabel/directories/constants');
+		})
 };

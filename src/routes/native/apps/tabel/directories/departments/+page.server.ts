@@ -1,46 +1,36 @@
 import type { PageServerLoad, Actions } from './$types';
-import { fail, redirect } from '@sveltejs/kit';
-import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
-import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
+import { redirect } from '@sveltejs/kit';
+import { runAction } from '$lib/server/context/controller';
+import {
+	departmentsData,
+	departmentCreate,
+	departmentUpdate,
+	departmentDelete
+} from '$lib/server/apps/tabel/directories';
 
-export const load: PageServerLoad = async (event) => {
-	const search = event.url.searchParams.get('search') || '';
-	let deps = await departmentService.list();
-	if (search) {
-		const q = search.toLowerCase();
-		deps = deps.filter((d) => d.name.toLowerCase().includes(q));
-	}
-	return { departments: deps, search };
-};
+export const load: PageServerLoad = async (event) => departmentsData(event.url);
 
 export const actions: Actions = {
-	create: async (event) => {
-		// Подразделения создаёт только администратор
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const name = (await event.request.formData()).get('name')?.toString();
-		if (!name) return fail(400, { message: 'Название обязательно' });
-		await departmentService.create({ name });
-		redirect(302, '/native/apps/tabel/directories/departments');
-	},
-
-	update: async (event) => {
-		// Название могут редактировать admin и timekeeper
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const form = await event.request.formData();
-		const id = Number(form.get('id'));
-		const name = form.get('name')?.toString();
-		if (!name) return fail(400, { message: 'Название обязательно' });
-		await departmentService.update(id, { name });
-		redirect(302, '/native/apps/tabel/directories/departments');
-	},
-
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await departmentService.remove(id);
-		redirect(302, '/native/apps/tabel/directories/departments');
-	}
+	create: (event) =>
+		runAction(async () => {
+			const name = (await event.request.formData()).get('name')?.toString();
+			await departmentCreate(event.locals.user, name);
+			redirect(302, '/native/apps/tabel/directories/departments');
+		}),
+	update: (event) =>
+		runAction(async () => {
+			const form = await event.request.formData();
+			await departmentUpdate(
+				event.locals.user,
+				Number(form.get('id')),
+				form.get('name')?.toString()
+			);
+			redirect(302, '/native/apps/tabel/directories/departments');
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await departmentDelete(event.locals.user, id);
+			redirect(302, '/native/apps/tabel/directories/departments');
+		})
 };

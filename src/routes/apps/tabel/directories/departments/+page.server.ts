@@ -1,48 +1,35 @@
-import type { PageServerLoad } from './$types';
-import type { Actions } from './$types';
-import { fail } from '@sveltejs/kit';
-import { departmentService } from '$lib/server/db/apps/tabel/services/department.service';
-import { eq } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { department } from '$lib/server/db/apps/tabel/tables/department';
-import { denyIfNotAdmin, denyIfNoEdit } from '$lib/server/permissions';
+import type { PageServerLoad, Actions } from './$types';
+import { runAction } from '$lib/server/context/controller';
+import {
+	departmentsData,
+	departmentCreate,
+	departmentUpdate,
+	departmentDelete
+} from '$lib/server/apps/tabel/directories';
 
-export const load: PageServerLoad = async (event) => {
-	const search = event.url.searchParams.get('search') || '';
-	let deps = await departmentService.list();
-	if (search) {
-		const q = search.toLowerCase();
-		deps = deps.filter((d) => d.name.toLowerCase().includes(q));
-	}
-	return { departments: deps, search };
-};
+export const load: PageServerLoad = async (event) => departmentsData(event.url);
 
 export const actions: Actions = {
-	create: async (event) => {
-		// Подразделения создаёт только администратор
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const name = (await event.request.formData()).get('name')?.toString();
-		if (!name) return fail(400, { message: 'Название обязательно' });
-		await departmentService.create({ name });
-		return { success: true };
-	},
-	update: async (event) => {
-		// Название могут редактировать admin и timekeeper
-		const denied = denyIfNoEdit(event.locals.user);
-		if (denied) return denied;
-		const form = await event.request.formData();
-		const id = Number(form.get('id'));
-		const name = form.get('name')?.toString();
-		if (!name) return fail(400, { message: 'Название обязательно' });
-		await departmentService.update(id, { name });
-		return { success: true };
-	},
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await departmentService.remove(id);
-		return { success: true };
-	}
+	create: (event) =>
+		runAction(async () => {
+			const name = (await event.request.formData()).get('name')?.toString();
+			await departmentCreate(event.locals.user, name);
+			return { success: true };
+		}),
+	update: (event) =>
+		runAction(async () => {
+			const form = await event.request.formData();
+			await departmentUpdate(
+				event.locals.user,
+				Number(form.get('id')),
+				form.get('name')?.toString()
+			);
+			return { success: true };
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await departmentDelete(event.locals.user, id);
+			return { success: true };
+		})
 };

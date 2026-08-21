@@ -1,59 +1,29 @@
-import type { PageServerLoad } from './$types';
-import type { Actions } from './$types';
-import { fail, redirect } from '@sveltejs/kit';
-import { dayMarkService } from '$lib/server/db/apps/tabel/services/day-mark.service';
-import { denyIfNotAdmin, isAdmin } from '$lib/server/permissions';
+import type { PageServerLoad, Actions } from './$types';
+import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/permissions';
+import { runAction } from '$lib/server/context/controller';
+import { marksData, markCreate, markUpdate, markDelete } from '$lib/server/apps/tabel/directories';
 
 export const load: PageServerLoad = async (event) => {
-	if (!isAdmin(event.locals.user)) {
-		throw redirect(303, '/apps/tabel/directories');
-	}
-	const search = event.url.searchParams.get('search') || '';
-	let items = await dayMarkService.list();
-	if (search) {
-		const q = search.toLowerCase();
-		items = items.filter(
-			(m) =>
-				m.name.toLowerCase().includes(q) ||
-				m.shortName.toLowerCase().includes(q) ||
-				m.code.toLowerCase().includes(q)
-		);
-	}
-	return { dayMarks: items, search };
+	if (!isAdmin(event.locals.user)) throw redirect(303, '/apps/tabel/directories');
+	return marksData(event.url);
 };
 
 export const actions: Actions = {
-	create: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await dayMarkService.create({
-			name: f.get('name')?.toString() || '',
-			shortName: f.get('shortName')?.toString() || '',
-			code: f.get('code')?.toString() || '',
-			category: f.get('category')?.toString() as any,
-			reportExclude: f.get('reportExclude') === 'true'
-		});
-		return { success: true };
-	},
-	update: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		await dayMarkService.update(Number(f.get('id')), {
-			name: f.get('name')?.toString(),
-			shortName: f.get('shortName')?.toString(),
-			code: f.get('code')?.toString(),
-			category: f.get('category')?.toString() as any,
-			reportCode: f.get('reportCode')?.toString(),
-			reportExclude: f.get('reportExclude') === 'true'
-		});
-		return { success: true };
-	},
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		await dayMarkService.remove(Number((await event.request.formData()).get('id')));
-		return { success: true };
-	}
+	create: (event) =>
+		runAction(async () => {
+			await markCreate(event.locals.user, await event.request.formData());
+			return { success: true };
+		}),
+	update: (event) =>
+		runAction(async () => {
+			await markUpdate(event.locals.user, await event.request.formData());
+			return { success: true };
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await markDelete(event.locals.user, id);
+			return { success: true };
+		})
 };

@@ -1,55 +1,30 @@
 import type { PageServerLoad, Actions } from './$types';
-import { fail, redirect } from '@sveltejs/kit';
-import { passService } from '$lib/server/db/apps/tabel/services/pass.service';
-import { denyIfNotAdmin, isAdmin } from '$lib/server/permissions';
+import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/permissions';
+import { runAction } from '$lib/server/context/controller';
+import { passesData, passCreate, passUpdate, passDelete } from '$lib/server/apps/tabel/directories';
 
 export const load: PageServerLoad = async (event) => {
-	if (!isAdmin(event.locals.user)) {
+	if (!isAdmin(event.locals.user))
 		throw redirect(303, '/native/apps/tabel/directories/departments');
-	}
-	const seriaSearch = event.url.searchParams.get('seria') || '';
-	const numberSearch = event.url.searchParams.get('number') || '';
-	let passes = await passService.listWithOwners();
-	if (seriaSearch) {
-		const q = seriaSearch.toLowerCase();
-		passes = passes.filter((r: any) => r.pass.seria?.toLowerCase().includes(q));
-	}
-	if (numberSearch) {
-		const q = numberSearch.toLowerCase();
-		passes = passes.filter((r: any) => r.pass.number.toLowerCase().includes(q));
-	}
-	return { passes, seriaSearch, numberSearch };
+	return passesData(event.url);
 };
 
 export const actions: Actions = {
-	create: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const seria = f.get('seria')?.toString() || null;
-		const number = f.get('number')?.toString();
-		if (!number) return fail(400, { message: 'Номер обязателен' });
-		await passService.create({ seria, number });
-		redirect(302, '/native/apps/tabel/directories/passes');
-	},
-
-	update: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const f = await event.request.formData();
-		const id = Number(f.get('id'));
-		const seria = f.get('seria')?.toString() || null;
-		const number = f.get('number')?.toString();
-		if (!number) return fail(400, { message: 'Номер обязателен' });
-		await passService.update(id, { seria, number });
-		redirect(302, '/native/apps/tabel/directories/passes');
-	},
-
-	delete: async (event) => {
-		const denied = denyIfNotAdmin(event.locals.user);
-		if (denied) return denied;
-		const id = Number((await event.request.formData()).get('id'));
-		await passService.remove(id);
-		redirect(302, '/native/apps/tabel/directories/passes');
-	}
+	create: (event) =>
+		runAction(async () => {
+			await passCreate(event.locals.user, await event.request.formData());
+			redirect(302, '/native/apps/tabel/directories/passes');
+		}),
+	update: (event) =>
+		runAction(async () => {
+			await passUpdate(event.locals.user, await event.request.formData());
+			redirect(302, '/native/apps/tabel/directories/passes');
+		}),
+	delete: (event) =>
+		runAction(async () => {
+			const id = Number((await event.request.formData()).get('id'));
+			await passDelete(event.locals.user, id);
+			redirect(302, '/native/apps/tabel/directories/passes');
+		})
 };
