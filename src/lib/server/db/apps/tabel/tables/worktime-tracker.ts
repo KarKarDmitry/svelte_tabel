@@ -12,6 +12,7 @@ export const worktimeTracker = pgTable(
 		date: date('date').notNull(),
 		isNightShift: boolean('is_night_shift'),
 		dayMarkCode: text('day_mark_code'),
+		reportMarkCode: text('report_mark_code'),
 		extraMarkCode: text('extra_mark_code'),
 		extraMarkMinutes: integer('extra_mark_minutes'),
 		rawWorkTime: integer('raw_work_time'),
