@@ -148,7 +148,7 @@ export async function employeeWorktimeData(id: number, year?: number, month?: nu
 	for (let d = 1; d <= new Date(y, m, 0).getDate(); d++) {
 		const dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 		const rec = recordByDate.get(dateStr);
-		const rawCode = rec?.dayMarkCode ?? '';
+		const rawCode = rec?.reportMarkCode ?? rec?.dayMarkCode ?? '';
 		days.push({
 			date: dateStr,
 			dayMarkCode: markByCode.get(rawCode) ?? rawCode,
@@ -215,7 +215,7 @@ export async function employeeWorktimeNativeData(id: number, year?: number, mont
 		const rec = recordByDate.get(dateStr);
 		days.push({
 			date: dateStr,
-			dayMarkCode: rec?.dayMarkCode ?? null,
+			dayMarkCode: rec?.reportMarkCode ?? rec?.dayMarkCode ?? null,
 			rawWorkTime: rec?.rawWorkTime ?? null,
 			rawNightWorkTime: rec?.rawNightWorkTime ?? null,
 			shiftWorkTime: rec?.shiftWorkTime ?? null,

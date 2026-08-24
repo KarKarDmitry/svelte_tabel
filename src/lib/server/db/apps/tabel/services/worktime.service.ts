@@ -300,7 +300,7 @@ export const worktimeService = {
 					shiftNightWorkTime: rec?.shiftNightWorkTime ?? null,
 					rawWorkTime: rec?.rawWorkTime ?? null,
 					rawNightWorkTime: rec?.rawNightWorkTime ?? null,
-					dayMarkCode: rec?.dayMarkCode ?? '',
+					dayMarkCode: rec?.reportMarkCode ?? rec?.dayMarkCode ?? '',
 					extraMarkCode: rec?.extraMarkCode ?? null,
 					extraMarkMinutes: rec?.extraMarkMinutes ?? null,
 					scheduleId: rec?.scheduleId ?? null
@@ -439,12 +439,12 @@ export const worktimeService = {
 			updatedBy: updatedBy ?? null
 		};
 		if (!trimmed) {
-			// Пустая строка — полностью очищаем день (метка и часы)
-			updateData.dayMarkCode = null;
+			// Пустая строка — снимаем ручной оверрайд (день снова показывает факт импорта)
+			updateData.reportMarkCode = null;
 			updateData.reportWorkTime = null;
 			updateData.reportNightWorkTime = null;
 		} else {
-			updateData.dayMarkCode = markCode;
+			updateData.reportMarkCode = markCode;
 		}
 		if (extraMarkCode !== undefined) updateData.extraMarkCode = extraMarkCode ?? null;
 		if (extraMarkMinutes !== undefined) updateData.extraMarkMinutes = extraMarkMinutes ?? null;
@@ -456,7 +456,7 @@ export const worktimeService = {
 			const baseMark = hoursMatch[2];
 			const baseCode = codeByShort.get(baseMark) ?? baseMark;
 			const minutes = Math.round(hours * 60);
-			updateData.dayMarkCode = baseCode;
+			updateData.reportMarkCode = baseCode;
 			updateData.reportWorkTime = minutes;
 			updateData.reportNightWorkTime = baseCode === 'N' ? minutes : 0;
 		} else {
@@ -522,7 +522,8 @@ export const worktimeService = {
 			date: saved!.date,
 			reportWorkTime: saved!.reportWorkTime,
 			reportNightWorkTime: saved!.reportNightWorkTime,
-			dayMarkCode: saved!.dayMarkCode,
+			// Эффективная отметка: ручная перекрывает факт импорта
+			dayMarkCode: saved!.reportMarkCode ?? saved!.dayMarkCode,
 			extraMarkCode: saved!.extraMarkCode,
 			extraMarkMinutes: saved!.extraMarkMinutes
 		};
@@ -558,13 +559,13 @@ export const worktimeService = {
 					updatedBy: updatedBy ?? null
 				};
 				if (!trimmed) {
-					// Пустая метка — полностью очищаем день (метка и часы), как «» в одиночном методе
-					setData.dayMarkCode = null;
+					// Пустая метка — снимаем ручной оверрайд, как «» в одиночном методе
+					setData.reportMarkCode = null;
 					setData.reportWorkTime = null;
 					setData.reportNightWorkTime = null;
 				} else {
 					const markCode = codeByShort.get(trimmed) ?? trimmed;
-					setData.dayMarkCode = markCode;
+					setData.reportMarkCode = markCode;
 					if (u.minutes != null) {
 						setData.reportWorkTime = u.minutes;
 						setData.reportNightWorkTime = markCode === 'N' ? u.minutes : 0;
@@ -581,7 +582,8 @@ export const worktimeService = {
 					.returning();
 				if (saved) results.push(saved);
 			}
-			return results;
+			// dayMarkCode в возврате — эффективная отметка (ручная перекрывает факт)
+			return results.map((r) => ({ ...r, dayMarkCode: r.reportMarkCode ?? r.dayMarkCode }));
 		});
 	},
 

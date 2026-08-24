@@ -192,7 +192,8 @@ export async function getEmployeeEventsData(employeeId: number, year: number, mo
 	for (let d = 1; d <= lastDay; d++) {
 		const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 		const tracker = trackers.find((t) => t.date === dateStr);
-		const rawCode = tracker?.dayMarkCode ?? '';
+		// Эффективная отметка: ручная перекрывает факт импорта
+		const rawCode = tracker?.reportMarkCode ?? tracker?.dayMarkCode ?? '';
 		const style = cellStyle(
 			{
 				date: dateStr,
