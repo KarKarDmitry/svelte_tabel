@@ -19,3 +19,16 @@ SET day_mark_code = NULL
 WHERE report_mark_code IS NOT NULL
   AND day_mark_code IS NOT NULL
   AND day_mark_code NOT IN ('Я', 'Н');
+
+-- Восстановление факта у перекрытых дней:
+-- есть shift_work_time  -> факт 'Я' (работал по сменным данным);
+-- нет shift_work_time   -> факт пустой.
+UPDATE worktime_tracker
+SET day_mark_code = 'Я'
+WHERE report_mark_code IS NOT NULL
+  AND shift_work_time IS NOT NULL;
+
+UPDATE worktime_tracker
+SET day_mark_code = NULL
+WHERE report_mark_code IS NOT NULL
+  AND shift_work_time IS NULL;
