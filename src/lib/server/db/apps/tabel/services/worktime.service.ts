@@ -283,6 +283,8 @@ export const worktimeService = {
 						rawWorkTime: null,
 						rawNightWorkTime: null,
 						dayMarkCode: '',
+						factMarkCode: '',
+						reportMarkCode: null,
 						extraMarkCode: null,
 						extraMarkMinutes: null,
 						scheduleId: null
@@ -301,6 +303,8 @@ export const worktimeService = {
 					rawWorkTime: rec?.rawWorkTime ?? null,
 					rawNightWorkTime: rec?.rawNightWorkTime ?? null,
 					dayMarkCode: rec?.reportMarkCode ?? rec?.dayMarkCode ?? '',
+					factMarkCode: rec?.dayMarkCode ?? '',
+					reportMarkCode: rec?.reportMarkCode ?? null,
 					extraMarkCode: rec?.extraMarkCode ?? null,
 					extraMarkMinutes: rec?.extraMarkMinutes ?? null,
 					scheduleId: rec?.scheduleId ?? null
@@ -524,6 +528,7 @@ export const worktimeService = {
 			reportNightWorkTime: saved!.reportNightWorkTime,
 			// Эффективная отметка: ручная перекрывает факт импорта
 			dayMarkCode: saved!.reportMarkCode ?? saved!.dayMarkCode,
+			reportMarkCode: saved!.reportMarkCode,
 			extraMarkCode: saved!.extraMarkCode,
 			extraMarkMinutes: saved!.extraMarkMinutes
 		};

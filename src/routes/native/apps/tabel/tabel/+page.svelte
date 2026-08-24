@@ -94,7 +94,8 @@
 			return {
 				date: day.date,
 				dayNum: Number(day.date.split('-')[2]),
-				mark: getDayMark(day.dayMarkCode),
+				// В режиме «Фактическое время» показываем метку факта импорта
+				mark: getDayMark(showActual ? day.factMarkCode || '' : day.dayMarkCode),
 				blocked: day.blocked ?? false,
 				missing: hasShortage ? stdMin - workMinutes : 0,
 				hours: fmt(workTime) + (hasReport && !showActual ? '*' : ''),

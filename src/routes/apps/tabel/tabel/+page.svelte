@@ -257,6 +257,7 @@
 		reportWorkTime: number | null;
 		reportNightWorkTime: number | null;
 		dayMarkCode: string | null;
+		reportMarkCode?: string | null;
 		extraMarkCode?: string | null;
 		extraMarkMinutes?: number | null;
 	}) {
@@ -279,6 +280,7 @@
 						day.reportWorkTime = updated.reportWorkTime;
 						day.reportNightWorkTime = updated.reportNightWorkTime;
 						day.dayMarkCode = updated.dayMarkCode ?? '';
+						day.reportMarkCode = updated.reportMarkCode ?? null;
 						if (updated.extraMarkCode !== undefined) day.extraMarkCode = updated.extraMarkCode;
 						if (updated.extraMarkMinutes !== undefined)
 							day.extraMarkMinutes = updated.extraMarkMinutes;

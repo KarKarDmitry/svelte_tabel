@@ -126,12 +126,15 @@
 			totalReport += workTime ?? 0;
 			totalNight += nightTime ?? 0;
 
+			// В режиме «Фактическое время» показываем метку факта импорта, иначе — эффективную
+			const displayMark = showActual ? (day.factMarkCode ?? '') : day.dayMarkCode;
+
 			markRow[`day_${index + 1}`] = {
-				value: getDayMark(day.dayMarkCode),
+				value: getDayMark(displayMark),
 				date: day.date,
 				reportWorkTime: day.reportWorkTime,
 				shiftWorkTime: day.shiftWorkTime,
-				dayMarkCode: day.dayMarkCode,
+				dayMarkCode: displayMark,
 				blocked: day.blocked ?? false,
 				missingMinutes: hasShortage ? stdMin - workMinutes : 0,
 				extraMarkCode: day.extraMarkCode ?? null,
