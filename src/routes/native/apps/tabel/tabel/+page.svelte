@@ -143,7 +143,13 @@
 		// --- Сохранение отметок с debounce (как в основном табеле) ---
 		var nativeTimers = {};
 		var NATIVE_MARKS_URL = '/native/apps/tabel/tabel/marks';
-		var NATIVE_ACTUAL = {data.actual ? 1 : 0};
+
+		// Режим «Фактическое время» читаем из data-атрибута на теле страницы:
+		// Svelte не вычисляет {…} внутри <script>, литерал ломает парсинг всего блока.
+		function nativeActual() {
+			var el = document.getElementById('tabel_state');
+			return el ? Number(el.getAttribute('data-actual')) || 0 : 0;
+		}
 
 		function nativeSchedule(empId, date, value) {
 			var key = empId + '_' + date;
@@ -198,7 +204,7 @@
 			hoursCell.setAttribute('data-minutes', newMin);
 			hoursCell.setAttribute('data-night', newNight);
 			// Звёздочка — отчётные значения проставлены (в режиме «фактическое» не показываем)
-			var star = NATIVE_ACTUAL
+			var star = nativeActual()
 				? ''
 				: updated.reportWorkTime != null || updated.reportNightWorkTime != null
 					? '*'
@@ -248,6 +254,24 @@
 			nativeSchedule(empId, date, target.value.toUpperCase());
 		};
 
+		// Enter в поле метки — немедленная отправка (таймер отменяется)
+		document.onkeydown = function (e) {
+			e = e || window.event;
+			var target = e.target || e.srcElement;
+			if (!target || !target.name) return;
+			var parts = target.name.split('_');
+			if (parts.length < 3 || parts[0] !== 'mark') return;
+			var key = e.keyCode || e.which;
+			if (key !== 13) return;
+			if (nativeTimers[target.name]) {
+				clearTimeout(nativeTimers[target.name]);
+				nativeTimers[target.name] = null;
+			}
+			nativeSend(parts[1], parts.slice(2).join('_'), target.value.toUpperCase());
+			if (target.blur) target.blur();
+			return false;
+		};
+
 		// Клик по строке часов — открыть диалог событий сотрудника
 		document.onclick = function (e) {
 			e = e || window.event;
@@ -270,14 +294,17 @@
 
 <h1 class="native-title">Табель — {months[data.month - 1]} {data.year}</h1>
 
+<!-- Носитель состояния для инлайн-скрипта (Svelte не интерполирует {…} в <script>) -->
+<div id="tabel_state" data-actual={data.actual ? 1 : 0} style="display: none"></div>
+
 <div class="native-navlinks">
-	<a href={qs(nav.prev)}
-		><ArrowLeft size={14} style="vertical-align:middle" />&nbsp;{months[nav.prev.month - 1]}</a
-	>
+	<a href={qs(nav.prev)}>
+		<ArrowLeft size={14} style="vertical-align:middle" />&nbsp;{months[nav.prev.month - 1]}
+	</a>
 	<a href={qs({ year: data.year, month: data.month })}>Текущий месяц</a>
-	<a href={qs(nav.next)}
-		>{months[nav.next.month - 1]}&nbsp;<ArrowRight size={14} style="vertical-align:middle" /></a
-	>
+	<a href={qs(nav.next)}>
+		{months[nav.next.month - 1]}&nbsp;<ArrowRight size={14} style="vertical-align:middle" />
+	</a>
 	<span class="native-sep">|</span>
 	{#if data.actual}
 		<a href={`?year=${data.year}&month=${data.month}&actual=0`}> Отчетное время </a>
