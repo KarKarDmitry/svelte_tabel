@@ -256,12 +256,28 @@ function xpEmpSave() {
 	xhr.setRequestHeader('Content-Type', 'application/json');
 	xhr.onreadystatechange = function () {
 		if (xhr.readyState !== 4) return;
-		if (xhr.status === 200) {
+		var resp = null;
+		try {
+			resp = JSON.parse(xhr.responseText);
+		} catch (e) {}
+		if (xhr.status === 200 && resp && resp.ok && resp.updated && resp.updated.length) {
 			xpDialogClose(xpEmpDialogId);
+			// Точечный патч грида без перезагрузки (nativeApply — со страницы табеля)
+			if (typeof nativeApply === 'function') {
+				for (var i = 0; i < resp.updated.length; i++) {
+					var u = resp.updated[i];
+					nativeApply(u);
+					var inp = document.querySelector(
+						'input[name="mark_' + u.employeeId + '_' + u.date + '"]'
+					);
+					if (inp) inp.value = u.shortName || '';
+				}
+				return;
+			}
 			location.reload();
-		} else {
-			alert('Ошибка сохранения (' + xhr.status + ')');
+			return;
 		}
+		alert('Ошибка сохранения (' + xhr.status + ')');
 	};
 	xhr.send(
 		JSON.stringify({

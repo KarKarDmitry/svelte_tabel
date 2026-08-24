@@ -15,6 +15,8 @@ import { turnstileEvent } from '../tables/turnstile-event';
 import { pass } from '../tables/pass';
 import { worktimeTracker } from '../tables/worktime-tracker';
 import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
+import { dayMarkService } from './day-mark.service';
+import { buildStyles } from '$lib/server/apps/tabel/utils/day-style';
 import { db } from '$lib/server/db';
 import { eq, and, or, gte, lte, isNull } from 'drizzle-orm';
 
@@ -291,6 +293,8 @@ export async function saveEmployeeEvents(
 		dayMarkCode: string | null;
 		extraMarkCode?: string | null;
 		extraMarkMinutes?: number | null;
+		shortName?: string;
+		style?: string;
 	}> = [];
 
 	for (const day of days) {
@@ -347,6 +351,27 @@ export async function saveEmployeeEvents(
 			extraMarkCode: day.extraMarkCode?.trim() || result.extraMarkCode || null,
 			extraMarkMinutes: day.extraMarkMinutes ?? result.extraMarkMinutes ?? null
 		});
+	}
+
+	// Стили и shortName для точечного патча грида без перезагрузки (native)
+	if (updated.length > 0) {
+		const allMarks = await dayMarkService.list();
+		const codeToShort = new Map(allMarks.map((m) => [m.code, m.shortName]));
+		const styled = await buildStyles(
+			updated.map((u) => ({
+				employeeId: u.employeeId,
+				date: u.date,
+				dayMarkCode: u.dayMarkCode,
+				reportWorkTime: u.reportWorkTime
+			}))
+		);
+		for (let i = 0; i < updated.length; i++) {
+			updated[i].shortName =
+				updated[i].dayMarkCode != null
+					? (codeToShort.get(updated[i].dayMarkCode!) ?? updated[i].dayMarkCode!)
+					: '';
+			updated[i].style = styled[i]?.style ?? '';
+		}
 	}
 
 	return updated;

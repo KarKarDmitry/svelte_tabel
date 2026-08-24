@@ -247,6 +247,7 @@
 			e = e || window.event;
 			var target = e.target || e.srcElement;
 			if (!target || !target.name) return;
+			if (target.name.indexOf('__') !== -1) return; // поля диалога «События сотрудника»
 			var parts = target.name.split('_');
 			if (parts.length < 3 || parts[0] !== 'mark') return;
 			var empId = parts[1];
@@ -259,6 +260,7 @@
 			e = e || window.event;
 			var target = e.target || e.srcElement;
 			if (!target || !target.name) return;
+			if (target.name.indexOf('__') !== -1) return; // поля диалога: сохранение только по кнопке
 			var parts = target.name.split('_');
 			if (parts.length < 3 || parts[0] !== 'mark') return;
 			var key = e.keyCode || e.which;
