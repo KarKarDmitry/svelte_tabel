@@ -12,3 +12,10 @@ WHERE day_mark_code IS NOT NULL
     OR report_work_time IS NOT NULL
     OR report_night_work_time IS NOT NULL
   );
+-- Очистка факта от ручных/унаследованных меток (значение уже в report_mark_code):
+-- day_mark_code должен содержать только факт импорта турникета ('Я'/'Н').
+UPDATE worktime_tracker
+SET day_mark_code = NULL
+WHERE report_mark_code IS NOT NULL
+  AND day_mark_code IS NOT NULL
+  AND day_mark_code NOT IN ('Я', 'Н');
