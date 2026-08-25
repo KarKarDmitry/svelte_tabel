@@ -97,6 +97,7 @@
 			number: '',
 			lastName: '',
 			firstName: '',
+			positionName: emp.positionName ?? '',
 			schedule: emp.schedule
 		};
 

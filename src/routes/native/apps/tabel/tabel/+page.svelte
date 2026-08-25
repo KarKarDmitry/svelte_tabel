@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
+	import { cellStyle, esc } from '$lib/apps/tabel/utils';
 	import {
 		Collapsible,
 		SubCollapsible,
@@ -157,7 +157,7 @@
 			nativeTimers[key] = setTimeout(function () {
 				nativeTimers[key] = null;
 				nativeSend(empId, date, value);
-			}, 600);
+			}, 10);
 		}
 
 		function nativeSend(empId, date, value) {
@@ -383,7 +383,9 @@
 
 <div>
 	{#each data.departments as group, gi}
-		<Collapsible id={`grp_${gi}`} title={group.name}>
+		{@const id = `grp_${gi}`}
+		{@const title = group.name}
+		<Collapsible {id} {title}>
 			{#each group.departments as dept, di}
 				<SubCollapsible id={`dept_${gi}_${di}`} title={dept.name}>
 					{#if data.canEdit}
@@ -436,7 +438,10 @@
 									</tr>
 									<tr class="native-marks">
 										<td class="cell cell-sticky cell-num"></td>
-										<td class="cell cell-sticky cell-fio"></td>
+										<!-- Должность на дату сегмента (при отсутствии — пусто) -->
+										<td class="cell cell-sticky cell-fio" style="color: #6b7280">
+											{emp.positionName ?? ''}
+										</td>
 										<td class="cell cell-left" colspan="2"></td>
 										{#each Array(data.lastDay) as _, i}
 											{@const c = r.cell(i + 1)}
@@ -466,6 +471,7 @@
 					</div>
 				</SubCollapsible>
 			{/each}
+			{@html `<button class="native-btn native-btn-small" onclick="xpToggle('${esc(id)}')">Свернуть</button>`}
 		</Collapsible>
 	{/each}
 </div>

@@ -38,6 +38,7 @@
 		number: string;
 		lastName: string;
 		firstName: string;
+		positionName?: string;
 		totalReport?: number;
 		totalNight?: number;
 		schedule?: any;
@@ -529,7 +530,10 @@
 
 {#snippet employeeCell(_: any, row: TabelRow)}
 	{#if row.type === 'mark'}
-		<div class="h-9 border-muted-foreground px-1 text-muted-foreground">отметки</div>
+		<!-- Должность на дату сегмента (при отсутствии — пусто) -->
+		<div class="h-9 truncate border-muted-foreground px-1 text-muted-foreground">
+			{row.positionName ?? ''}
+		</div>
 	{:else}
 		<div class="flex h-7 min-w-0 items-center gap-1 px-1">
 			<div class="font-mono font-bold tabular-nums">

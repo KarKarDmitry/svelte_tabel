@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { esc } from '$lib/apps/tabel/utils';
 
 	let {
 		id,
@@ -10,15 +11,6 @@
 		title: string;
 		children: Snippet;
 	} = $props();
-
-	function esc(s: string): string {
-		return String(s)
-			.replace(/&/g, '&amp;')
-			.replace(/</g, '&lt;')
-			.replace(/>/g, '&gt;')
-			.replace(/"/g, '&quot;')
-			.replace(/'/g, '&#39;');
-	}
 
 	// Заголовок через {@html}: Svelte запрещает строковые onclick на элементах.
 	// По умолчанию группа свёрнута (xp-content: display:none, индикатор [+])
