@@ -439,7 +439,7 @@
 									<tr class="native-marks">
 										<td class="cell cell-sticky cell-num"></td>
 										<!-- Должность на дату сегмента (при отсутствии — пусто) -->
-										<td class="cell cell-sticky cell-fio" style="color: #6b7280">
+										<td class="cell cell-sticky cell-left cell-fio" style="color: #6b7280">
 											{emp.positionName ?? ''}
 										</td>
 										<td class="cell cell-left" colspan="2"></td>

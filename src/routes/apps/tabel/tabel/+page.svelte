@@ -531,7 +531,7 @@
 {#snippet employeeCell(_: any, row: TabelRow)}
 	{#if row.type === 'mark'}
 		<!-- Должность на дату сегмента (при отсутствии — пусто) -->
-		<div class="h-9 truncate border-muted-foreground px-1 text-muted-foreground">
+		<div class="truncate border-muted-foreground px-1">
 			{row.positionName ?? ''}
 		</div>
 	{:else}
