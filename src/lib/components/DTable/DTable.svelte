@@ -119,7 +119,7 @@
 				</div>
 				{#if filters.length > 0}
 					<Button variant="outline" size="sm" onclick={() => (filterOpen = true)} class="md:hidden"
-						>Фильтры</Button
+					    >Фильтры</Button
 					>
 				{/if}
 			{/if}

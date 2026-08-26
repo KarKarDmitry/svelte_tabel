@@ -32,6 +32,7 @@
 - Общая расцветка ячеек — `$lib/apps/tabel/utils/cell-style.ts`; НЕ плодить копии в деревьях. Приоритет правил: работа в выходной **раньше** переработки/недоработки.
 - Отметки дня разделены на две колонки `worktime_tracker`: `day_mark_code` — ФАКТ импорта турникета (`'Я'/'Н'`, пишет только импорт), `report_mark_code` — ручная отметка табельщика (пишут `updateDayMark`/`bulkUpdateDayMarks`; очистка = снять оверрайд). Эффективная отметка для отображения/экспорта = `report ?? fact`; merge при чтении: `getMonthGrouped`, `getEmployeeEventsData`, контроллеры `turnstile.ts`. В API день несёт все три поля: `dayMarkCode`(effective)/`factMarkCode`/`reportMarkCode`.
 - Новые секреты — только в `.env` (в git не коммитить), фолбэков-секретов не оставлять.
+- Файловые логгеры — только через фабрику `src/lib/server/utils/file-logger.ts` (`createFileLogger({name, dir?, level?, minLength?})`: ротация по дням, env-override `<NAME>_LOG_LEVEL`, `schedule(fn, sec)` для периодических снапшотов); pino.destination вручную не использовать. Пример: кэш пишет в `logs/cache/` (буфер 1, статистика по `CACHE_STATS_SEC`).
 - Не дублировать логику между `/apps` и `/native/apps` — общий код в `src/lib/`.
 
 ## Деревья маршрутов

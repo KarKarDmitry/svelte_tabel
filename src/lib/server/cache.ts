@@ -8,25 +8,42 @@
  * Внепроцессные записи в БД (мимо сервисов) устаревают по TTL — осознанно.
  */
 
-type Entry = { value: unknown; expiresAt: number; tags: string[] };
+import { createFileLogger } from '$lib/server/utils/file-logger';
+
+type Entry = { value: unknown; expiresAt: number; ttlMs: number; tags: string[] };
 
 const MAX_ENTRIES = 500;
+
+// Файловый логгер кэша (logs/cache/), буфер 1 — записи на диск немедленно
+const clog = createFileLogger({ name: 'cache', minLength: 1 });
 
 const entries = new Map<string, Entry>();
 const inflight = new Map<string, Promise<unknown>>();
 
 let hits = 0;
 let misses = 0;
+let statsScheduled = false;
+
+/** Ленивый запуск периодической статистики: CACHE_STATS_SEC=N (0/не задано — выкл) */
+function scheduleStatsOnce(): void {
+	if (statsScheduled) return;
+	statsScheduled = true;
+	const sec = Number(process.env.CACHE_STATS_SEC ?? 0);
+	if (sec > 0) {
+		clog.schedule(() => ({ size: entries.size, hits, misses }), sec);
+	}
+}
 
 function enabled(): boolean {
 	return process.env.CACHE_ENABLED !== '0';
 }
 
-/** LRU: пере-вставка перемещает ключ в конец Map (хвост = недавно использованные) */
+/** LRU + скользящий TTL: пере-вставка перемещает ключ в конец Map и продлевает жизнь записи */
 function touch(key: string): void {
 	const e = entries.get(key);
 	if (e) {
 		entries.delete(key);
+		e.expiresAt = Date.now() + e.ttlMs;
 		entries.set(key, e);
 	}
 }
@@ -48,6 +65,8 @@ export async function remember<T>(
 ): Promise<T> {
 	if (!enabled()) return loader();
 
+	scheduleStatsOnce();
+
 	const now = Date.now();
 	const hit = entries.get(key);
 	if (hit && hit.expiresAt > now) {
@@ -55,7 +74,6 @@ export async function remember<T>(
 		touch(key);
 		return hit.value as T;
 	}
-
 	const running = inflight.get(key);
 	if (running) return running as Promise<T>;
 
@@ -63,9 +81,16 @@ export async function remember<T>(
 
 	const promise = (async () => {
 		try {
+			const started = Date.now();
 			const value = await loader();
 			evictOldest();
-			entries.set(key, { value, expiresAt: Date.now() + ttlSec * 1000, tags });
+			entries.set(key, {
+				value,
+				expiresAt: Date.now() + ttlSec * 1000,
+				ttlMs: ttlSec * 1000,
+				tags
+			});
+			clog.info(`[build] ${key} за ${Date.now() - started}мс`);
 			return value;
 		} finally {
 			inflight.delete(key);
@@ -86,9 +111,14 @@ export function update<T>(key: string, mutator: (value: T) => T): void {
 
 /** Сброс всех записей, содержащих любой из перечисленных тегов */
 export function invalidate(...tags: string[]): void {
+	let removed = 0;
 	for (const [key, e] of [...entries]) {
-		if (e.tags.some((t) => tags.includes(t))) entries.delete(key);
+		if (e.tags.some((t) => tags.includes(t))) {
+			entries.delete(key);
+			removed++;
+		}
 	}
+	if (removed > 0) clog.info(`[invalidate] ${JSON.stringify(tags)} — удалено ${removed}`);
 }
 
 export function invalidateAll(): void {

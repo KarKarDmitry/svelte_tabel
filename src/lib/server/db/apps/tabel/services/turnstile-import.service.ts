@@ -19,7 +19,11 @@ import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
 import { and, between, desc, eq, gte, inArray, isNull, lte, lt, sql } from 'drizzle-orm';
 import XLSX from 'xlsx';
-import { log, flushImportLog } from './import-logger';
+import { createFileLogger } from '$lib/server/utils/file-logger';
+
+const importLogFile = createFileLogger({ name: 'import' });
+const log = importLogFile.info;
+const flushImportLog = () => importLogFile.flush();
 import { profReset, profMark, profLog } from './import-profile';
 import { invalidate } from '$lib/server/cache';
 

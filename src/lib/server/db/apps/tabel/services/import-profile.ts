@@ -1,7 +1,10 @@
 /* Локальный профайлер конвейера импорта (по образцу T-12_builder.ts).
    Метки между фазами; сводка по завершении — console.table + запись в лог импорта. */
 
-import { log } from './import-logger';
+import { createFileLogger } from '$lib/server/utils/file-logger';
+
+const fileLog = createFileLogger({ name: 'import' });
+const log = fileLog.info;
 
 type Mark = { name: string; t: number };
 

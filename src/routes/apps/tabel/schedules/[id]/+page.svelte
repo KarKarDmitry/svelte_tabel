@@ -313,7 +313,7 @@
 									>
 										{pt.type === 'Break' ? '◉' : pt.type === 'Entry' ? '●' : '✕'}
 									</span>
-									<span class="mt-0.5 text-[10px] font-medium whitespace-nowrap">
+									<span class="  mt-0.5 text-[10px] font-medium whitespace-nowrap">
 										{pt.type === 'Break' ? `${pt.time}-${pt.endTime}` : pt.time}
 									</span>
 								</button>
@@ -352,7 +352,7 @@
 							onclick={canEdit ? () => openEdit(pt) : undefined}
 						>
 							<CardContent class="flex items-center justify-between gap-4 p-3">
-								<div class="flex items-center gap-0.5">
+								<div class="flex flex-row items-center gap-1">
 									{#if canEdit}
 										<Button
 											variant="ghost"
@@ -375,13 +375,13 @@
 											}}>▼</Button
 										>
 									{/if}
-								</div>
-								<div class="h-3 w-3 rounded-full {pointColors[pt.type]}"></div>
-								<div>
-									<span class="font-medium">{pointLabels[pt.type]}</span>
-									<span class="ml-2 text-muted-foreground">
-										{pt.type === 'Break' ? `${pt.time} — ${pt.endTime}` : pt.time}
-									</span>
+									<div class="h-3 w-3 rounded-full {pointColors[pt.type]}"></div>
+									<div>
+										<span class="font-medium">{pointLabels[pt.type]}</span>
+										<span class="ml-2 text-muted-foreground">
+											{pt.type === 'Break' ? `${pt.time} — ${pt.endTime}` : pt.time}
+										</span>
+									</div>
 								</div>
 								<div class="flex items-center gap-4 text-sm text-muted-foreground">
 									<span title="Можно раньше / Можно позже"
