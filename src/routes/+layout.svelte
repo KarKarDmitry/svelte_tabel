@@ -180,7 +180,7 @@
 		<div class="flex min-h-0 flex-1 flex-col md:flex-row">
 			<!-- Сначала контент: раздел (внутри) успевает зарегистрировать навигацию,
 					поэтому сайдбар рендерится уже с кнопками и при SSR -->
-			<SidebarInset class="overflow-hidden p-6">
+			<SidebarInset class="overflow-hidden p-2 md:p-6">
 				{@render children()}
 			</SidebarInset>
 			<div class="md:order-first">
