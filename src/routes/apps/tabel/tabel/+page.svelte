@@ -10,24 +10,17 @@
 		CollapsibleContent,
 		CollapsibleTrigger
 	} from '$lib/components/ui/collapsible';
-	import { Dialog, DialogContent } from '$lib/components/ui/dialog';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 	import ArrowRight from '@lucide/svelte/icons/arrow-right';
 	import DepartmentCard from './DepartmentCard.svelte';
 	import EmployeeEventsModal from './EmployeeEventsModal.svelte';
-	import ExportProgress from './ExportProgress.svelte';
 	import BulkAssignDialog from './BulkAssignDialog.svelte';
+	import ExportDialog from './ExportDialog.svelte';
 	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 
-	import { Input } from '$lib/components/ui/input';
-	import { Select, SelectTrigger, SelectContent, SelectItem } from '$lib/components/ui/select';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Checkbox } from '$lib/components/ui/checkbox';
 	import { Label } from '$lib/components/ui/label';
-	import { Popover, PopoverTrigger, PopoverContent } from '$lib/components/ui/popover';
-	import { Separator } from '$lib/components/ui/separator';
-	import CircleQuestionMarkIcon from '@lucide/svelte/icons/circle-question-mark';
 	import { toast } from 'svelte-sonner';
 	import { mode } from 'mode-watcher';
 
@@ -81,6 +74,7 @@
 	let modalPosName = $state('');
 
 	// Быстрое назначение: один диалог на страницу, открывается для выбранного подразделения
+	let exportOpen = $state(false);
 	let bulkDept = $state<any>(null);
 	let bulkOpen = $state(false);
 
@@ -338,200 +332,6 @@
 		goto(`/apps/tabel/tabel?${params.toString()}`, { invalidateAll: true });
 	}
 
-	// Состояние для экспорта
-	let exportOpen = $state(false);
-	let exportStarted = $state(false);
-
-	let exportSettings = $state({
-		calendarId: '0',
-		rounding: false,
-		showNight: true,
-		showOvertime: false,
-		showHoliday: true,
-		showAbsence: true,
-		autoAbsence: false
-	});
-
-	// Параметры округления (заполняются из константы ROUNDING_RULES при открытии диалога)
-	let roundingParams = $state({
-		roundingPoint: '',
-		roundingFrom: '',
-		roundingTo: '',
-		standardLeft: '',
-		standardRight: ''
-	});
-
-	let exportEs: EventSource | null = null;
-	const EXPORT_TOAST_ID = 'export-progress';
-
-	function cancelExport() {
-		exportEs?.close();
-		exportEs = null;
-		exportStarted = false;
-		toast.dismiss(EXPORT_TOAST_ID);
-	}
-
-	const yearCalendars = $derived(calendars.filter((c: any) => c.year === year));
-	const calendarLabel = $derived(
-		yearCalendars.find((c: any) => String(c.id) === exportSettings.calendarId)?.name ??
-			'Без календаря'
-	);
-
-	function openExportDialog() {
-		// По умолчанию — основной календарь года
-		const def = yearCalendars.find((c: any) => c.isDefault) ?? yearCalendars[0];
-		exportSettings = {
-			...exportSettings,
-			calendarId: def ? String(def.id) : '0'
-		};
-
-		// Заполняем параметры округления из константы ROUNDING_RULES
-		const rr = data.roundingRules as Record<string, unknown> | null;
-		roundingParams = {
-			roundingPoint: rr?.roundingPoint != null ? String(rr.roundingPoint) : '',
-			roundingFrom: rr?.roundingFrom != null ? String(rr.roundingFrom) : '',
-			roundingTo: rr?.roundingTo != null ? String(rr.roundingTo) : '',
-			standardLeft: rr?.standardLeft != null ? String(rr.standardLeft) : '',
-			standardRight: rr?.standardRight != null ? String(rr.standardRight) : ''
-		};
-
-		exportStarted = false;
-		exportOpen = true;
-	}
-
-	async function exportExcel() {
-		exportStarted = true;
-		// Диалог параметров закрываем — прогресс показываем тостом
-		exportOpen = false;
-
-		const params = new URLSearchParams({
-			year: String(year),
-			month: String(month),
-			showNight: exportSettings.showNight ? '1' : '0',
-			showOvertime: exportSettings.showOvertime ? '1' : '0',
-			showHoliday: exportSettings.showHoliday ? '1' : '0',
-			showAbsence: exportSettings.showAbsence ? '1' : '0',
-			rounding: exportSettings.rounding ? '1' : '0',
-			autoAbsence: exportSettings.autoAbsence ? '1' : '0'
-		});
-		if (exportSettings.calendarId !== '0') params.set('calendarId', exportSettings.calendarId);
-		if (exportSettings.rounding) {
-			const num = (v: string, def: number | null) => (v === '' ? def : Number(v));
-			params.set(
-				'roundingParams',
-				JSON.stringify({
-					roundingPoint: num(roundingParams.roundingPoint, null),
-					roundingFrom: num(roundingParams.roundingFrom, null),
-					roundingTo: num(roundingParams.roundingTo, null),
-					standardLeft: num(roundingParams.standardLeft, 0),
-					standardRight: num(roundingParams.standardRight, 0)
-				})
-			);
-		}
-
-		const es = new EventSource(`/apps/tabel/tabel/export/stream?${params.toString()}`);
-		exportEs = es;
-
-		const showProgress = (data: any) =>
-			toast.message(ExportProgress, {
-				id: EXPORT_TOAST_ID,
-				duration: Infinity,
-				component: ExportProgress,
-				componentProps: {
-					progress: data.stage ?? data.progress ?? 'Формирование отчёта…',
-					division: data.stage ? '' : data.division,
-					employee: data.stage ? '' : data.employee,
-					current: data.stage ? 0 : data.current,
-					total: data.stage ? 0 : data.total,
-					onCancel: cancelExport
-				}
-			});
-
-		// Начальный тост — подготовка данных
-		showProgress({ progress: 'Подготовка данных…' });
-
-		es.onmessage = (e) => {
-			const data = JSON.parse(e.data);
-
-			if (data.type === 'done') {
-				es.close();
-				exportEs = null;
-				exportStarted = false;
-				toast.dismiss(EXPORT_TOAST_ID);
-				// Скачиваем файл
-				const byteChars = atob(data.base64);
-				const byteNums = new Array(byteChars.length);
-				for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-				const blob = new Blob([new Uint8Array(byteNums)], {
-					type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-				});
-				const url = URL.createObjectURL(blob);
-				const a = document.createElement('a');
-				a.href = url;
-				a.download = data.filename;
-				a.click();
-				URL.revokeObjectURL(url);
-				toast.success(`Файл «${data.filename}» сформирован`);
-			} else if (data.type === 'error') {
-				es.close();
-				exportEs = null;
-				exportStarted = false;
-				toast.dismiss(EXPORT_TOAST_ID);
-				console.error(data.error);
-				toast.error(data.error ?? 'Ошибка формирования отчёта');
-			} else {
-				showProgress(data);
-			}
-		};
-
-		es.onerror = () => {
-			es.close();
-			exportEs = null;
-			exportStarted = false;
-			toast.dismiss(EXPORT_TOAST_ID);
-			toast.error('Не удалось подключиться к серверу экспорта');
-		};
-	}
-
-	/** Enter в ячейке метки: немедленная отправка (если значение менялось) и фокус вправо;
-	 *  в конце строки — первый инпут следующей строки (следующий сотрудник) */
-	function markKeyDown(e: Event, empId: number, date: string, initial?: string | null) {
-		const ke = e as KeyboardEvent;
-		if (ke.key !== 'Enter') return;
-		ke.preventDefault();
-		const input = ke.currentTarget as HTMLInputElement;
-		const v = input.value.toUpperCase();
-		if (!markUnchanged(`${empId}-${date}`, v, initial)) {
-			queueUpdate(empId, date, v);
-			void flushUpdates();
-		}
-		focusNextDayInput(input);
-	}
-
-	function focusNextDayInput(el: HTMLElement): void {
-		const tr = el.closest('tr');
-		if (!tr) {
-			el.blur();
-			return;
-		}
-		const inputs = Array.from(tr.querySelectorAll('input'));
-		const idx = inputs.indexOf(el as HTMLInputElement);
-		if (idx >= 0 && idx < inputs.length - 1) {
-			inputs[idx + 1].focus();
-			return;
-		}
-		let node = tr.nextElementSibling;
-		while (node) {
-			const next = node.querySelector('input');
-			if (next) {
-				next.focus();
-				return;
-			}
-			node = node.nextElementSibling;
-		}
-		el.blur();
-	}
-
 	function dayColumns(lastDay: number) {
 		return Array.from({ length: lastDay }, (_, i) => {
 			const day = i + 1;
@@ -782,7 +582,7 @@
 		</div>
 
 		{#if canEdit}
-			<Button size="sm" onclick={openExportDialog}>Экспорт</Button>
+			<Button size="sm" onclick={() => (exportOpen = true)}>Экспорт</Button>
 		{/if}
 	</div>
 
@@ -846,123 +646,10 @@
 	{year}
 	{month}
 />
-
-<Dialog bind:open={exportOpen}>
-	<DialogContent>
-		<div class="flex flex-col gap-4">
-			<p class="font-medium">Параметры экспорта</p>
-
-			<!-- Календарь -->
-			<div class="flex flex-col gap-1">
-				<Label>Календарь</Label>
-				<Select type="single" bind:value={exportSettings.calendarId}>
-					<SelectTrigger class="w-full">
-						<span>{calendarLabel}</span>
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="0">Без календаря</SelectItem>
-						{#each yearCalendars as c (c.id)}
-							<SelectItem value={String(c.id)}>
-								{c.name}{c.isDefault ? ' (основной)' : ''}
-							</SelectItem>
-						{/each}
-					</SelectContent>
-				</Select>
-			</div>
-
-			<!-- Округление -->
-			<div class="flex flex-col gap-1">
-				<div class="flex items-center gap-2">
-					<Label class="flex flex-row items-center gap-2 text-sm">
-						<Checkbox bind:checked={exportSettings.rounding} />
-						Округлять часы
-					</Label>
-					<Popover>
-						<PopoverTrigger>
-							{#snippet child({ props })}
-								<button
-									type="button"
-									class="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-									aria-label="Подсказка по округлению"
-									{...props}
-								>
-									<CircleQuestionMarkIcon class="size-4" />
-								</button>
-							{/snippet}
-						</PopoverTrigger>
-						<PopoverContent class="w-80 text-xs" align="start">
-							<div class="space-y-2">
-								<p class="text-sm font-medium">Параметры округления</p>
-								<p>
-									Если фактическое время попало в интервал — показывается якорь, иначе — простое
-									округление до целого часа.
-								</p>
-								<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
-									roundingFrom &lt; факт &lt; roundingTo → roundingPoint
-								</div>
-								<p>
-									<b>Точка округления</b> — абсолютное значение в часах, к которому «притягивается»
-									время. <b>От / До</b> — границы интервала (ч).
-								</p>
-								<div class="rounded-md border bg-muted/30 p-2 font-mono text-[11px]">
-									стандарт + standardLeft &lt; факт &lt; стандарт + standardRight → стандарт
-								</div>
-								<p>
-									<b>Сдвиг влево / вправо</b> — границы интервала относительно стандарта графика сотрудника
-									(у каждого свой стандарт).
-								</p>
-							</div>
-						</PopoverContent>
-					</Popover>
-				</div>
-				<Collapsible open={exportSettings.rounding}>
-					<CollapsibleContent>
-						<div class="mt-2 grid grid-cols-2 items-center gap-2 rounded-md border p-3">
-							<Label class="text-xs">Точка округления (ч)</Label>
-							<Input type="number" step="0.1" bind:value={roundingParams.roundingPoint} />
-							<Label class="text-xs">От (ч)</Label>
-							<Input type="number" step="0.1" bind:value={roundingParams.roundingFrom} />
-							<Label class="text-xs">До (ч)</Label>
-							<Input type="number" step="0.1" bind:value={roundingParams.roundingTo} />
-							<Separator /><Separator />
-							<Label class="text-xs">Сдвиг влево к стандарту (ч)</Label>
-							<Input type="number" step="0.1" bind:value={roundingParams.standardLeft} />
-							<Label class="text-xs">Сдвиг вправо к стандарту (ч)</Label>
-							<Input type="number" step="0.1" bind:value={roundingParams.standardRight} />
-						</div>
-					</CollapsibleContent>
-				</Collapsible>
-			</div>
-
-			<!-- Флаги колонок -->
-			<div class="flex flex-col gap-1 border-t pt-3">
-				<span class="text-sm font-medium">Колонки отчёта</span>
-				<Label class="flex flex-row items-center gap-2 text-sm">
-					<Checkbox bind:checked={exportSettings.showNight} />
-					Выводить ночные
-				</Label>
-				<Label class="flex flex-row items-center gap-2 text-sm">
-					<Checkbox bind:checked={exportSettings.showOvertime} />
-					Выводить сверхурочные
-				</Label>
-				<Label class="flex flex-row items-center gap-2 text-sm">
-					<Checkbox bind:checked={exportSettings.showHoliday} />
-					Выводить праздничные
-				</Label>
-				<Label class="flex flex-row items-center gap-2 text-sm">
-					<Checkbox bind:checked={exportSettings.showAbsence} />
-					Выводить коды неявок
-				</Label>
-				<Label class="flex flex-row items-center gap-2 text-sm">
-					<Checkbox bind:checked={exportSettings.autoAbsence} />
-					Автоматически выводить пропуска
-				</Label>
-			</div>
-
-			<div class="flex justify-end gap-2">
-				<Button variant="outline" onclick={() => (exportOpen = false)}>Отмена</Button>
-				<Button onclick={exportExcel}>Экспортировать</Button>
-			</div>
-		</div>
-	</DialogContent>
-</Dialog>
+<ExportDialog
+	bind:open={exportOpen}
+	{year}
+	{month}
+	{calendars}
+	roundingRules={data.roundingRules ?? null}
+/>
