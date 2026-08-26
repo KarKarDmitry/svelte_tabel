@@ -15,7 +15,7 @@ type Entry = { value: unknown; expiresAt: number; ttlMs: number; tags: string[] 
 const MAX_ENTRIES = 500;
 
 // Файловый логгер кэша (logs/cache/), буфер 1 — записи на диск немедленно
-const clog = createFileLogger({ name: 'cache', minLength: 1 });
+const clog = createFileLogger({ name: 'cache', minLength: 512 });
 
 const entries = new Map<string, Entry>();
 const inflight = new Map<string, Promise<unknown>>();
