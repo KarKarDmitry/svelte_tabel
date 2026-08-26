@@ -167,8 +167,8 @@
 	/>
 
 	<!-- Desktop: таблица -->
-	<div class="hidden overflow-hidden rounded-xl border bg-card md:block">
-		<Table>
+	<div class="hidden overflow-x-auto rounded-xl border bg-card md:block">
+		<Table class="min-w-[760px]">
 			<TableHeader>
 				<TableRow class="bg-sidebar-accent/50">
 					<TableHead
@@ -205,8 +205,10 @@
 							{emp.firstName}
 							{emp.middleName ?? ''}
 						</TableCell>
-						<TableCell>{emp.departmentName || '—'}</TableCell>
-						<TableCell>{emp.positionName || '—'}</TableCell>
+						<TableCell class="max-w-40 truncate">{emp.departmentName || '—'}</TableCell>
+						<TableCell class="max-w-48 truncate" title={emp.positionName ?? ''}>
+							{emp.positionName || '—'}
+						</TableCell>
 						<TableCell class="text-center">
 							{#if emp.status === 'active'}
 								<Badge variant="default">Активен</Badge>
