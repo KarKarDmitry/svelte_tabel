@@ -1,8 +1,28 @@
 <script lang="ts">
+	import { cn } from '$lib/utils';
 	import { Button } from '$lib/components/ui/button';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Dialog, DialogContent, DialogHeader, DialogTitle } from '$lib/components/ui/dialog';
-	import DTable from '$lib/components/DTable/DTable.svelte';
+	import {
+		Table,
+		TableHeader,
+		TableBody,
+		TableRow,
+		TableHead,
+		TableCell
+	} from '$lib/components/ui/table';
+	import {
+		DropdownMenu,
+		DropdownMenuTrigger,
+		DropdownMenuContent,
+		DropdownMenuItem
+	} from '$lib/components/ui/dropdown-menu';
+	import { DataToolbar } from '$lib/components/data';
+	import { DataPager } from '$lib/components/data';
+	import { Empty } from '$lib/components/data';
+	import EmployeeCard from './EmployeeCard.svelte';
+	import MoreHorizontalIcon from '@lucide/svelte/icons/ellipsis';
+	import UsersRoundIcon from '@lucide/svelte/icons/users-round';
 	import { goto, replaceState, invalidateAll } from '$app/navigation';
 	import { enhance } from '$app/forms';
 	import { toast } from 'svelte-sonner';
@@ -37,8 +57,58 @@
 	let statusVal = $state('');
 	let searchVal = $state(page.url.searchParams.get('search') || '');
 
-	function qs(val: string) {
-		return val ? val : '';
+	const filters = $derived([
+		{
+			key: 'search',
+			placeholder: 'Поиск по ФИО или номеру...',
+			type: 'string' as const,
+			value: searchVal,
+			onSearch: (v: string) => {
+				searchVal = v;
+				navigate({ search: v });
+			}
+		},
+		{
+			key: 'department',
+			placeholder: 'Подразделение...',
+			type: 'string' as const,
+			value: deptVal,
+			refs: data.departments,
+			onSearch: (v: string) => {
+				deptVal = v;
+				navigate({ department: v });
+			}
+		},
+		{
+			key: 'position',
+			placeholder: 'Должность...',
+			type: 'string' as const,
+			value: posVal,
+			refs: data.positions,
+			onSearch: (v: string) => {
+				posVal = v;
+				navigate({ position: v });
+			}
+		},
+		{
+			key: 'status',
+			placeholder: 'Статус',
+			type: 'select' as const,
+			value: statusVal,
+			options: [
+				{ value: 'active', label: 'Активные' },
+				{ value: 'dismissed', label: 'Уволенные' }
+			],
+			onSearch: (v: string) => {
+				statusVal = v;
+				navigate({ status: v });
+			}
+		}
+	]);
+
+	function sortIcon(field: string) {
+		if (currentSort !== field) return '';
+		return currentOrder === 'asc' ? ' ↑' : ' ↓';
 	}
 
 	async function navigate(opts: Record<string, string>) {
@@ -50,13 +120,13 @@
 			position: 'position' in opts ? opts.position : posVal,
 			status: 'status' in opts ? opts.status : statusVal,
 			page: '1',
-			sort: currentSort || 'asc',
-			order: currentOrder,
+			sort: currentSort || '',
+			order: currentOrder ?? 'asc',
 			...opts
 		};
 
 		for (const [k, v] of Object.entries(params)) {
-			if (v) url.searchParams.set(k, v);
+			if (v && !(k === 'sort' && !v)) url.searchParams.set(k, v);
 			else url.searchParams.delete(k);
 		}
 
@@ -82,115 +152,134 @@
 			<h1 class="text-2xl font-bold text-foreground">Сотрудники</h1>
 			<p class="text-sm text-muted-foreground">Всего: {total}</p>
 		</div>
-		{#if canEdit}
-			<Button onclick={() => goto('/apps/tabel/employees/create')}>Добавить сотрудника</Button>
-		{/if}
 	</div>
 
-	{#snippet renderCell(value: any, row: any, col: any)}
-		{#if col.key === 'status'}
-			<div class="flex justify-center">
-				{#if value === 'active'}
-					<Badge variant="default">Активен</Badge>
-				{:else if value === 'dismissed'}
-					<Badge variant="destructive">Уволен</Badge>
-				{:else}
-					<Badge variant="outline">Ожидает</Badge>
-				{/if}
-			</div>
-		{:else if col.format}
-			{col.format(value, row)}
-		{:else}
-			{value ?? '—'}
-		{/if}
-	{/snippet}
+	<DataToolbar
+		{filters}
+		actions={canEdit
+			? [
+					{
+						label: 'Добавить сотрудника',
+						onclick: () => goto('/apps/tabel/employees/create')
+					}
+				]
+			: []}
+	/>
 
-	<DTable
-		data={employees}
-		columns={[
-			{ key: 'number', label: 'Таб. №', sortable: true, mono: true },
-			{
-				key: 'lastName',
-				label: 'ФИО',
-				sortable: true,
-				format: (v, r) => `${r.lastName} ${r.firstName} ${r.middleName ?? ''}`
-			},
-			{ key: 'departmentName', label: 'Подразделение', format: (v) => v || '—' },
-			{ key: 'positionName', label: 'Должность', format: (v) => v || '—' },
-			{ key: 'status', label: 'Статус' }
-		]}
-		cell={renderCell}
-		filters={[
-			{
-				key: 'search',
-				placeholder: 'Поиск по ФИО или номеру...',
-				type: 'string',
-				value: searchVal,
-				onSearch: (v) => {
-					searchVal = v;
-					navigate({ search: v });
-				}
-			},
-			{
-				key: 'department',
-				placeholder: 'Подразделение...',
-				type: 'string',
-				value: deptVal,
-				refs: data.departments,
-				onSearch: (v) => {
-					deptVal = v;
-					navigate({ department: v });
-				}
-			},
-			{
-				key: 'position',
-				placeholder: 'Должность...',
-				type: 'string',
-				value: posVal,
-				refs: data.positions,
-				onSearch: (v) => {
-					posVal = v;
-					navigate({ position: v });
-				}
-			},
-			{
-				key: 'status',
-				placeholder: 'Статус',
-				type: 'select',
-				value: statusVal,
-				options: [
-					{ value: 'active', label: 'Активные' },
-					{ value: 'dismissed', label: 'Уволенные' }
-				],
-				onSearch: (v) => {
-					statusVal = v;
-					navigate({ status: v });
-				}
-			}
-		]}
-		rowActions={[
-			{ label: 'Открыть', onclick: (row) => goto(`/apps/tabel/employees/${row.id}`) },
-			{ label: 'Уволить', onclick: (row) => {} },
-			...(isAdmin
-				? [
-						{
-							label: 'Удалить',
-							variant: 'destructive' as const,
-							onclick: (row: any) => ((deleteTarget = row), (deleteOpen = true))
-						}
-					]
-				: [])
-		]}
-		onRowClick={(row) => goto(`/apps/tabel/employees/${row.id}`)}
+	<!-- Desktop: таблица -->
+	<div class="hidden overflow-hidden rounded-xl border bg-card md:block">
+		<Table>
+			<TableHeader>
+				<TableRow class="bg-sidebar-accent/50">
+					<TableHead
+						class="cursor-pointer select-none"
+						onclick={() => navigate({ sort: 'number', order: 'asc' })}
+					>
+						Таб. №{currentSort === 'number' ? sortIcon('number') : ''}
+					</TableHead>
+					<TableHead
+						class="cursor-pointer select-none"
+						onclick={() =>
+							navigate({
+								sort: 'lastName',
+								order: currentSort === 'lastName' && currentOrder === 'asc' ? 'desc' : 'asc'
+							})}
+					>
+						ФИО{currentSort === 'lastName' ? sortIcon('lastName') : ''}
+					</TableHead>
+					<TableHead>Подразделение</TableHead>
+					<TableHead>Должность</TableHead>
+					<TableHead class="text-center">Статус</TableHead>
+					<TableHead class="w-10"></TableHead>
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				{#each employees as emp (emp.id)}
+					<TableRow
+						class="cursor-pointer hover:bg-muted"
+						onclick={() => goto(`/apps/tabel/employees/${emp.id}`)}
+					>
+						<TableCell class="font-mono tabular-nums">{emp.number}</TableCell>
+						<TableCell class="max-w-56 truncate font-medium">
+							{emp.lastName}
+							{emp.firstName}
+							{emp.middleName ?? ''}
+						</TableCell>
+						<TableCell>{emp.departmentName || '—'}</TableCell>
+						<TableCell>{emp.positionName || '—'}</TableCell>
+						<TableCell class="text-center">
+							{#if emp.status === 'active'}
+								<Badge variant="default">Активен</Badge>
+							{:else if emp.status === 'dismissed'}
+								<Badge variant="destructive">Уволен</Badge>
+							{:else}
+								<Badge variant="outline">Ожидает</Badge>
+							{/if}
+						</TableCell>
+						<TableCell class="w-10">
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									class="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+									onclick={(e) => e.stopPropagation()}
+									aria-label="Действия"
+								>
+									<MoreHorizontalIcon class="size-4" />
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="end">
+									<DropdownMenuItem onclick={() => goto(`/apps/tabel/employees/${emp.id}`)}
+										>Открыть</DropdownMenuItem
+									>
+									{#if isAdmin}
+										<DropdownMenuItem
+											variant="destructive"
+											onclick={() => ((deleteTarget = emp), (deleteOpen = true))}
+										>
+											Удалить
+										</DropdownMenuItem>
+									{/if}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						</TableCell>
+					</TableRow>
+				{:else}
+					<TableRow>
+						<TableCell colspan={6}>
+							<Empty
+								icon={UsersRoundIcon}
+								title="Сотрудники не найдены"
+								description="Измените фильтры поиска"
+								class="border-none"
+							/>
+						</TableCell>
+					</TableRow>
+				{/each}
+			</TableBody>
+		</Table>
+	</div>
+
+	<!-- Mobile: карточки -->
+	<div class="grid gap-2 md:hidden">
+		{#each employees as emp (emp.id)}
+			<EmployeeCard
+				employee={emp}
+				{isAdmin}
+				onopen={(e) => goto(`/apps/tabel/employees/${e.id}`)}
+				ondelete={(e) => ((deleteTarget = e), (deleteOpen = true))}
+			/>
+		{:else}
+			<Empty
+				icon={UsersRoundIcon}
+				title="Сотрудники не найдены"
+				description="Измените фильтры поиска"
+			/>
+		{/each}
+	</div>
+
+	<DataPager
 		page={pageNum}
 		{totalPages}
 		onPageChange={(p) => navigate({ page: String(p) })}
-		sort={currentSort}
-		order={currentOrder as 'asc' | 'desc'}
-		onSort={(key) => {
-			const o = currentSort === key && currentOrder === 'asc' ? 'desc' : 'asc';
-			navigate({ sort: key, order: o });
-		}}
+		class="sticky bottom-0 -mx-6 bg-background/95 px-6 backdrop-blur-sm"
 	/>
 
 	{#if deleteTarget}
@@ -199,7 +288,7 @@
 				<DialogHeader>
 					<DialogTitle class="text-destructive">Удалить сотрудника?</DialogTitle>
 				</DialogHeader>
-				<div class="space-y-3 text-sm">
+				<div class={cn('space-y-3', 'text-sm')}>
 					<div>Вы уверены, что хотите полностью удалить</div>
 					<span>№ {deleteTarget.number} - </span>
 					<span>
