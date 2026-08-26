@@ -46,12 +46,10 @@
 
 	let sheetOpen = $state(false);
 
-	const activeFilters = $derived(
-		filters.filter((f) => f.value !== '' && f.value != null).length
-	);
+	const activeFilters = $derived(filters.filter((f) => f.value !== '' && f.value != null).length);
 </script>
 
-<div class={cn('flex items-start justify-between gap-4', className)}>
+<div class={cn('flex items-end justify-between gap-4', className)}>
 	<!-- Фильтры: desktop -->
 	{#if filters.length > 0}
 		<div class="hidden min-w-0 flex-1 flex-row flex-wrap gap-2 md:flex">
@@ -99,11 +97,9 @@
 					{/each}
 				</div>
 				{#if activeFilters > 0}
-					<Button
-						variant="ghost"
-						size="sm"
-						onclick={() => filters.forEach((f) => f.onSearch(''))}>Сбросить всё</Button
-					>
+					<Button variant="ghost" size="sm" onclick={() => filters.forEach((f) => f.onSearch(''))}>
+						Сбросить всё
+					</Button>
 				{/if}
 			</Sheet.Content>
 		</Sheet.Root>
