@@ -105,8 +105,8 @@
 		</Sheet.Root>
 	{/if}
 
-	<!-- Действия -->
-	<div class="flex shrink-0 gap-2">
+	<!-- Действия: прижаты к низу контейнера (фильтры могут переноситься на несколько строк) -->
+	<div class="flex shrink-0 items-end gap-2">
 		{#if actions.length === 1}
 			<Button
 				variant={actions[0].variant ?? 'default'}
