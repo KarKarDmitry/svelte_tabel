@@ -808,6 +808,13 @@
 							{dayMarks}
 							{calendarDays}
 							{schedulesById}
+							cellCtx={{
+								shiftMarks,
+								calendarDays,
+								schedulesById,
+								cellColorRules,
+								markColorRules
+							}}
 							{showActual}
 							canEditDivision={canEdit}
 							onRequestBulkAssign={openBulkAssign}

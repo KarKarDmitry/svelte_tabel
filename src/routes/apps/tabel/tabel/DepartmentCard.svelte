@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { cn } from '$lib/utils';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import * as Accordion from '$lib/components/ui/accordion';
 	import {
 		Collapsible,
 		CollapsibleContent,
@@ -10,6 +12,7 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Grid2x2Check } from '@lucide/svelte';
 	import type { EColumn } from '$lib/components/ETable/types';
+	import { cellStyle, type CellStyleCtx } from '$lib/apps/tabel/utils/cell-style';
 
 	type DayMarkValue = {
 		value: string;
@@ -43,6 +46,7 @@
 		dayMarks,
 		calendarDays,
 		schedulesById,
+		cellCtx,
 		showActual,
 		canEditDivision = false,
 		onRequestBulkAssign,
@@ -53,6 +57,7 @@
 		dayMarks: any[];
 		calendarDays: Record<string, { dayType: string; workTime: number | null }>;
 		schedulesById: Record<number, { standardWorkTime: number; weekDays: string | null }>;
+		cellCtx: CellStyleCtx;
 		showActual: boolean;
 		canEditDivision?: boolean;
 		onRequestBulkAssign?: (dept: any) => void;
@@ -65,6 +70,11 @@
 
 	function formatHours(minutes: number | null): string {
 		if (minutes == null) return '';
+		return (minutes / 60).toFixed(1);
+	}
+
+	function formatHoursMobile(minutes: number | null): string {
+		if (minutes == null || minutes === 0) return '';
 		return (minutes / 60).toFixed(1);
 	}
 
@@ -215,10 +225,6 @@
 		if (col.sticky && off != null) parts.push(`left:${off}px`);
 		return parts.join(';');
 	}
-
-	function cn(...classes: Array<string | false | null | undefined>) {
-		return classes.filter(Boolean).join(' ');
-	}
 </script>
 
 <Collapsible class="overflow-hidden rounded-xl border bg-card" bind:open>
@@ -259,7 +265,8 @@
 				<Skeleton class="h-8 w-full" />
 			</div>
 		{:else if built}
-			<div class="min-h-0 overflow-auto bg-background">
+			<!-- Desktop: таблица с sticky-колонками -->
+			<div class="hidden min-h-0 overflow-auto bg-background md:block">
 				<table class="w-full table-fixed border-collapse text-[13px]">
 					<thead
 						class="sticky top-0 z-30 bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60"
@@ -331,6 +338,76 @@
 						{/each}
 					</tbody>
 				</table>
+			</div>
+
+			<!-- Mobile: аккордеон сотрудников, сетка дней 7 колонок без sticky -->
+			<div class="bg-background md:hidden">
+				<Accordion.Root type="multiple" class="w-full">
+					{#each dept.employees as emp (emp.id)}
+						<Accordion.Item value={String(emp.id)} class="border-b last:border-b-0">
+							<Accordion.Trigger
+								class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
+							>
+								<span class="min-w-0">
+									<span class="block truncate text-sm font-medium">
+										{emp.lastName}
+										{emp.firstName}
+									</span>
+									<span class="block truncate text-xs text-muted-foreground">
+										№ {emp.number} · {emp.positionName || ''}
+									</span>
+								</span>
+								<span class="shrink-0 text-right font-mono text-xs tabular-nums">
+									{formatHoursMobile(emp.totalReport)}ч
+									{#if emp.totalNight > 0}
+										<span class="text-muted-foreground">+ {formatHoursMobile(emp.totalNight)}н</span
+										>
+									{/if}
+								</span>
+							</Accordion.Trigger>
+							<Accordion.Content>
+								<div class="grid grid-cols-7 gap-px bg-border pb-2">
+									{#each emp.days as day (day.date)}
+										{@const styled = showActual
+											? {
+													...day,
+													dayMarkCode: day.factMarkCode || '',
+													reportWorkTime: null,
+													shiftWorkTime: day.rawWorkTime
+												}
+											: day}
+										{@const style = day.blocked ? '' : cellStyle(styled, emp.schedule, cellCtx)}
+										<div
+											class="flex min-h-11 flex-col items-center justify-center px-0.5 py-1 text-center"
+											{style}
+										>
+											{#if day.blocked}
+												<span class="text-[10px] text-muted-foreground/50">×</span>
+											{:else}
+												<span class="text-[9px] leading-none opacity-60">
+													{Number(day.date.slice(8, 10))}
+												</span>
+												<span class="text-sm leading-tight font-medium">
+													{getDayMark(
+														showActual
+															? day.factMarkCode || ''
+															: (day.reportMarkCode ?? day.dayMarkCode ?? '')
+													)}
+												</span>
+												{@const wt = showActual
+													? day.rawWorkTime
+													: (day.reportWorkTime ?? day.shiftWorkTime)}
+												<span class="font-mono text-[10px] tabular-nums">
+													{wt != null ? formatHoursMobile(wt) : ''}
+												</span>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</Accordion.Content>
+						</Accordion.Item>
+					{/each}
+				</Accordion.Root>
 			</div>
 		{/if}
 	</CollapsibleContent>
