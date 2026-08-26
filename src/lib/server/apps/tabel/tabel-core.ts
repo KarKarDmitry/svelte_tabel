@@ -20,7 +20,7 @@ import {
 } from '$lib/server/permissions';
 import { ControllerError } from '$lib/server/context/controller';
 import type { CtrlUser } from '$lib/server/context/controller';
-import { buildStyle, buildStyles } from './utils/day-style';
+import { buildStyles } from './utils/day-style';
 
 export type EmployeeEventDayInput = {
 	date: string;
@@ -118,9 +118,17 @@ export async function setDayMark(
 		shortName,
 		updatedByOf(user)
 	);
-	const style = await buildStyle(employeeId, date, updated.dayMarkCode, updated.reportWorkTime);
+	// style + shortName — для точечного патча грида без перезагрузки (native)
+	const [styled] = await buildStyles([
+		{
+			employeeId,
+			date,
+			dayMarkCode: updated.dayMarkCode,
+			reportWorkTime: updated.reportWorkTime
+		}
+	]);
 
-	return { updated, style };
+	return { updated, style: styled.style, shortName: styled.shortName };
 }
 
 export type BulkUpdateRaw = { employeeId: number; date: string; shortName: string; hours: string };

@@ -17,6 +17,7 @@
 		reportWorkTime: number | null;
 		shiftWorkTime: number | null;
 		dayMarkCode: string;
+		scheduleId?: number | null;
 		blocked?: boolean;
 		missingMinutes?: number;
 		extraMarkCode?: string | null;
@@ -136,6 +137,7 @@
 				reportWorkTime: day.reportWorkTime,
 				shiftWorkTime: day.shiftWorkTime,
 				dayMarkCode: displayMark,
+				scheduleId: day.scheduleId ?? null,
 				blocked: day.blocked ?? false,
 				missingMinutes: hasShortage ? stdMin - workMinutes : 0,
 				extraMarkCode: day.extraMarkCode ?? null,

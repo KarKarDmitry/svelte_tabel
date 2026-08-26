@@ -167,6 +167,13 @@
 	// --- Debounce: накапливаем изменения и отправляем пачкой с задержкой ---
 	let pendingUpdates: Array<{ employeeId: number; date: string; shortName: string }> = $state([]);
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	// Последнее сохранённое значение по ячейке — guard от спама Enter'ом
+	const sentMap = new Map<string, string>();
+
+	function markUnchanged(key: string, v: string, initial?: string | null): boolean {
+		const last = sentMap.get(key);
+		return v === (last ?? initial ?? '');
+	}
 
 	function getCellColor(day: any, schedule: any): string {
 		return cellStyle(day, schedule, {
@@ -204,8 +211,9 @@
 		try {
 			console.log('[WTT] flushUpdates batch', batch.length, 'items');
 
+			const items = Array.from(latest.values());
 			const responses = await Promise.all(
-				Array.from(latest.values()).map((u) =>
+				items.map((u) =>
 					fetch('/apps/tabel/tabel?/updateDayMark', {
 						method: 'POST',
 						body: new URLSearchParams({
@@ -220,7 +228,9 @@
 			console.log('[WTT] responses received', responses.length);
 
 			// Реактивно обновляем локальное состояние из ответа сервера
-			for (const res of responses) {
+			for (let i = 0; i < responses.length; i++) {
+				const res = responses[i];
+				const u = items[i];
 				if (!res.ok) {
 					console.warn('[WTT] response not ok', res.status);
 					continue;
@@ -243,6 +253,7 @@
 					continue;
 				}
 				console.log('[WTT] patching dayData', updated);
+				sentMap.set(`${u.employeeId}-${u.date}`, u.shortName);
 				patchDayData(updated);
 			}
 		} catch {
@@ -482,6 +493,45 @@
 		};
 	}
 
+	/** Enter в ячейке метки: немедленная отправка (если значение менялось) и фокус вправо;
+	 *  в конце строки — первый инпут следующей строки (следующий сотрудник) */
+	function markKeyDown(e: Event, empId: number, date: string, initial?: string | null) {
+		const ke = e as KeyboardEvent;
+		if (ke.key !== 'Enter') return;
+		ke.preventDefault();
+		const input = ke.currentTarget as HTMLInputElement;
+		const v = input.value.toUpperCase();
+		if (!markUnchanged(`${empId}-${date}`, v, initial)) {
+			queueUpdate(empId, date, v);
+			void flushUpdates();
+		}
+		focusNextDayInput(input);
+	}
+
+	function focusNextDayInput(el: HTMLElement): void {
+		const tr = el.closest('tr');
+		if (!tr) {
+			el.blur();
+			return;
+		}
+		const inputs = Array.from(tr.querySelectorAll('input'));
+		const idx = inputs.indexOf(el as HTMLInputElement);
+		if (idx >= 0 && idx < inputs.length - 1) {
+			inputs[idx + 1].focus();
+			return;
+		}
+		let node = tr.nextElementSibling;
+		while (node) {
+			const next = node.querySelector('input');
+			if (next) {
+				next.focus();
+				return;
+			}
+			node = node.nextElementSibling;
+		}
+		el.blur();
+	}
+
 	function dayColumns(lastDay: number) {
 		return Array.from({ length: lastDay }, (_, i) => {
 			const day = i + 1;
@@ -600,7 +650,12 @@
 					class="m-0 h-9 w-full rounded-none border-none p-0 text-center"
 					style={styleStr ?? ''}
 					value={value?.value ?? ''}
-					onchange={(e) => queueUpdate(row.empId, value.date, e.currentTarget.value.toUpperCase())}
+					onchange={(e) => {
+						const v = e.currentTarget.value.toUpperCase();
+						if (markUnchanged(`${row.empId}-${value.date}`, v, value?.value)) return;
+						queueUpdate(row.empId, value.date, v);
+					}}
+					onkeydown={(e) => markKeyDown(e, row.empId, value.date, value?.value)}
 				/>
 				{#if value?.missingMinutes}
 					<div

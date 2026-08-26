@@ -216,6 +216,17 @@
 			if (hoursCell) hoursCell.setAttribute('style', style);
 			if (markCell) markCell.setAttribute('style', style);
 
+			// Нормализованное значение метки (напр. '6я' -> 'Я') и база для guard от спама
+			if (updated.shortName != null) {
+				var inp = document.querySelector(
+					'input[name="mark_' + updated.employeeId + '_' + updated.date + '"]'
+				);
+				if (inp) {
+					inp.value = updated.shortName;
+					inp.setAttribute('data-sent', updated.shortName);
+				}
+			}
+
 			if (total) {
 				var dMin = newMin - oldMin;
 				total.setAttribute('data-minutes', Number(total.getAttribute('data-minutes') || 0) + dMin);
@@ -239,8 +250,19 @@
 				var markInp = document.querySelector(
 					'input[name="mark_' + u.employeeId + '_' + u.date + '"]'
 				);
-				if (markInp) markInp.value = u.shortName || '';
+				if (markInp) {
+					markInp.value = u.shortName || '';
+					markInp.setAttribute('data-sent', u.shortName || '');
+				}
 			}
+		}
+
+		// Значение не изменилось с последнего сохранённого/исходного?
+		function nativeUnchanged(target) {
+			var v = target.value.toUpperCase();
+			var last = target.getAttribute('data-sent');
+			if (last == null) last = target.defaultValue;
+			return v === last;
 		}
 
 		document.onchange = function (e) {
@@ -250,12 +272,14 @@
 			if (target.name.indexOf('__') !== -1) return; // поля диалога «События сотрудника»
 			var parts = target.name.split('_');
 			if (parts.length < 3 || parts[0] !== 'mark') return;
+			if (nativeUnchanged(target)) return; // guard от спама
 			var empId = parts[1];
 			var date = parts.slice(2).join('_');
 			nativeSchedule(empId, date, target.value.toUpperCase());
 		};
 
-		// Enter в поле метки — немедленная отправка (таймер отменяется)
+		// Enter в поле метки — немедленная отправка (если менялось) и фокус вправо;
+		// в конце строки — первая метка следующего сотрудника
 		document.onkeydown = function (e) {
 			e = e || window.event;
 			var target = e.target || e.srcElement;
@@ -265,14 +289,47 @@
 			if (parts.length < 3 || parts[0] !== 'mark') return;
 			var key = e.keyCode || e.which;
 			if (key !== 13) return;
-			if (nativeTimers[target.name]) {
-				clearTimeout(nativeTimers[target.name]);
-				nativeTimers[target.name] = null;
+			if (!nativeUnchanged(target)) {
+				if (nativeTimers[target.name]) {
+					clearTimeout(nativeTimers[target.name]);
+					nativeTimers[target.name] = null;
+				}
+				nativeSend(parts[1], parts.slice(2).join('_'), target.value.toUpperCase());
 			}
-			nativeSend(parts[1], parts.slice(2).join('_'), target.value.toUpperCase());
-			if (target.blur) target.blur();
+			focusNextMark(target);
 			return false;
 		};
+
+		function focusNextMark(input) {
+			var row = input.parentNode;
+			while (row && row.tagName !== 'TR') row = row.parentNode;
+			if (!row) {
+				if (input.blur) input.blur();
+				return;
+			}
+			var inputs = row.getElementsByTagName('INPUT');
+			for (var i = 0; i < inputs.length; i++) {
+				if (inputs[i] === input && i < inputs.length - 1) {
+					inputs[i + 1].focus();
+					return;
+				}
+			}
+			// Конец строки — следующая строка меток (следующий сотрудник)
+			var tr = row.nextSibling;
+			while (tr) {
+				if (tr.nodeType === 1) {
+					if (tr.className && String(tr.className).indexOf('native-marks') !== -1) {
+						var first = tr.getElementsByTagName('INPUT')[0];
+						if (first) {
+							first.focus();
+							return;
+						}
+					}
+				}
+				tr = tr.nextSibling;
+			}
+			if (input.blur) input.blur();
+		}
 
 		// Клик по строке часов — открыть диалог событий сотрудника
 		document.onclick = function (e) {

@@ -7,12 +7,12 @@ import { ControllerError } from '$lib/server/context/controller';
 export const POST: RequestHandler = async ({ request, locals }) => {
 	const fd = await request.formData();
 	try {
-		const { updated, style } = await setDayMark(locals.user, {
+		const { updated, style, shortName } = await setDayMark(locals.user, {
 			employeeId: Number(fd.get('employeeId')),
 			date: String(fd.get('date') ?? ''),
 			shortName: String(fd.get('shortName') ?? '')
 		});
-		return json({ ok: true, updated: { ...updated, style } });
+		return json({ ok: true, updated: { ...updated, style, shortName } });
 	} catch (e) {
 		if (e instanceof ControllerError) throw error(e.status, e.message);
 		throw e;

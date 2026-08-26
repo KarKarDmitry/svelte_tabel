@@ -54,22 +54,9 @@ export function cellStyle(day: any, schedule: any, ctx: CellStyleCtx): string {
 		return styles.join(';');
 	}
 
-	// Переработка / недоработка (допуск 3 мин)
-	if (isShift && hasHours && expectedMinutes) {
-		const diff = Math.abs(workMinutes - expectedMinutes);
-		if (diff > 3) {
-			if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
-				styles.push(`background-color:${cellColorRules.overwork.bg}`);
-				return styles.join(';');
-			}
-			if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
-				styles.push(`background-color:${cellColorRules.underwork.bg}`);
-				return styles.join(';');
-			}
-		}
-	}
-
-	// Работа в нерабочий день
+	// Работа в нерабочий день — ПРИОРИТЕТНЕЕ переработки/недоработки:
+	// в выходной часы обычно не равны норме графика, и без этого днями прихода
+	// окрашивались оранжевым «недоработки» (расхождение modern/native)
 	if (isShift && calDay) {
 		const isNonWorkDay = calDay.dayType === 'weekend' || calDay.dayType === 'holiday';
 		if (isNonWorkDay && cellColorRules.weekendWork?.bg) {
@@ -88,6 +75,21 @@ export function cellStyle(day: any, schedule: any, ctx: CellStyleCtx): string {
 				return styles.join(';');
 			}
 		} catch {}
+	}
+
+	// Переработка / недоработка (допуск 3 мин)
+	if (isShift && hasHours && expectedMinutes) {
+		const diff = Math.abs(workMinutes - expectedMinutes);
+		if (diff > 3) {
+			if (workMinutes > expectedMinutes && cellColorRules.overwork?.bg) {
+				styles.push(`background-color:${cellColorRules.overwork.bg}`);
+				return styles.join(';');
+			}
+			if (workMinutes < expectedMinutes && cellColorRules.underwork?.bg) {
+				styles.push(`background-color:${cellColorRules.underwork.bg}`);
+				return styles.join(';');
+			}
+		}
 	}
 
 	// Пропущенный рабочий день
