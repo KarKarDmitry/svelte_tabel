@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { employeeService } from './employee.service';
 import { documentService } from './document.service';
 import { worktimeService } from './worktime.service';
+import { patchWttMonthCache } from './worktime.service';
 import { department } from '../tables/department';
 import { position } from '../tables/position';
 import { dayMark } from '../tables/day-mark';
@@ -371,6 +372,20 @@ export async function saveEmployeeEvents(
 					? (codeToShort.get(updated[i].dayMarkCode!) ?? updated[i].dayMarkCode!)
 					: '';
 			updated[i].style = styled[i]?.style ?? '';
+			// Точечное обновление кэша месяца вместо полного сброса
+			patchWttMonthCache(
+				Number(updated[i].date.slice(0, 4)),
+				Number(updated[i].date.slice(5, 7)),
+				employeeId,
+				updated[i].date,
+				{
+					reportWorkTime: updated[i].reportWorkTime,
+					reportNightWorkTime: updated[i].reportNightWorkTime,
+					dayMarkCode: updated[i].dayMarkCode,
+					extraMarkCode: updated[i].extraMarkCode,
+					extraMarkMinutes: updated[i].extraMarkMinutes
+				}
+			);
 		}
 	}
 

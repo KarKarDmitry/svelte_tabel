@@ -60,7 +60,47 @@ async function getVisibleEmployees(year: number, month: number) {
 		.orderBy(employee.lastName, employee.firstName);
 }
 
-export const worktimeService = {
+import { remember, update as cacheUpdate } from '$lib/server/cache';
+
+const wttKey = (year: number, month: number, calendarId = 0) =>
+	`wtt-month:${year}-${month}:c${calendarId}`;
+
+/** Точечная правка дня в закэшированном месяце (+пересчёт итогов сотрудника); нет в кэше — no-op */
+export function patchWttMonthCache(
+	year: number,
+	month: number,
+	employeeId: number,
+	dateStr: string,
+	fields: {
+		reportWorkTime?: number | null;
+		reportNightWorkTime?: number | null;
+		dayMarkCode?: string | null;
+		extraMarkCode?: string | null;
+		extraMarkMinutes?: number | null;
+	}
+): void {
+	cacheUpdate<any>(wttKey(year, month), (data) => {
+		for (const dept of data?.departments ?? []) {
+			for (const emp of dept.employees ?? []) {
+				if (emp.id !== employeeId) continue;
+				// День принадлежит ровно одному сегменту сотрудника
+				if (dateStr < (emp.segmentFrom ?? '') || dateStr > (emp.segmentTo ?? '9999')) continue;
+				let totalReport = 0;
+				let totalNight = 0;
+				for (const day of emp.days ?? []) {
+					if (day.date === dateStr) Object.assign(day, fields);
+					totalReport += day.reportWorkTime ?? day.shiftWorkTime ?? 0;
+					totalNight += day.reportNightWorkTime ?? day.shiftNightWorkTime ?? 0;
+				}
+				emp.totalReport = totalReport;
+				emp.totalNight = totalNight;
+			}
+		}
+		return data;
+	});
+}
+
+const worktimeServiceBase = {
 	/** Сотрудники, видимые в табеле за месяц (не уволенные + уволенные с данными) */
 	getVisibleEmployees,
 
@@ -521,6 +561,15 @@ export const worktimeService = {
 			saved = row;
 		}
 
+		// Точечное обновление закэшированного месяца вместо полного сброса
+		patchWttMonthCache(Number(date.slice(0, 4)), Number(date.slice(5, 7)), employeeId, date, {
+			reportWorkTime: saved!.reportWorkTime,
+			reportNightWorkTime: saved!.reportNightWorkTime,
+			dayMarkCode: saved!.reportMarkCode ?? saved!.dayMarkCode,
+			extraMarkCode: saved!.extraMarkCode,
+			extraMarkMinutes: saved!.extraMarkMinutes
+		});
+
 		return {
 			employeeId: saved!.employeeId,
 			date: saved!.date,
@@ -587,6 +636,22 @@ export const worktimeService = {
 					.returning();
 				if (saved) results.push(saved);
 			}
+			// Точечное обновление кэша месяца по каждой затронутой записи
+			for (const r of results) {
+				patchWttMonthCache(
+					Number(r.date.slice(0, 4)),
+					Number(r.date.slice(5, 7)),
+					r.employeeId,
+					r.date,
+					{
+						reportWorkTime: r.reportWorkTime,
+						reportNightWorkTime: r.reportNightWorkTime,
+						dayMarkCode: r.reportMarkCode ?? r.dayMarkCode,
+						extraMarkCode: r.extraMarkCode,
+						extraMarkMinutes: r.extraMarkMinutes
+					}
+				);
+			}
 			// dayMarkCode в возврате — эффективная отметка (ручная перекрывает факт)
 			return results.map((r) => ({ ...r, dayMarkCode: r.reportMarkCode ?? r.dayMarkCode }));
 		});
@@ -648,4 +713,20 @@ export const worktimeService = {
 		if (overlapStart >= overlapEnd) return 0;
 		return Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 60000);
 	}
+};
+
+/** Табельный сервис: getMonthGrouped с серверным кэшем; остальные методы — напрямую */
+export const worktimeService = {
+	...worktimeServiceBase,
+	getMonthGrouped: (
+		year: number,
+		month: number,
+		params?: { calendarId?: number; onStage?: (stage: string) => void }
+	) =>
+		remember(
+			wttKey(year, month, params?.calendarId ?? 0),
+			900,
+			[`wtt:${year}-${month}`, 'wtt'],
+			() => worktimeServiceBase.getMonthGrouped(year, month, params)
+		)
 };

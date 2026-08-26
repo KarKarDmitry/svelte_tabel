@@ -21,6 +21,7 @@ import { and, between, desc, eq, gte, inArray, isNull, lte, lt, sql } from 'driz
 import XLSX from 'xlsx';
 import { log, flushImportLog } from './import-logger';
 import { profReset, profMark, profLog } from './import-profile';
+import { invalidate } from '$lib/server/cache';
 
 /** Единый тип события импорта (транслируется в SSE modern и в статус native) */
 export type ImportEvent = {
@@ -1073,6 +1074,9 @@ export async function runTurnstileImport(opts: {
 		});
 
 		profMark('saveWorktime');
+
+		// Массовая операция — точечный патч нецелесообразен, сбрасываем кэш месяцев целиком
+		invalidate('wtt');
 
 		const eventsMsg =
 			turnstileSaved > 0
