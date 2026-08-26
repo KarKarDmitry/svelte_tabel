@@ -1,4 +1,5 @@
 import { db } from '$lib/server/db';
+import { remember, invalidate } from '$lib/server/cache';
 import { schedule } from '../tables/schedule';
 import { schedulePoint } from '../tables/schedule-point';
 import { employeeSchedule } from '../tables/employee-schedule';
@@ -7,7 +8,10 @@ import { eq, and, isNull, inArray } from 'drizzle-orm';
 export const scheduleService = {
 	// --- Графики ---
 
-	list: () => db.select().from(schedule).orderBy(schedule.name),
+	list: () =>
+		remember('schedules:list', 300, ['schedules'], () =>
+			db.select().from(schedule).orderBy(schedule.name)
+		),
 
 	getById: (id: number) =>
 		db
@@ -21,7 +25,10 @@ export const scheduleService = {
 			.insert(schedule)
 			.values(data)
 			.returning()
-			.then((r) => r[0]),
+			.then((r) => {
+				invalidate('schedules');
+				return r[0];
+			}),
 
 	update: (
 		id: number,
@@ -32,9 +39,19 @@ export const scheduleService = {
 			.set(data)
 			.where(eq(schedule.id, id))
 			.returning()
-			.then((r) => r[0]),
+			.then((r) => {
+				invalidate('schedules');
+				return r[0];
+			}),
 
-	remove: (id: number) => db.delete(schedule).where(eq(schedule.id, id)),
+	remove: (id: number) =>
+		db
+			.delete(schedule)
+			.where(eq(schedule.id, id))
+			.then((r) => {
+				invalidate('schedules');
+				return r;
+			}),
 
 	// --- Точки графиков ---
 

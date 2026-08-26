@@ -5,6 +5,7 @@ import { calendarDay } from '../tables/calendar-day';
 import { calendarTemplateRule } from '../tables/calendar-template-rule';
 import { schedule } from '../tables/schedule';
 import { eq, and, gte, lte, desc, inArray } from 'drizzle-orm';
+import { remember, invalidate } from '$lib/server/cache';
 
 export const calendarService = {
 	// --- Шаблоны ---
@@ -106,7 +107,10 @@ export const calendarService = {
 		db.delete(calendarTemplateRule).where(eq(calendarTemplateRule.id, id)),
 
 	// --- Календари (связка шаблон + год) ---
-	listCalendars: () => db.select().from(calendar).orderBy(desc(calendar.year)),
+	listCalendars: () =>
+		remember('calendars:list', 300, ['calendar'], () =>
+			db.select().from(calendar).orderBy(desc(calendar.year))
+		),
 	/** Календари за указанные годы (для расчёта расцветки ячеек) */
 	listByYears: (years: number[]) => db.select().from(calendar).where(inArray(calendar.year, years)),
 	/** Календарные дни по списку дат (по всем календарям) */
@@ -131,8 +135,18 @@ export const calendarService = {
 			.insert(calendar)
 			.values(data)
 			.returning()
-			.then((r) => r[0]),
-	removeCalendar: (id: number) => db.delete(calendar).where(eq(calendar.id, id)),
+			.then((r) => {
+				invalidate('calendar');
+				return r[0];
+			}),
+	removeCalendar: (id: number) =>
+		db
+			.delete(calendar)
+			.where(eq(calendar.id, id))
+			.then((r) => {
+				invalidate('calendar');
+				return r;
+			}),
 
 	/** Установить календарь как основной для года (сбрасывает у остальных) */
 	setDefaultCalendar: async (id: number) => {
@@ -144,16 +158,19 @@ export const calendarService = {
 		if (!cal) return null;
 		await db.update(calendar).set({ isDefault: false }).where(eq(calendar.year, cal.year));
 		await db.update(calendar).set({ isDefault: true }).where(eq(calendar.id, id));
+		invalidate('calendar');
 		return cal;
 	},
 
 	/** Получить основной календарь на год */
 	getDefaultCalendar: (year: number) =>
-		db
-			.select()
-			.from(calendar)
-			.where(and(eq(calendar.year, year), eq(calendar.isDefault, true)))
-			.then((r) => r[0]),
+		remember(`calendar:default:${year}`, 300, ['calendar'], () =>
+			db
+				.select()
+				.from(calendar)
+				.where(and(eq(calendar.year, year), eq(calendar.isDefault, true)))
+				.then((r) => r[0])
+		),
 
 	// --- Генерация дней календаря ---
 	generateYear: async (calendarId: number) => {
@@ -258,16 +275,19 @@ export const calendarService = {
 
 		await db.delete(calendarDay).where(eq(calendarDay.calendarId, calendarId));
 		if (days.length > 0) await db.insert(calendarDay).values(days);
+		invalidate('calendar');
 		return { total: days.length };
 	},
 
 	// --- Дни календаря ---
 	getDays: (calendarId: number) =>
-		db
-			.select()
-			.from(calendarDay)
-			.where(eq(calendarDay.calendarId, calendarId))
-			.orderBy(calendarDay.date),
+		remember(`calendar:days:${calendarId}`, 300, ['calendar'], () =>
+			db
+				.select()
+				.from(calendarDay)
+				.where(eq(calendarDay.calendarId, calendarId))
+				.orderBy(calendarDay.date)
+		),
 
 	upsertDay: (data: {
 		calendarId: number;
@@ -296,5 +316,8 @@ export const calendarService = {
 				}
 			})
 			.returning()
-			.then((r) => r[0])
+			.then((r) => {
+				invalidate('calendar');
+				return r[0];
+			})
 };
