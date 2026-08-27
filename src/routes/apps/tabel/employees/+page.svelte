@@ -166,6 +166,13 @@
 			: []}
 	/>
 
+	<DataPager
+		page={pageNum}
+		{totalPages}
+		onPageChange={(p) => navigate({ page: String(p) })}
+		class="sticky bottom-0 -mx-6 bg-background/95 px-6 pb-0 backdrop-blur-sm"
+	/>
+
 	<!-- Desktop: таблица -->
 	<div class="hidden overflow-x-auto rounded-xl border bg-card md:block">
 		<Table class="min-w-[760px]">
@@ -281,7 +288,7 @@
 		page={pageNum}
 		{totalPages}
 		onPageChange={(p) => navigate({ page: String(p) })}
-		class="sticky bottom-0 -mx-6 bg-background/95 px-6 backdrop-blur-sm"
+		class="sticky bottom-0 -mx-6 bg-background/95 px-6 pt-0 backdrop-blur-sm"
 	/>
 
 	{#if deleteTarget}
