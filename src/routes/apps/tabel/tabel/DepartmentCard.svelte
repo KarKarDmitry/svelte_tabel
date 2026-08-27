@@ -74,7 +74,7 @@
 	}
 
 	function formatHoursMobile(minutes: number | null): string {
-		if (minutes == null || minutes === 0) return '';
+		if (minutes == null || minutes === 0) return '--';
 		return (minutes / 60).toFixed(1);
 	}
 
@@ -225,6 +225,14 @@
 		if (col.sticky && off != null) parts.push(`left:${off}px`);
 		return parts.join(';');
 	}
+
+	const weekdayLabels = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+	function firstWeekdayOffset(days: any[]): number {
+		if (!days.length || !days[0].date) return 0;
+		const jsDay = new Date(days[0].date + 'T00:00:00').getDay();
+		return (jsDay + 6) % 7;
+	}
 </script>
 
 <Collapsible class="overflow-hidden rounded-xl border bg-card" bind:open>
@@ -342,32 +350,42 @@
 
 			<!-- Mobile: аккордеон сотрудников, сетка дней 7 колонок без sticky -->
 			<div class="bg-background md:hidden">
-				<Accordion.Root type="multiple" class="w-full">
+				<Accordion.Root type="multiple" class="w-full border-none">
 					{#each dept.employees as emp (emp.id)}
 						<Accordion.Item value={String(emp.id)} class="border-b last:border-b-0">
 							<Accordion.Trigger
-								class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-muted/40"
+								class="flex w-full items-center justify-between gap-2 bg-muted/80 px-3 py-2 text-left"
 							>
-								<span class="min-w-0">
-									<span class="block truncate text-sm font-medium">
+								<span class="flex min-w-0 flex-1 flex-col">
+									<span
+										class="block flex flex-1 items-center justify-between truncate text-sm font-medium"
+									>
 										{emp.lastName}
 										{emp.firstName}
+										<span class="text-right font-mono text-xs tabular-nums">
+											{formatHoursMobile(emp.totalReport)}ч
+											{#if emp.totalNight > 0}
+												<span class="text-muted-foreground">
+													+ {formatHoursMobile(emp.totalNight)}н
+												</span>
+											{/if}
+										</span>
 									</span>
 									<span class="block truncate text-xs text-muted-foreground">
 										№ {emp.number} · {emp.positionName || ''}
 									</span>
 								</span>
-								<span class="shrink-0 text-right font-mono text-xs tabular-nums">
-									{formatHoursMobile(emp.totalReport)}ч
-									{#if emp.totalNight > 0}
-										<span class="text-muted-foreground">+ {formatHoursMobile(emp.totalNight)}н</span
-										>
-									{/if}
-								</span>
 							</Accordion.Trigger>
-							<Accordion.Content>
-								<div class="grid grid-cols-7 gap-px bg-border pb-2">
-									{#each emp.days as day (day.date)}
+							<Accordion.Content class="p-0">
+								<div class="grid grid-cols-7 gap-px bg-border/80">
+									{#each weekdayLabels as wd}
+										<div class="bg-background text-center text-xs font-medium uppercase">
+											{wd}
+										</div>
+									{/each}
+								</div>
+								<div class="grid grid-cols-7 gap-px border-none bg-border/80">
+									{#each emp.days as day, di (day.date)}
 										{@const styled = showActual
 											? {
 													...day,
@@ -378,27 +396,29 @@
 											: day}
 										{@const style = day.blocked ? '' : cellStyle(styled, emp.schedule, cellCtx)}
 										<div
-											class="flex min-h-11 flex-col items-center justify-center px-0.5 py-1 text-center"
-											{style}
+											class="flex min-h-11 flex-col items-center justify-center bg-background px-0.5 py-1 text-center"
+											style="{di === 0
+												? `grid-column-start: ${firstWeekdayOffset(emp.days) + 1}; `
+												: ''}{style ?? ''}"
 										>
 											{#if day.blocked}
 												<span class="text-[10px] text-muted-foreground/50">×</span>
 											{:else}
-												<span class="text-[9px] leading-none opacity-60">
+												<span class="text-xs leading-none">
 													{Number(day.date.slice(8, 10))}
 												</span>
 												<span class="text-sm leading-tight font-medium">
 													{getDayMark(
 														showActual
-															? day.factMarkCode || ''
-															: (day.reportMarkCode ?? day.dayMarkCode ?? '')
+															? day.factMarkCode || ' '
+															: (day.reportMarkCode ?? day.dayMarkCode ?? ' ')
 													)}
 												</span>
 												{@const wt = showActual
 													? day.rawWorkTime
 													: (day.reportWorkTime ?? day.shiftWorkTime)}
-												<span class="font-mono text-[10px] tabular-nums">
-													{wt != null ? formatHoursMobile(wt) : ''}
+												<span class="font-mono text-xs tabular-nums">
+													{wt != null ? formatHoursMobile(wt) : ' '}
 												</span>
 											{/if}
 										</div>

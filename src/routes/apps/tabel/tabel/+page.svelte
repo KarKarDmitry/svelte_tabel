@@ -5,6 +5,7 @@
 	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import {
 		Collapsible,
 		CollapsibleContent,
@@ -545,9 +546,9 @@
 {/if}
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-	<div class="mb-2 flex items-center justify-between">
-		<div>
-			<h1 class="flex flex-row gap-2 text-2xl font-bold tracking-tight">
+	<div class="mb-2 flex flex-wrap items-center justify-between gap-4">
+		<div class="w-full lg:w-fit">
+			<h1 class="flex flex-row justify-between gap-2 text-2xl font-bold tracking-tight">
 				Табель
 				<div class="flex items-center gap-2">
 					<Switch bind:checked={showActual} id="show-actual" />

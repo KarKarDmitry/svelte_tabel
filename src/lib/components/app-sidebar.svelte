@@ -33,16 +33,14 @@
 
 {#if show && nav}
 	<Sidebar collapsible="icon">
-		<SidebarHeader
-			class="flex h-12 flex-row items-center justify-between gap-2 border-b border-border"
-		>
+		<SidebarHeader class="flex h-12 flex-row items-center gap-2 border-b border-border">
+			<SidebarTrigger />
 			<a
 				href="/apps"
 				class="text-sm font-semibold whitespace-nowrap text-blue-700 group-data-[collapsible=icon]:hidden dark:text-blue-400"
 			>
 				{nav.title}
 			</a>
-			<SidebarTrigger />
 		</SidebarHeader>
 
 		<SidebarContent>
