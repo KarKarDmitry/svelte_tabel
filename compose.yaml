@@ -1,19 +1,4 @@
 services:
-  # dns:
-  #   image: strm/dnsmasq
-  #   container_name: tabel-dns
-  #   restart: always
-  #   # Слушаем 53 порт на всех IP-адресах компьютера
-  #   ports:
-  #     - '53:53/udp'
-  #     - '53:53/tcp'
-  #   cap_add:
-  #     - NET_ADMIN
-  #   volumes:
-  #     - ./:/mnt/config
-  #   # Передаем флаг -d (keep-in-foreground) и принудительно пишем логи в stdout через флаговую комбинацию Alpine
-  #   entrypoint: ['dnsmasq', '-k', '-q', '-C', '/mnt/config/dnsmasq.conf']
-
   db:
     build:
       context: .
@@ -35,7 +20,6 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql
       - pgbackups:/var/lib/pgbackrest
-      - ./pgbackrest.conf:/etc/pgbackrest.conf:ro
     # Указываем адрес нашего нового рабочего DNS-сервера
     # dns:
     #   - 192.168.1.242
@@ -57,17 +41,15 @@ services:
     #   - 192.168.1.242
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
     container_name: tabel-nginx
     restart: always
     ports:
-      - 8080:80
+      - 80:80
       # HTTPS — раскомментировать вместе с TLS-блоком в nginx.conf
       # - 443:443
-    volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      # Сертификат (приватный CA, mettem.lan) — подключить с TLS-блоком
-      # - ./certs:/etc/nginx/certs:ro
     depends_on:
       - app
 
@@ -77,10 +59,10 @@ volumes:
     driver_opts:
       type: none
       o: bind
-      device: D:/pg/tabel/pgdata
+      device: /srv/mettem/tabel/pgdata
   pgbackups:
     driver: local
     driver_opts:
       type: none
       o: bind
-      device: D:/pg/tabel/pgbackups
+      device: /srv/mettem/tabel/pgbackups
