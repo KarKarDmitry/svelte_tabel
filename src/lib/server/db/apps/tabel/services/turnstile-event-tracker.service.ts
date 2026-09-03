@@ -4,7 +4,21 @@ import { turnstileEvent } from '../tables/turnstile-event';
 import { pass } from '../tables/pass';
 import { employee } from '../tables/employee';
 import { hrDocument } from '../tables/document';
-import { eq, and, between, desc, like, or, asc, count, sql, gte, lte, ilike } from 'drizzle-orm';
+import {
+	eq,
+	and,
+	between,
+	desc,
+	like,
+	or,
+	asc,
+	count,
+	sql,
+	gte,
+	lte,
+	ilike,
+	inArray
+} from 'drizzle-orm';
 
 export const turnstileEventTrackerService = {
 	list: () => db.select().from(turnstileEventTracker).orderBy(desc(turnstileEventTracker.datetime)),
@@ -90,7 +104,7 @@ export const turnstileEventTrackerService = {
 			conds.push(
 				sql`${employee.id} IN (
 					SELECT d.employee_id FROM ${hrDocument} d
-					WHERE d.department_id = ANY(${departmentIds})
+					WHERE ${inArray(sql`d.department_id`, departmentIds)}
 					AND NOT EXISTS (
 						SELECT 1 FROM ${hrDocument} d2
 						WHERE d2.employee_id = d.employee_id AND d2.date > d.date

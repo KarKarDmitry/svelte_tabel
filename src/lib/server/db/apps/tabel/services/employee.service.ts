@@ -3,7 +3,7 @@ import { employee } from '../tables/employee';
 import { department } from '../tables/department';
 import { position } from '../tables/position';
 import { hrDocument } from '../tables/document';
-import { eq, and, desc, lte, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, lte, inArray, sql, type SQL } from 'drizzle-orm';
 
 export const employeeService = {
 	list: () => db.select().from(employee).orderBy(employee.lastName, employee.firstName),
@@ -98,7 +98,7 @@ export const employeeService = {
 		return db
 			.select()
 			.from(employee)
-			.where(sql`${employee.id} = ANY(${[...employeeIds]})`)
+			.where(inArray(employee.id, [...employeeIds]))
 			.orderBy(employee.lastName);
 	},
 
@@ -135,7 +135,7 @@ export const employeeService = {
 		const docs = await db
 			.select()
 			.from(hrDocument)
-			.where(and(sql`${hrDocument.employeeId} = ANY(${ids})`, lte(hrDocument.date, maxDate)))
+			.where(and(inArray(hrDocument.employeeId, ids), lte(hrDocument.date, maxDate)))
 			.orderBy(desc(hrDocument.date));
 
 		const byEmp = new Map<number, (typeof hrDocument.$inferSelect)[]>();
@@ -182,7 +182,7 @@ export const employeeService = {
 			);
 		if (department) conds.push(sql`dep.name ILIKE ${'%' + department + '%'}`);
 		if (position) conds.push(sql`pos.name ILIKE ${'%' + position + '%'}`);
-		if (departmentIds) conds.push(sql`dep.id = ANY(${departmentIds})`);
+		if (departmentIds) conds.push(inArray(sql`dep.id`, departmentIds));
 		if (status === 'active') conds.push(sql`last_doc.type IN ('hiring', 'transfer')`);
 		if (status === 'dismissed') conds.push(sql`last_doc.type = 'dismissal'`);
 		const where = conds.length ? sql`WHERE ${sql.join(conds, sql` AND `)}` : sql``;
