@@ -9,6 +9,20 @@ __pycache__
 /.svelte-kit
 /build
 /logs
+
+# Вьювер (client/tabel-viewer) — артефакты сборки
+client/tabel-viewer/*.exe
+client/tabel-viewer/*.obj
+client/tabel-viewer/*.o
+client/tabel-viewer/token.txt
+client/tabel-viewer/config.txt
+client/tabel-viewer/logs.txt
+client/tabel-viewer/month_dump.json
+# Отладочные/локальные данные вьювера
+client/tabel-viewer/days_arr.json
+client/tabel-viewer/emp.json
+client/tabel-viewer/gdb_cmds.txt
+
 # OS
 .DS_Store
 Thumbs.db
