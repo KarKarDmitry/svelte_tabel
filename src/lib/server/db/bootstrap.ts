@@ -17,7 +17,7 @@ const client = postgres(DATABASE_URL);
 const db = drizzle(client, { schema });
 
 const auth = betterAuth({
-	baseURL: process.env.ORIGIN || 'http://localhost:5173',
+	baseURL: (process.env.ORIGIN || 'http://localhost:5173').split(',')[0].trim(),
 	secret: process.env.BETTER_AUTH_SECRET || 'dev-secret-change-in-production',
 	database: drizzleAdapter(db, { provider: 'pg' }),
 	emailAndPassword: { enabled: true, minPasswordLength: 3 }

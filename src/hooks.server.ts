@@ -1,8 +1,6 @@
 import { sequence } from '@sveltejs/kit/hooks';
 import type { Handle } from '@sveltejs/kit';
-import { building } from '$app/environment';
 import { auth } from '$lib/server/auth';
-import { svelteKitHandler } from 'better-auth/svelte-kit';
 import { redirect } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import type { AppUser } from './app.d';
@@ -15,7 +13,13 @@ const handleBetterAuth: Handle = async ({ event, resolve }) => {
 		event.locals.user = session.user as AppUser;
 	}
 
-	return svelteKitHandler({ event, resolve, auth, building });
+	// Better-auth: перехватываем /api/auth/* напрямую (минуя svelteKitHandler,
+	// который из-за запятых в ORIGIN ломал isAuthPath и давал 302).
+	if (event.url.pathname.startsWith('/api/auth')) {
+		return auth.handler(event.request);
+	}
+
+	return resolve(event);
 };
 
 // CSRF: для state-changing запросов проверяем Origin (встроенная защита SvelteKit

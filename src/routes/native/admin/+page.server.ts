@@ -33,13 +33,19 @@ export const actions: Actions = {
 		const username = formData.get('username')?.toString() ?? '';
 		const password = formData.get('password')?.toString() ?? '';
 
+		if (password.length < 8) {
+			return fail(400, { message: 'Пароль должен быть не короче 8 символов' });
+		}
+
 		try {
-			await auth.api.signUpEmail({
+			await auth.api.createUser({
 				body: {
 					email: toEmail(username),
 					password,
-					name: username
-				}
+					name: username,
+					role: 'user'
+				},
+				headers: event.request.headers
 			});
 		} catch (error) {
 			if (error instanceof APIError) {
