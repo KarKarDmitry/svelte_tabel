@@ -86,9 +86,9 @@
 	.n-months {
 		margin-bottom: 10px;
 	}
-	.n-month-label {
+	/*.n-month-label {
 		margin: 0 10px;
 		font-size: 14px;
 		font-weight: 600;
-	}
+	}*/
 </style>

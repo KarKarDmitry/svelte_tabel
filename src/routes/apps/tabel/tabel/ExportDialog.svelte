@@ -31,7 +31,7 @@
 
 	let exportSettings = $state({
 		calendarId: '0',
-		rounding: false,
+		rounding: true,
 		showNight: true,
 		showOvertime: false,
 		showHoliday: true,
@@ -65,12 +65,19 @@
 	);
 
 	// Заполнение дефолтов при каждом открытии
+	// NB: нельзя читать exportSettings через spread — эффект пишет exportSettings,
+	// новая ссылка → бесконечный цикл (UI зависает при открытии диалога)
 	$effect(() => {
 		if (!open) return;
 		const def = yearCalendars.find((c: any) => c.isDefault) ?? yearCalendars[0];
 		exportSettings = {
-			...exportSettings,
-			calendarId: def ? String(def.id) : '0'
+			calendarId: def ? String(def.id) : '0',
+			rounding: true,
+			showNight: true,
+			showOvertime: false,
+			showHoliday: true,
+			showAbsence: true,
+			autoAbsence: false
 		};
 		const rr = roundingRules as Record<string, unknown> | null;
 		roundingParams = {

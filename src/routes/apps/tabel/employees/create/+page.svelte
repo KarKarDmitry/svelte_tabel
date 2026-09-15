@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { goto } from '$app/navigation';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -9,6 +10,7 @@
 	import type { PageServerData } from './$types';
 	import { page } from '$app/state';
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
+	import { toast } from 'svelte-sonner';
 
 	let { data }: { data: PageServerData } = $props();
 	let canEdit = $derived(page.data.canEdit ?? false);
@@ -29,7 +31,7 @@
 		<p class="text-sm text-muted-foreground">Создание сотрудников недоступно: недостаточно прав.</p>
 	{:else}
 		{#if numberTaken}
-			<Card class="border-destructive/40 bg-destructive/5">
+			<Card class="border-destructive/40 bg-destructive/5 pb-10">
 				<CardContent class="flex flex-col gap-1">
 					<p class="font-medium text-destructive">Табельный номер {numberTaken.number} уже занят</p>
 					<p class="text-sm">
@@ -53,6 +55,9 @@
 					if (result.type === 'failure') {
 						const d = (result.data ?? {}) as any;
 						if (d?.error === 'number_taken') numberTaken = d.existing ?? null;
+						else toast.error(d?.message ?? 'Не удалось создать сотрудника');
+					} else if (result.type === 'redirect') {
+						await goto(result.location);
 					}
 				};
 			}}

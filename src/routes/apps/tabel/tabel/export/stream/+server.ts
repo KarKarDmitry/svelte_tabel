@@ -161,7 +161,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 						data.calendarDays,
 						data.shiftMarks,
 						options,
-						(await appConstantService.getByKey('AUTO_ABSENCE_MARK'))?.value
+						(await appConstantService.getByKey('AUTO_ABSENCE_MARK'))?.value,
+						data.schedulesById
 					);
 					console.timeEnd('export:build');
 					if (cancelled) return;

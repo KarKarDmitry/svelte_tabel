@@ -161,9 +161,9 @@
 	.n-clear:hover {
 		text-decoration: underline;
 	}
-	.n-create {
+	/*.n-create {
 		margin-bottom: 10px;
-	}
+	}*/
 	.n-table {
 		margin-top: 4px;
 	}

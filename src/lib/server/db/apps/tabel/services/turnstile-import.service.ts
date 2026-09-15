@@ -18,6 +18,11 @@ import { turnstileEventTracker } from '$lib/server/db/apps/tabel/tables/turnstil
 import { appConstant } from '$lib/server/db/apps/tabel/tables/app-constant';
 import { appConstantService } from '$lib/server/db/apps/tabel/services/app-constant.service';
 import { and, between, desc, eq, gte, inArray, isNull, lte, lt, sql } from 'drizzle-orm';
+import {
+	pickBestSchedule,
+	type ScheduleCandidate,
+	type SchedulePointInput
+} from './schedule-score';
 import XLSX from 'xlsx';
 import { createFileLogger } from '$lib/server/utils/file-logger';
 
@@ -769,73 +774,26 @@ export async function runTurnstileImport(opts: {
 				let raw = exit - enter;
 				if (raw < 0) raw += 1440;
 
-				// Определяем лучший график через scoring (как Python determine_best_schedule)
+				// Определяем лучший график через scoring (чистый модуль schedule-score)
 				const empS = esByEmp.get(empId) ?? [];
 				// Сортируем: более новые scheduleId идут последними (при равном скоре побеждает последний)
 				const sortedEmpS = [...empS].sort((a, b) => a.scheduleId - b.scheduleId);
-				let bestPts: typeof ptRows = [];
-				let bestScore = 0;
-				let bestScheduleId: number | null = null;
-
+				const candidates: ScheduleCandidate[] = [];
 				for (const es of sortedEmpS) {
 					// Фильтр по датам: если dateTo < даты события — выбывает
 					if (es.dateFrom && ev.date < es.dateFrom) continue;
 					if (es.dateTo && ev.date > es.dateTo) continue;
-
 					const s = schedById.get(es.scheduleId);
 					if (!s) continue;
-					const pts = ptsBySched.get(s.id) ?? [];
-
-					// Scoring как в Python
-					let score = 0;
-
-					const ep = pts.find((p) => p.type === 'Entry');
-					const xp = pts.find((p) => p.type === 'Exit');
-					const bp = pts.find((p) => p.type === 'Break');
-
-					if (ep) {
-						const planE = parseTime(ep.time);
-						const leftB = planE - ep.leftBound;
-						const rightB = planE + ep.rightBound;
-						if (enter >= leftB && enter <= rightB) {
-							const diffSec = Math.abs(enter - planE) * 60;
-							score += 10 - Math.min(10, diffSec / 300);
-						}
-					}
-
-					if (xp) {
-						const planX = parseTime(xp.time);
-						const leftB = planX - xp.leftBound;
-						const rightB = planX + xp.rightBound;
-						if (exit >= leftB && exit <= rightB) {
-							const diffSec = Math.abs(exit - planX) * 60;
-							score += 10 - Math.min(10, diffSec / 300);
-						}
-					}
-
-					if (bp && bp.endTime) {
-						const bkStart = parseTime(bp.time);
-						const bkEnd = parseTime(bp.endTime);
-						if (enter <= bkStart && exit >= bkEnd) {
-							score += 5;
-						}
-						// Вход/выход в границах перерыва (с допуском)
-						const breakLeft = bkStart - (bp.leftBound || 0);
-						const breakRight = bkEnd + (bp.rightBound || 0);
-						if (enter > breakLeft && enter < breakRight) {
-							score += 5; // вход во время перерыва → возвращение с обеда
-						}
-						if (exit > breakLeft && exit < breakRight) {
-							score += 5; // выход во время перерыва → уход на обед
-						}
-					}
-
-					if (score >= bestScore) {
-						bestScore = score;
-						bestPts = pts;
-						bestScheduleId = es.scheduleId;
-					}
+					candidates.push({
+						scheduleId: es.scheduleId,
+						points: (ptsBySched.get(s.id) ?? []) as unknown as SchedulePointInput[]
+					});
 				}
+
+				const picked = pickBestSchedule(candidates, enter, exit);
+				const bestPts = picked.points;
+				const bestScheduleId = picked.scheduleId;
 
 				const ep = bestPts.find((p) => p.type === 'Entry');
 				const xp = bestPts.find((p) => p.type === 'Exit');

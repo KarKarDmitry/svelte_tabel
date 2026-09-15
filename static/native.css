@@ -48,7 +48,17 @@
 }
 
 .native-navlinks {
+	width: 100%;
+	border-collapse: collapse;
 	margin-bottom: 14px;
+}
+.native-navlinks-left {
+	width: 100%;
+	white-space: nowrap;
+}
+.native-navlinks-right {
+	text-align: right;
+	white-space: nowrap;
 }
 .native-navlinks a {
 	color: #383838;
@@ -430,6 +440,25 @@
 .n-export-round .n-field {
 	max-width: 320px;
 }
+.n-export-help {
+	max-width: 320px;
+	margin: 0;
+	font-size: 12px;
+	line-height: 1.45;
+	color: #6b7280;
+	background: #f7f7f7;
+	border: 1px solid #e5e7eb;
+	border-radius: 6px;
+	padding: 6px 8px;
+}
+.n-export-help b {
+	color: #374151;
+}
+.n-mono {
+	font-family: 'Courier New', monospace;
+	font-size: 11px;
+	white-space: nowrap;
+}
 
 /* Диалог (XP): разметка всегда в DOM, показ/скрытие через инлайн display */
 .xp-dialog {
@@ -562,4 +591,46 @@
 }
 .xp-bulk-new {
 	font-weight: 600;
+}
+
+/* Легенда расцветки табеля */
+.n-legend {
+	padding: 4px 2px;
+}
+.n-legend-row {
+	display: block;
+	margin: 3px 0;
+	font-size: 12px;
+	line-height: 16px;
+}
+.n-legend-swatch {
+	display: inline-block;
+	width: 14px;
+	height: 14px;
+	margin-right: 6px;
+	border: 1px solid #9ca3af;
+	vertical-align: middle;
+}
+.n-legend-label {
+	vertical-align: middle;
+}
+.native-legend-popup {
+	position: fixed;
+	top: 8px;
+	right: 8px;
+	z-index: 1000;
+	width: 300px;
+	max-height: 80%;
+	overflow: auto;
+	background: #ffffff;
+	border: 1px solid #c3c3c3;
+	border-radius: 6px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	padding: 8px 10px;
+}
+.native-legend-head {
+	margin-bottom: 6px;
+}
+.native-legend-head > * {
+	margin-left: 6px;
 }

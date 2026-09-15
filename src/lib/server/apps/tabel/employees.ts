@@ -25,6 +25,7 @@ import {
 } from '$lib/server/permissions';
 import { ControllerError } from '$lib/server/context/controller';
 import type { CtrlUser } from '$lib/server/context/controller';
+import { invalidate } from '$lib/server/cache';
 
 const todayStr = () => new Date().toISOString().split('T')[0];
 
@@ -250,6 +251,62 @@ export async function docCancel(user: CtrlUser, docId: number) {
 			: denyIfNoEdit(user)
 	);
 	await documentService.remove(docId);
+}
+
+/**
+ * Правка существующего кадрового документа (номер приказа, дата, отдел, должность).
+ * Тип документа и сотрудника не меняются. Если меняются «сегментные» поля
+ * (дата/отдел/должность) — сбрасывается кэш месяца; только номер приказа — без сброса.
+ */
+export async function docUpdate(user: CtrlUser, docId: number, form: FormData) {
+	const doc = await documentService.getById(docId);
+	if (!doc) throw new ControllerError(404, 'Документ не найден');
+
+	const date = form.get('date')?.toString() || '';
+	const rawDocNumber = form.get('docNumber')?.toString() ?? '';
+	const docNumber = rawDocNumber.trim() === '' ? null : rawDocNumber.trim();
+	const departmentId = Number(form.get('departmentId'));
+	const positionId = Number(form.get('positionId'));
+
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+		throw new ControllerError(400, 'Некорректная дата');
+	}
+	if (!Number.isInteger(departmentId) || departmentId <= 0) {
+		throw new ControllerError(400, 'Некорректное подразделение');
+	}
+	if (!Number.isInteger(positionId) || positionId <= 0) {
+		throw new ControllerError(400, 'Некорректная должность');
+	}
+	if (!(await departmentService.getById(departmentId))) {
+		throw new ControllerError(400, 'Подразделение не найдено');
+	}
+	if (!(await positionService.getById(positionId))) {
+		throw new ControllerError(400, 'Должность не найдена');
+	}
+
+	// Права — по целевому (новому) отделу: табельщик управляет только своими отделами
+	assertAllowed(await denyIfCannotEditEmployee(user, doc.employeeId, departmentId));
+
+	// Хронологический порядок: новая дата не должна выходить за соседние документы
+	const allDocs = (await documentService.getByEmployee(doc.employeeId)).sort((a, b) =>
+		a.date === b.date ? a.id - b.id : a.date < b.date ? -1 : 1
+	);
+	const idx = allDocs.findIndex((d) => d.id === docId);
+	const prev = idx > 0 ? allDocs[idx - 1] : undefined;
+	const next = idx >= 0 && idx < allDocs.length - 1 ? allDocs[idx + 1] : undefined;
+	if (prev && date < prev.date) {
+		throw new ControllerError(400, 'Дата не может быть раньше даты предыдущего документа');
+	}
+	if (next && date > next.date) {
+		throw new ControllerError(400, 'Дата не может быть позже даты следующего документа');
+	}
+
+	const segmentsChanged =
+		date !== doc.date || departmentId !== doc.departmentId || positionId !== doc.positionId;
+
+	await documentService.update(docId, { date, docNumber, departmentId, positionId });
+
+	if (segmentsChanged) invalidate('wtt');
 }
 
 // ---------- Actions: графики сотрудника ----------

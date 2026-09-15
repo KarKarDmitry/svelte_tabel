@@ -121,7 +121,9 @@ function roundWorkTime(
 	if (
 		rounding.roundingPoint == null &&
 		rounding.roundingFrom == null &&
-		rounding.roundingTo == null
+		rounding.roundingTo == null &&
+		rounding.standardLeft === 0 &&
+		rounding.standardRight === 0
 	) {
 		return Math.round(workHours);
 	}
@@ -147,7 +149,7 @@ function roundWorkTime(
 		(rounding.standardLeft !== 0 || rounding.standardRight !== 0)
 	) {
 		const stdHours = rounding.scheduleStandardTime / 60;
-		const leftBoundStd = stdHours + rounding.standardLeft;
+		const leftBoundStd = stdHours - rounding.standardLeft;
 		const rightBoundStd = stdHours + rounding.standardRight;
 		if (workHours != null && leftBoundStd < workHours && workHours < rightBoundStd) {
 			isRounded = true;

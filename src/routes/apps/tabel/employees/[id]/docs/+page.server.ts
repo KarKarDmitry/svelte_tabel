@@ -1,7 +1,13 @@
 import type { Actions } from './$types';
 import { redirect } from '@sveltejs/kit';
 import { runAction } from '$lib/server/context/controller';
-import { docRehire, docTransfer, docDismiss, docCancel } from '$lib/server/apps/tabel/employees';
+import {
+	docRehire,
+	docTransfer,
+	docDismiss,
+	docCancel,
+	docUpdate
+} from '$lib/server/apps/tabel/employees';
 
 export const actions: Actions = {
 	rehire: (event) =>
@@ -26,6 +32,13 @@ export const actions: Actions = {
 		runAction(async () => {
 			const docId = Number((await event.request.formData()).get('id'));
 			await docCancel(event.locals.user, docId);
+			return { success: true };
+		}),
+	updateDoc: (event) =>
+		runAction(async () => {
+			const form = await event.request.formData();
+			const docId = Number(form.get('id'));
+			await docUpdate(event.locals.user, docId, form);
 			return { success: true };
 		})
 };

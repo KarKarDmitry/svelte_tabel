@@ -182,7 +182,9 @@ export const employeeService = {
 			);
 		if (department) conds.push(sql`dep.name ILIKE ${'%' + department + '%'}`);
 		if (position) conds.push(sql`pos.name ILIKE ${'%' + position + '%'}`);
-		if (departmentIds) conds.push(inArray(sql`dep.id`, departmentIds));
+		if (departmentIds) {
+			conds.push(sql`(${inArray(sql`dep.id`, departmentIds)} OR last_doc.id IS NULL)`);
+		}
 		if (status === 'active') conds.push(sql`last_doc.type IN ('hiring', 'transfer')`);
 		if (status === 'dismissed') conds.push(sql`last_doc.type = 'dismissal'`);
 		const where = conds.length ? sql`WHERE ${sql.join(conds, sql` AND `)}` : sql``;

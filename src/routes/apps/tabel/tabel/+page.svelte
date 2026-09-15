@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { parse } from 'devalue';
 	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
+	import { buildColorLegend } from '$lib/apps/tabel/utils/color-legend';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -18,6 +19,7 @@
 	import EmployeeEventsModal from './EmployeeEventsModal.svelte';
 	import BulkAssignDialog from './BulkAssignDialog.svelte';
 	import ExportDialog from './ExportDialog.svelte';
+	import ColorLegend from './ColorLegend.svelte';
 	import MonthYearPicker from '$lib/components/DatetimePick/MonthYearPicker.svelte';
 
 	import { Switch } from '$lib/components/ui/switch';
@@ -59,6 +61,8 @@
 	// Правила расцветки: сервер отдаёт { light, dark } — выбираем по текущей теме
 	let cellColorRules = $derived((data.cellColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
 	let markColorRules = $derived((data.markColorRules ?? {})[isDark ? 'dark' : 'light'] ?? {});
+	// Легенда расцветки — из тех же констант, что и расцветка ячеек
+	let legendItems = $derived(buildColorLegend(cellColorRules, markColorRules, data.dayMarks ?? []));
 	let calendarDays = $derived<Record<string, { dayType: string; workTime: number | null }>>(
 		data.calendarDays ?? {}
 	);
@@ -433,7 +437,7 @@
 			</div>
 		{:else}
 			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-			<div
+			<button
 				class="relative border-b-1 border-muted-foreground"
 				onclick={(e) => {
 					if (value?.missingMinutes) {
@@ -465,7 +469,7 @@
 						{'\u25BC'}
 					</div>
 				{/if}
-			</div>
+			</button>
 		{/if}
 	{:else}
 		<div class="text-center tabular-nums" style={styleStr}>
@@ -476,7 +480,6 @@
 
 {#if cellPopup && canEdit}
 	{@const cp = cellPopup}
-	<!-- svelte-ignore a11y_no_dynamic_element_interactions a11y_click_events_have_key_events -->
 	<div
 		class="fixed z-50 flex flex-col gap-2 rounded-xl border bg-popover p-3 shadow-lg"
 		style="left: {cp.x}px; top: {cp.y}px;"
@@ -542,7 +545,13 @@
 		</div>
 	</div>
 	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-40" onclick={() => (cellPopup = null)} onkeydown={() => {}}></div>
+	<button
+		aria-label="хз"
+		class="fixed inset-0 z-40"
+		onclick={() => (cellPopup = null)}
+		onkeydown={() => {}}
+	>
+	</button>
 {/if}
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -582,9 +591,13 @@
 			</Button>
 		</div>
 
-		{#if canEdit}
-			<Button size="sm" onclick={() => (exportOpen = true)}>Экспорт</Button>
-		{/if}
+		<div class="flex items-center gap-2">
+			<div class="flex-1"></div>
+			{#if canEdit}
+				<Button size="sm" onclick={() => (exportOpen = true)}>Экспорт</Button>
+			{/if}
+			<ColorLegend items={legendItems} />
+		</div>
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col gap-2 overflow-auto">

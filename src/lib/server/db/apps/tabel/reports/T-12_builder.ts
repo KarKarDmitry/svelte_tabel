@@ -31,6 +31,8 @@ type DayData = {
 	dayMarkCode: string;
 	reportWorkTime: number | null;
 	reportNightWorkTime: number | null;
+	/** График, под который импортирован день (worktime_tracker.schedule_id) — для правила 2 округления */
+	scheduleId: number | null;
 };
 type EmployeeRow = {
 	number: string;
@@ -152,10 +154,13 @@ function roundWorkTime(
 	}
 
 	// Если нет ни одного активного правила округления
+	// (правило 1 — точка/от/до; правило 2 — сдвиг от стандарта графика)
 	if (
 		rounding.roundingPoint == null &&
 		rounding.roundingFrom == null &&
-		rounding.roundingTo == null
+		rounding.roundingTo == null &&
+		rounding.standardLeft === 0 &&
+		rounding.standardRight === 0
 	) {
 		return Math.round(workHours);
 	}
@@ -178,12 +183,14 @@ function roundWorkTime(
 	}
 
 	// Округление по стандарту со сдвигом (standart)
+	// NB: пользователь вводит ПОЛОЖИТЕЛЬНУЮ величину «сдвиг влево» (напр. 1 = на час раньше
+	// стандарта), поэтому левая граница вычитается: std - standardLeft
 	if (
 		rounding.scheduleStandardTime != null &&
 		(rounding.standardLeft !== 0 || rounding.standardRight !== 0)
 	) {
 		const stdHours = rounding.scheduleStandardTime / 60;
-		const leftBoundStd = stdHours + rounding.standardLeft;
+		const leftBoundStd = stdHours - rounding.standardLeft;
 		const rightBoundStd = stdHours + rounding.standardRight;
 		if (workHours != null && leftBoundStd < workHours && workHours < rightBoundStd) {
 			isRounded = true;
@@ -196,6 +203,30 @@ function roundWorkTime(
 	}
 
 	return Math.round(workHours);
+}
+
+/**
+ * Стандарт графика для конкретного дня (правило 2 округления).
+ * Приоритет: scheduleId дня (график, под который импортирован день) → стандарт из конфига
+ * (график сотрудника) → календарный workTime выбранного календаря.
+ */
+function roundingForDay(
+	day: DayData | null | undefined,
+	rounding: RoundingConfig | null,
+	schedStdById: Record<string | number, { standardWorkTime: number }> | null | undefined,
+	calendarDays?: Record<string, { dayType: string; workTime: number | null }>
+): RoundingConfig | null {
+	if (!rounding) return rounding;
+	const sid = day?.scheduleId;
+	let std = rounding.scheduleStandardTime;
+	if (sid != null && schedStdById?.[sid]?.standardWorkTime != null) {
+		std = schedStdById[sid].standardWorkTime;
+	}
+	// Нет ни графика дня, ни графика сотрудника — притягиваем к стандарту выбранного календаря
+	if (std == null && day?.date && calendarDays?.[day.date]?.workTime != null) {
+		std = calendarDays[day.date].workTime;
+	}
+	return std === rounding.scheduleStandardTime ? rounding : { ...rounding, scheduleStandardTime: std };
 }
 
 export async function buildT12(
@@ -211,7 +242,9 @@ export async function buildT12(
 	calendarDays?: Record<string, { dayType: string; workTime: number | null }>,
 	shiftMarkShortnames?: string[],
 	options?: ExportOptions,
-	autoAbsenceMark?: string
+	autoAbsenceMark?: string,
+	/** schedule_id → { standardWorkTime }: для per-day стандарта по правилу 2 округления */
+	schedStdById?: Record<string | number, { standardWorkTime: number }> | null
 ): Promise<Buffer> {
 	const opts: ExportOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
 	const wb = new Excel.Workbook();
@@ -343,7 +376,9 @@ export async function buildT12(
 						shiftMarkCodes,
 						opts,
 						absenceMark,
-						absenceReportCode
+						absenceReportCode,
+						schedStdById,
+						calendarDays
 					)
 				);
 
@@ -379,7 +414,9 @@ export async function buildT12(
 						shiftMarkCodes,
 						opts,
 						absenceMark,
-						absenceReportCode
+						absenceReportCode,
+						schedStdById,
+						calendarDays
 					)
 				);
 			}
@@ -421,7 +458,8 @@ function buildEmpRow(
 			date: d.date,
 			dayMarkCode: markCode,
 			reportWorkTime: workTime,
-			reportNightWorkTime: nightTime
+			reportNightWorkTime: nightTime,
+			scheduleId: d.scheduleId ?? null
 		});
 
 		if (workTime == null) continue;
@@ -732,7 +770,11 @@ function writeEmployee(
 	shiftMarkCodes: Set<string>,
 	options: ExportOptions,
 	absenceMark: string,
-	absenceReportCode: string
+	absenceReportCode: string,
+	/** schedule_id → { standardWorkTime } для определения стандарта дня по правилу 2 округления */
+	schedStdById: Record<string | number, { standardWorkTime: number }> | null | undefined,
+	/** Календарь месяца (фолбэк стандарта дня, когда графика нет) */
+	calendarDays?: Record<string, { dayType: string; workTime: number | null }>
 ): number {
 	const hr = row + 1;
 	const d = emp?.days ?? [];
@@ -790,7 +832,11 @@ function writeEmployee(
 				const isHoliday = isShift && holidays.has(dayOfMonth);
 				hoursVal =
 					isShift && day?.reportWorkTime != null
-						? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
+						? roundWorkTime(
+								day.reportWorkTime,
+								roundingForDay(day, rounding, schedStdById, calendarDays),
+								isHoliday ? 1 : 0
+							)
 						: '';
 			} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
 				// Автопрогул: пустой рабочий день → отметка пропуска
@@ -830,8 +876,12 @@ function writeEmployee(
 					const isHoliday = isShift && holidays.has(dayOfMonth);
 					hoursVal =
 						isShift && day?.reportWorkTime != null
-							? roundWorkTime(day.reportWorkTime, rounding, isHoliday ? 1 : 0)
-							: '';
+						? roundWorkTime(
+								day.reportWorkTime,
+								roundingForDay(day, rounding, schedStdById, calendarDays),
+								isHoliday ? 1 : 0
+							)
+						: '';
 				} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
 					// Автопрогул: пустой рабочий день → отметка пропуска
 					displayMark = absenceMark;

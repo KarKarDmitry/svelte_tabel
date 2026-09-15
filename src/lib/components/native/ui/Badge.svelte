@@ -11,7 +11,7 @@
 		children: Snippet;
 	} = $props();
 
-	const cls = `n-badge n-badge-${variant}${className ? ' ' + className : ''}`;
+	const cls = $derived(`n-badge n-badge-${variant}${className ? ' ' + className : ''}`);
 </script>
 
 <span class={cls}>{@render children()}</span>

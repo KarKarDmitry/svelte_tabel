@@ -34,6 +34,7 @@
 			<Select name="departmentId" label="Подразделение" options={deptOptions} required />
 			<Select name="positionId" label="Должность" options={posOptions} required />
 			<Input name="date" label="Дата" type="date" value={today} />
+			<Input name="docNumber" label="Номер приказа" />
 			<Button type="submit" size="sm">Сохранить перевод</Button>
 		</form>
 	</Card>
@@ -41,6 +42,7 @@
 	<Card title="Увольнение">
 		<form method="post" action="?/dismiss">
 			<Input name="date" label="Дата" type="date" value={today} />
+			<Input name="docNumber" label="Номер приказа" />
 			<Button type="submit" variant="danger" size="sm">Подтвердить увольнение</Button>
 		</form>
 	</Card>
@@ -52,6 +54,7 @@
 			<Select name="departmentId" label="Подразделение" options={deptOptions} required />
 			<Select name="positionId" label="Должность" options={posOptions} required />
 			<Input name="date" label="Дата" type="date" value={today} />
+			<Input name="docNumber" label="Номер приказа" />
 			<Button type="submit" size="sm">Принять повторно</Button>
 		</form>
 	</Card>

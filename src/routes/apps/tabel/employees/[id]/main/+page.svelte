@@ -153,6 +153,7 @@
 					</Select>
 					<input type="hidden" name="positionId" value={hirePos} />
 					<DatePicker name="date" value={hireDate} onchange={(v) => (hireDate = v)} />
+					<Input name="docNumber" placeholder="Номер приказа" />
 					<Button type="submit" disabled={!hireDept || !hirePos}>Принять на работу</Button>
 				</form>
 			{/if}

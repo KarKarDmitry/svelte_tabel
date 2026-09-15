@@ -61,7 +61,8 @@ export async function buildT12Workbook(user: CtrlUser, input: T12ExportInput) {
 		data.calendarDays,
 		data.shiftMarks,
 		input.options,
-		input.autoAbsenceMark ?? undefined
+		input.autoAbsenceMark ?? undefined,
+		data.schedulesById
 	);
 
 	return buffer;

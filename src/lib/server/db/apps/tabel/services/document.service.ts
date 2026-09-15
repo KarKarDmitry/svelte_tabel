@@ -1,6 +1,7 @@
 import { db } from '$lib/server/db';
 import { hrDocument } from '../tables/document';
 import { eq, and, desc, lte, inArray } from 'drizzle-orm';
+import { invalidate } from '$lib/server/cache';
 
 export const documentService = {
 	list: () => db.select().from(hrDocument).orderBy(desc(hrDocument.date)),
@@ -27,12 +28,16 @@ export const documentService = {
 		departmentId: number;
 		positionId: number;
 		updatedBy?: string | null;
-	}) =>
-		db
+	}) => {
+		const res = db
 			.insert(hrDocument)
 			.values(data)
 			.returning()
-			.then((r) => r[0]),
+			.then((r) => r[0]);
+		// Кадровый документ меняет сегменты сотрудника → месяц/табель в кэше устаревают
+		invalidate('wtt');
+		return res;
+	},
 
 	update: (
 		id: number,
@@ -52,7 +57,12 @@ export const documentService = {
 			.returning()
 			.then((r) => r[0]),
 
-	remove: (id: number) => db.delete(hrDocument).where(eq(hrDocument.id, id)),
+	remove: (id: number) => {
+		const res = db.delete(hrDocument).where(eq(hrDocument.id, id));
+		// Удаление кадрового документа меняет сегменты → сбрасываем кэш месяца
+		invalidate('wtt');
+		return res;
+	},
 
 	/** Последний действующий документ сотрудника на дату */
 	getActiveAtDate: (employeeId: number, date: string) =>

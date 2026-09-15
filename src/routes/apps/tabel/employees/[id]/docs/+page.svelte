@@ -30,12 +30,50 @@
 	const today = new Date().toISOString().split('T')[0];
 
 	let transferDate = $state(today);
+	let transferDocNumber = $state('');
 	let transferDept = $state('');
 	let transferPos = $state('');
 	let dismissDate = $state(today);
+	let dismissDocNumber = $state('');
 	let rehireDate = $state(today);
+	let rehireDocNumber = $state('');
 	let rehireDept = $state('');
 	let rehirePos = $state('');
+
+	let editOpen = $state(false);
+	let editDoc = $state<any>(null);
+	let editDate = $state(today);
+	let editDocNumber = $state('');
+	let editDept = $state('');
+	let editPos = $state('');
+
+	function openEditDoc(doc: any) {
+		editDoc = doc;
+		editDate = doc.date || today;
+		editDocNumber = doc.docNumber ?? '';
+		editDept = String(doc.departmentId ?? '');
+		editPos = String(doc.positionId ?? '');
+		editOpen = true;
+	}
+
+	async function doUpdateDoc() {
+		if (!editDoc) return;
+		const f = new FormData();
+		f.set('id', String(editDoc.id));
+		f.set('date', editDate);
+		f.set('docNumber', editDocNumber);
+		f.set('departmentId', String(editDept));
+		f.set('positionId', String(editPos));
+		const res = await fetch('?/updateDoc', { method: 'POST', body: f });
+		if (res.ok) {
+			editOpen = false;
+			await invalidateAll();
+			toast.success('Документ обновлён');
+		} else {
+			const j = await res.json().catch(() => null);
+			toast.error(j?.data?.message ?? 'Не удалось обновить документ');
+		}
+	}
 
 	function openRehire() {
 		rehireDate = today;
@@ -47,6 +85,7 @@
 	async function doRehire() {
 		const f = new FormData();
 		f.set('date', rehireDate);
+		f.set('docNumber', rehireDocNumber);
 		f.set('departmentId', String(rehireDept));
 		f.set('positionId', String(rehirePos));
 		const res = await fetch('?/rehire', { method: 'POST', body: f });
@@ -72,6 +111,7 @@
 		f.set('date', transferDate);
 		f.set('departmentId', String(transferDept));
 		f.set('positionId', String(transferPos));
+		f.set('docNumber', String(transferDocNumber));
 		const res = await fetch('?/transfer', { method: 'POST', body: f });
 		if (res.ok) {
 			transferOpen = false;
@@ -86,6 +126,7 @@
 	async function doDismiss() {
 		const f = new FormData();
 		f.set('date', dismissDate);
+		f.set('docNumber', String(dismissDocNumber));
 		const res = await fetch('?/dismiss', { method: 'POST', body: f });
 		if (res.ok) {
 			dismissOpen = false;
@@ -159,6 +200,7 @@
 								{#each positions as p}<SelectItem value={String(p.id)}>{p.name}</SelectItem>{/each}
 							</SelectContent>
 						</Select>
+						<Input bind:value={transferDocNumber} placeholder="Номер документа"></Input>
 						<Button onclick={doTransfer}>Сохранить</Button>
 					</div>
 				</DialogContent>
@@ -173,6 +215,7 @@
 							При увольнении сотрудника с него будут сняты текущие графики и пропуска.
 						</p>
 						<DatePicker value={dismissDate} onchange={(v) => (dismissDate = v)} />
+						<Input bind:value={dismissDocNumber} placeholder="Номер документа"></Input>
 						<Button variant="destructive" onclick={doDismiss}>Далее</Button>
 					</div>
 				</DialogContent>
@@ -211,12 +254,56 @@
 								{#each positions as p}<SelectItem value={String(p.id)}>{p.name}</SelectItem>{/each}
 							</SelectContent>
 						</Select>
+						<Input bind:value={rehireDocNumber} placeholder="Номер документа"></Input>
 						<Button onclick={doRehire}>Принять повторно</Button>
 					</div>
 				</DialogContent>
 			</Dialog>
 			<Button onclick={openRehire}>Принять повторно</Button>
 		</div>
+	{/if}
+
+	{#if editOpen && editDoc}
+		<Dialog bind:open={editOpen}>
+			<DialogContent>
+				<div class="flex flex-col gap-4">
+					<p class="font-medium">
+						{typeLabels[editDoc.type] || editDoc.type} от{' '}
+						{new Date(editDate).toLocaleDateString('ru-RU')}
+					</p>
+					<DatePicker value={editDate} onchange={(v) => (editDate = v)} />
+					<Select type="single" bind:value={editDept}>
+						<SelectTrigger class="w-full">
+							<span
+								>{departments.find((d: any) => String(d.id) === editDept)?.name ??
+									allDepartments.find((d: any) => String(d.id) === editDept)?.name ??
+									'Выберите подразделение'}</span
+							>
+						</SelectTrigger>
+						<SelectContent>
+							{#each departments as d}<SelectItem value={String(d.id)}>{d.name}</SelectItem
+								>{/each}
+						</SelectContent>
+					</Select>
+					<Select type="single" bind:value={editPos}>
+						<SelectTrigger class="w-full">
+							<span
+								>{positions.find((p: any) => String(p.id) === editPos)?.name ??
+									'Выберите должность'}</span
+							>
+						</SelectTrigger>
+						<SelectContent>
+							{#each positions as p}<SelectItem value={String(p.id)}>{p.name}</SelectItem>{/each}
+						</SelectContent>
+					</Select>
+					<Input bind:value={editDocNumber} placeholder="Номер документа"></Input>
+					<div class="flex justify-end gap-2">
+						<Button variant="outline" onclick={() => (editOpen = false)}>Отмена</Button>
+						<Button onclick={doUpdateDoc}>Сохранить</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
 	{/if}
 
 	<DTable
@@ -240,5 +327,6 @@
 		]}
 		{cell}
 		rowActions={canEdit ? [{ label: 'Отменить', onclick: (row) => cancelDoc(row) }] : []}
+		onRowClick={canEdit ? (row) => openEditDoc(row) : undefined}
 	/>
 </div>

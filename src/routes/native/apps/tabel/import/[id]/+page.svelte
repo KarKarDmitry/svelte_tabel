@@ -3,7 +3,7 @@
 	import ArrowLeft from '@lucide/svelte/icons/arrow-left';
 
 	const data = $derived($page.data);
-	const st = data.status;
+	const st = $derived(data.status);
 
 	type UnresolvedItem = {
 		seria: string;
@@ -17,12 +17,12 @@
 			middleName: string | null;
 		}[];
 	};
-	const unresolved = (st.unresolved as UnresolvedItem[] | undefined) ?? [];
-	const first = unresolved[0];
+	const unresolved = $derived((st.unresolved as UnresolvedItem[] | undefined) ?? []);
+	const first = $derived(unresolved[0]);
 	/** Сигнатура списка уточнений — чтобы JS не перерисовывал его зря */
-	const initSig = `${unresolved.length}|${first ? first.seria + first.number : ''}`;
+	const initSig = $derived(`${unresolved.length}|${first ? first.seria + first.number : ''}`);
 
-	const pct = st.total > 0 ? Math.min(100, Math.round((st.current / st.total) * 100)) : 0;
+	const pct = $derived(st.total > 0 ? Math.min(100, Math.round((st.current / st.total) * 100)) : 0);
 
 	function stageLabel(s: string): string {
 		switch (s) {

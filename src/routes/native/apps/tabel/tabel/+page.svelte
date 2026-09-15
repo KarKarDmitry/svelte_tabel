@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cellStyle, esc } from '$lib/apps/tabel/utils';
+	import { cellStyle, esc, buildColorLegend } from '$lib/apps/tabel/utils';
 	import {
 		Collapsible,
 		SubCollapsible,
@@ -21,7 +21,19 @@
 	const calendarOptions = $derived(
 		(data.calendars ?? []).map((c: any) => ({ value: c.id, label: `${c.name} (${c.year})` }))
 	);
-	const roundingRules = $derived(data.roundingRules ?? {});
+
+	// Параметры округления — из константы ROUNDING_RULES (значения числовые → строки для number-инпутов)
+	const roundRules = $derived.by(() => {
+		const r: Record<string, unknown> = data.roundingRules ?? {};
+		const num = (v: unknown) => (v == null || v === '' ? '' : String(v));
+		return {
+			roundingPoint: num(r.roundingPoint),
+			roundingFrom: num(r.roundingFrom),
+			roundingTo: num(r.roundingTo),
+			standardLeft: num(r.standardLeft),
+			standardRight: num(r.standardRight)
+		};
+	});
 
 	const months = [
 		'Январь',
@@ -65,6 +77,11 @@
 		cellColorRules: data.cellColorRules ?? {},
 		markColorRules: data.markColorRules ?? {}
 	});
+
+	/** Легенда расцветки: пункты из констант (native — плоский светлый набор) */
+	const legendItems = $derived(
+		buildColorLegend(data.cellColorRules ?? {}, data.markColorRules ?? {}, data.dayMarks ?? [])
+	);
 
 	/** Строки «часы» и «метки» для сотрудника (аналог DepartmentCard.buildRows) */
 	function empRows(emp: any) {
@@ -257,6 +274,18 @@
 			}
 		}
 
+		// --- Легенда расцветки: fixed-панель справа вверху ---
+		function xpLegendToggle() {
+			var el = document.getElementById('legend_popup');
+			if (!el) return;
+			el.style.display = el.style.display === 'none' ? 'block' : 'none';
+		}
+
+		function xpLegendClose() {
+			var el = document.getElementById('legend_popup');
+			if (el) el.style.display = 'none';
+		}
+
 		// Значение не изменилось с последнего сохранённого/исходного?
 		function nativeUnchanged(target) {
 			var v = target.value.toUpperCase();
@@ -356,25 +385,33 @@
 <!-- Носитель состояния для инлайн-скрипта (Svelte не интерполирует {…} в <script>) -->
 <div id="tabel_state" data-actual={data.actual ? 1 : 0} style="display: none"></div>
 
-<div class="native-navlinks">
-	<a href={qs(nav.prev)}>
-		<ArrowLeft size={14} style="vertical-align:middle" />&nbsp;{months[nav.prev.month - 1]}
-	</a>
-	<a href={qs({ year: data.year, month: data.month })}>Текущий месяц</a>
-	<a href={qs(nav.next)}>
-		{months[nav.next.month - 1]}&nbsp;<ArrowRight size={14} style="vertical-align:middle" />
-	</a>
-	<span class="native-sep">|</span>
-	{#if data.actual}
-		<a href={`?year=${data.year}&month=${data.month}&actual=0`}> Отчетное время </a>
-	{:else}
-		<a href={`?year=${data.year}&month=${data.month}&actual=1`}> Фактическое время </a>
-	{/if}
-	<span class="native-sep">|</span>
-	{#if data.canEdit}
-		{@html `<button type="button" class="native-btn native-btn-small" onclick="xpToggle('export_card')">Экспорт</button>`}
-	{/if}
-</div>
+<table class="native-navlinks">
+	<tbody>
+		<tr>
+			<td class="native-navlinks-left">
+				<a href={qs(nav.prev)}>
+					<ArrowLeft size={14} style="vertical-align:middle" />&nbsp;{months[nav.prev.month - 1]}
+				</a>
+				<a href={qs({ year: data.year, month: data.month })}>Текущий месяц</a>
+				<a href={qs(nav.next)}>
+					{months[nav.next.month - 1]}&nbsp;<ArrowRight size={14} style="vertical-align:middle" />
+				</a>
+				<span class="native-sep">|</span>
+				{#if data.actual}
+					<a href={`?year=${data.year}&month=${data.month}&actual=0`}> Отчетное время </a>
+				{:else}
+					<a href={`?year=${data.year}&month=${data.month}&actual=1`}> Фактическое время </a>
+				{/if}
+			</td>
+			<td class="native-navlinks-right">
+				{#if data.canEdit}
+					{@html `<button type="button" class="native-btn native-btn-small" onclick="xpToggle('export_card')">Экспорт</button>`}
+				{/if}
+				{@html `<button type="button" class="native-btn native-btn-small" title="Расцветка табеля" onclick="xpLegendToggle()">?</button>`}
+			</td>
+		</tr>
+	</tbody>
+</table>
 
 <div id="export_card" style="display: none">
 	<Card title="Экспорт табеля">
@@ -392,50 +429,88 @@
 				<Checkbox name="showAbsence" label="Неявки" checked />
 				<Checkbox name="showOvertime" label="Переработки" />
 				<Checkbox name="autoAbsence" label="Автопропуски" />
-				<Checkbox name="rounding" label="Округлять часы" />
 			</Flex>
 
-			<div class="n-export-round">
-				<Input
-					name="roundingPoint"
-					label="Точка округления (ч)"
-					type="number"
-					step="0.1"
-					value={String(roundingRules.roundingPoint ?? '')}
-				/>
-				<Input
-					name="roundingFrom"
-					label="От (ч)"
-					type="number"
-					step="0.1"
-					value={String(roundingRules.roundingFrom ?? '')}
-				/>
-				<Input
-					name="roundingTo"
-					label="До (ч)"
-					type="number"
-					step="0.1"
-					value={String(roundingRules.roundingTo ?? '')}
-				/>
-				<Input
-					name="standardLeft"
-					label="Сдвиг влево к стандарту (ч)"
-					type="number"
-					step="0.1"
-					value={String(roundingRules.standardLeft ?? '')}
-				/>
-				<Input
-					name="standardRight"
-					label="Сдвиг вправо к стандарту (ч)"
-					type="number"
-					step="0.1"
-					value={String(roundingRules.standardRight ?? '')}
-				/>
-			</div>
+			<Checkbox name="rounding" label="Округлять часы" checked />
+			<Flex>
+				<div class="n-export-round">
+					<Input
+						name="roundingPoint"
+						label="Точка округления (ч)"
+						type="number"
+						step="0.1"
+						value={roundRules.roundingPoint}
+					/>
+					<Input
+						name="roundingFrom"
+						label="От (ч)"
+						type="number"
+						step="0.1"
+						value={roundRules.roundingFrom}
+					/>
+					<Input
+						name="roundingTo"
+						label="До (ч)"
+						type="number"
+						step="0.1"
+						value={roundRules.roundingTo}
+					/>
+					<Input
+						name="standardLeft"
+						label="Сдвиг влево к стандарту (ч)"
+						type="number"
+						step="0.1"
+						value={roundRules.standardLeft}
+					/>
+					<Input
+						name="standardRight"
+						label="Сдвиг вправо к стандарту (ч)"
+						type="number"
+						step="0.1"
+						value={roundRules.standardRight}
+					/>
+				</div>
+				<span class="native-sep">|</span>
+				<p class="n-export-help">
+					<b>Как округляются часы:</b> если фактическое время попало в интервал — показывается
+					«якорь», иначе — округление до целого часа.<br />
+					Правило 1 (по точке): <span class="n-mono">От &lt; факт &lt; До → Точка</span>. Пример:
+					Точка 4, От 3, До 5 → отработано от 3 до 5 часов — в отчёте 4.<br />
+					Правило 2 (по графику):
+					<span class="n-mono">
+						стандарт − Сдвиг влево &lt; факт &lt; стандарт + Сдвиг вправо → стандарт
+					</span>. Пример: график 8 ч, сдвиги 1/1 → от 7 до 9 часов — в отчёте 8.
+				</p>
+			</Flex>
 
 			<Button type="submit" size="sm">Скачать</Button>
 		</form>
 	</Card>
+</div>
+
+{#snippet legendList()}
+	<div class="n-legend">
+		{#each legendItems as item}
+			<div class="n-legend-row">
+				<span
+					class="n-legend-swatch"
+					style="background-color: {item.bg};{item.fg ? ` color: ${item.fg};` : ''}"
+				></span>
+				<span class="n-legend-label" style={item.bold ? 'font-weight: bold' : ''}>
+					{item.label}
+				</span>
+			</div>
+		{/each}
+	</div>
+{/snippet}
+
+<!-- Попап расцветки (аналог modern): ? → fixed-панель, кнопка «Закрыть» -->
+<div id="legend_popup" class="native-legend-popup" style="display: none">
+	<div class="native-legend-head">
+		<b>Расцветка табеля</b>
+		{@html `<button type="button" class="native-btn native-btn-small" onclick="xpLegendClose()">Закрыть</button>`}
+	</div>
+	{@render legendList()}
 </div>
 
 <div>
