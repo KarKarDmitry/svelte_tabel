@@ -46,7 +46,10 @@
 
 <DTable
 	data={departments}
-	columns={[{ key: 'name', label: 'Название' }]}
+	columns={[
+		{ key: 'pp', label: 'П/Н' },
+		{ key: 'name', label: 'Название' }
+	]}
 	filters={[{ key: 'search', placeholder: 'Поиск...', type: 'string', value: search, onSearch }]}
 	actions={canEdit ? [{ label: 'Добавить', onclick: () => openCreate() }] : []}
 	rowActions={canEdit
@@ -65,9 +68,21 @@
 		<form method="post" action={'?/' + action} class="flex flex-col gap-4">
 			<input type="hidden" name="id" value={editRow?.id ?? ''} />
 			<p class="font-medium">{action === 'create' ? 'Новое' : 'Редактировать'} подразделение</p>
-			<div>
-				<Label for="name">Название</Label>
-				<Input id="name" name="name" value={editRow?.name ?? ''} placeholder="Название" required />
+			<div class="flex flex-col gap-4">
+				<Label for="pp">
+					П/Н
+					<Input id="pp" name="pp" value={editRow?.pp ?? ''} placeholder="П/Н" required />
+				</Label>
+				<Label for="name">
+					Название
+					<Input
+						id="name"
+						name="name"
+						value={editRow?.name ?? ''}
+						placeholder="Название"
+						required
+					/>
+				</Label>
 			</div>
 			<Button type="submit">{action === 'create' ? 'Создать' : 'Сохранить'}</Button>
 		</form>

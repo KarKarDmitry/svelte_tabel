@@ -50,7 +50,9 @@ export const departmentGroupService = {
 			})
 			.from(departmentGroupMember)
 			.innerJoin(department, eq(department.id, departmentGroupMember.departmentId))
-			.orderBy(asc(department.name));
+			.orderBy(asc(departmentGroupMember.groupId), asc(department.pp), asc(department.name));
+
+		console.log(JSON.stringify(members, null, 4));
 
 		const memberMap = new Map<number, { departmentId: number; departmentName: string }[]>();
 		for (const m of members) {
@@ -59,6 +61,14 @@ export const departmentGroupService = {
 				.get(m.groupId)!
 				.push({ departmentId: m.departmentId, departmentName: m.departmentName });
 		}
+
+		console.log(
+			JSON.stringify(
+				groups.map((g) => ({ ...g, departments: memberMap.get(g.id) ?? [] })),
+				null,
+				4
+			)
+		);
 
 		return groups.map((g) => ({ ...g, departments: memberMap.get(g.id) ?? [] }));
 	},

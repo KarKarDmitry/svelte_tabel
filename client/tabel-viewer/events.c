@@ -26,6 +26,31 @@ static void ev_fmt(int minutes, char *buf, int cap) {
 	_snprintf(buf, (size_t)cap, "%.1f", (double)minutes / 60.0);
 }
 
+/* UTC ISO-строка сервера (YYYY-MM-DDTHH:MM:SS[.fff]Z) → локальное
+   время ПК в формате ДД.ММ.ГГГГ Ч:ММ:СС (напр. 01.09.2026 7:31:41). */
+static void ev_fmt_dt(const char *iso, char *buf, int cap) {
+	int y = 0, mo = 0, d = 0, h = 0, mi = 0, s = 0;
+	SYSTEMTIME utc, local;
+	if (cap > 0) buf[0] = '\0';
+	if (!iso || !*iso) return;
+	if (sscanf(iso, "%d-%d-%d%*c%d:%d:%d", &y, &mo, &d, &h, &mi, &s) < 6) {
+		_snprintf(buf, (size_t)cap, "%s", iso);
+		return;
+	}
+	memset(&utc, 0, sizeof(utc));
+	utc.wYear = (WORD)y;
+	utc.wMonth = (WORD)mo;
+	utc.wDay = (WORD)d;
+	utc.wHour = (WORD)h;
+	utc.wMinute = (WORD)mi;
+	utc.wSecond = (WORD)s;
+	local = utc;
+	SystemTimeToTzSpecificLocalTime(NULL, &utc, &local);
+	_snprintf(buf, (size_t)cap, "%02d.%02d.%04d %d:%02d:%02d",
+			  (int)local.wDay, (int)local.wMonth, (int)local.wYear,
+			  (int)local.wHour, (int)local.wMinute, (int)local.wSecond);
+}
+
 static void ev_fill(HWND hwnd) {
 	char title[300];
 	_snprintf(title, sizeof(title), "События — %s", ev_data.fio[0] ? ev_data.fio : "");
@@ -45,18 +70,20 @@ static void ev_fill(HWND hwnd) {
 	LVCOLUMNA c;
 	memset(&c, 0, sizeof(c));
 	c.mask = LVCF_TEXT | LVCF_WIDTH;
-	c.cx = 110; c.pszText = "Дата/время";
+	c.cx = 130; c.pszText = "Дата/время";
 	ListView_InsertColumn(ev_list, 0, &c);
 	c.cx = 120; c.pszText = "Событие";
 	ListView_InsertColumn(ev_list, 1, &c);
 	c.cx = 110; c.pszText = "Пропуск";
 	ListView_InsertColumn(ev_list, 2, &c);
 	for (int i = 0; i < ev_data.n_events; i++) {
+		char dtbuf[32];
 		LVITEMA lv;
 		memset(&lv, 0, sizeof(lv));
 		lv.mask = LVIF_TEXT;
 		lv.iItem = i;
-		lv.pszText = ev_data.events[i].datetime;
+		ev_fmt_dt(ev_data.events[i].datetime, dtbuf, sizeof(dtbuf));
+		lv.pszText = dtbuf;
 		int idx = ListView_InsertItem(ev_list, &lv);
 		ListView_SetItemText(ev_list, idx, 1, ev_data.events[i].eventName);
 		ListView_SetItemText(ev_list, idx, 2, ev_data.events[i].passNumber);
@@ -84,8 +111,12 @@ static void ev_fill(HWND hwnd) {
 		char hbuf[16], nbuf[16], ebuf[16];
 		const char *d8 = ev_data.days[i].date;
 		_snprintf(buf, sizeof(buf), "%s", d8 && d8[0] ? d8 + 8 : "");
-		ev_fmt(ev_data.days[i].reportWorkTime, hbuf, sizeof(hbuf));
-		ev_fmt(ev_data.days[i].reportNightWorkTime, nbuf, sizeof(nbuf));
+		ev_fmt(ev_data.days[i].reportWorkTime >= 0 ? ev_data.days[i].reportWorkTime
+												   : ev_data.days[i].shiftWorkTime,
+			   hbuf, sizeof(hbuf));
+		ev_fmt(ev_data.days[i].reportNightWorkTime >= 0 ? ev_data.days[i].reportNightWorkTime
+														: ev_data.days[i].shiftNightWorkTime,
+			   nbuf, sizeof(nbuf));
 		if (ev_data.days[i].extraMinutes >= 0) {
 			_snprintf(ebuf, sizeof(ebuf), "%.1f", (double)ev_data.days[i].extraMinutes / 60.0);
 		} else ebuf[0] = '\0';
@@ -121,7 +152,8 @@ static COLORREF ev_day_bg(int item, int sub) {
 	/* спец-цвет отметки (колонка «Метка») — приоритетнее */
 	if (sub == 3 && mark && *mark) {
 		for (int i = 0; i < g.model.n_rules; i++) {
-			if (strcmp(g.model.rule_code[i], mark) == 0) {
+			if (strcmp(g.model.rule_code[i], mark) == 0 ||
+				strcmp(mark_short(&g.model, g.model.rule_code[i]), mark) == 0) {
 				COLORREF c = ev_hex(g.model.rule_bg[i]);
 				if (c) return c;
 				break;

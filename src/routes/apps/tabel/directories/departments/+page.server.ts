@@ -12,17 +12,30 @@ export const load: PageServerLoad = async (event) => departmentsData(event.url);
 export const actions: Actions = {
 	create: (event) =>
 		runAction(async () => {
-			const name = (await event.request.formData()).get('name')?.toString();
-			await departmentCreate(event.locals.user, name);
+			const form = await event.request.formData();
+			const ppRaw = form.get('pp');
+			const ppNum = ppRaw !== null && ppRaw !== '' ? Number(ppRaw) : undefined;
+
+			// Дополнительная проверка на валидность числа
+			const pp: number | undefined = ppNum !== undefined && !isNaN(ppNum) ? ppNum : undefined;
+
+			await departmentCreate(event.locals.user, form.get('name')?.toString(), pp);
 			return { success: true };
 		}),
 	update: (event) =>
 		runAction(async () => {
 			const form = await event.request.formData();
+			const ppRaw = form.get('pp');
+			const ppNum = ppRaw !== null && ppRaw !== '' ? Number(ppRaw) : undefined;
+
+			// Дополнительная проверка на валидность числа
+			const pp: number | undefined = ppNum !== undefined && !isNaN(ppNum) ? ppNum : undefined;
+
 			await departmentUpdate(
 				event.locals.user,
 				Number(form.get('id')),
-				form.get('name')?.toString()
+				form.get('name')?.toString(),
+				pp
 			);
 			return { success: true };
 		}),

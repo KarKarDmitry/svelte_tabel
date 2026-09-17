@@ -145,11 +145,16 @@
 		const groups = (data.departmentGroups ?? []) as any[];
 		const grouped = groups
 			.map((g) => {
-				const deptIds = new Set(g.departments.map((m: any) => m.departmentId));
+				const order = new Map<number, number>(
+					g.departments.map((m: any, i: number) => [m.departmentId, i])
+				);
+
 				return {
 					id: g.id,
 					name: g.name,
-					departments: departments.filter((d: any) => deptIds.has(d.id))
+					departments: departments
+						.filter((d: any) => order.has(d.id))
+						.sort((a: any, b: any) => order.get(a.id)! - order.get(b.id)!)
 				};
 			})
 			.filter((g) => g.departments.length > 0);
@@ -160,6 +165,7 @@
 		if (ungrouped.length > 0) {
 			grouped.push({ id: 0, name: 'Без группы', departments: ungrouped });
 		}
+
 		return grouped;
 	});
 

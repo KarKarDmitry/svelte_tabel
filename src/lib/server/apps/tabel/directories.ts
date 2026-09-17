@@ -166,18 +166,18 @@ export async function passDelete(user: CtrlUser, id: number) {
 
 // ---------- Подразделения ----------
 
-export async function departmentCreate(user: CtrlUser, name?: string) {
+export async function departmentCreate(user: CtrlUser, name?: string, pp?: number) {
 	// Подразделения создаёт только администратор
 	assertAllowed(denyIfNotAdmin(user));
 	if (!name) throw new ControllerError(400, 'Название обязательно');
-	await departmentService.create({ name });
+	await departmentService.create({ name, pp });
 }
 
-export async function departmentUpdate(user: CtrlUser, id: number, name?: string) {
+export async function departmentUpdate(user: CtrlUser, id: number, name?: string, pp?: number) {
 	// Название могут редактировать admin и timekeeper
 	assertAllowed(denyIfNoEdit(user));
 	if (!name) throw new ControllerError(400, 'Название обязательно');
-	await departmentService.update(id, { name });
+	await departmentService.update(id, { name, pp });
 }
 
 export async function departmentDelete(user: CtrlUser, id: number) {

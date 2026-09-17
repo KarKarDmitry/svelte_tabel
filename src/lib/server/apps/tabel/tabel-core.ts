@@ -321,14 +321,20 @@ export async function tabelMonthNativeData(user: CtrlUser, url: URL) {
 	// Группируем по группам подразделений (для отображения)
 	const grouped = core.groups
 		.map((g) => {
-			const deptIds = new Set(g.departments.map((m: any) => m.departmentId));
+			const order = new Map<number, number>(
+				g.departments.map((m: any, i: number) => [m.departmentId, i])
+			);
+
 			return {
 				id: g.id,
 				name: g.name,
-				departments: core.departments.filter((d: any) => deptIds.has(d.id))
+				departments: core.departments
+					.filter((d: any) => order.has(d.id))
+					.sort((a: any, b: any) => order.get(a.id)! - order.get(b.id)!)
 			};
 		})
 		.filter((g) => g.departments.length > 0);
+
 	const inGroup = new Set(grouped.flatMap((g) => g.departments.map((d: any) => d.id)));
 	const ungrouped = core.departments.filter((d: any) => !inGroup.has(d.id));
 	if (ungrouped.length > 0) {

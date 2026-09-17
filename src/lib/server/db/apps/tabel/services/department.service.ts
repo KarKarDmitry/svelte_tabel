@@ -1,9 +1,9 @@
 import { db } from '$lib/server/db';
 import { department } from '../tables/department';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 export const departmentService = {
-	list: () => db.select().from(department).orderBy(department.name),
+	list: () => db.select().from(department).orderBy(asc(department.pp), asc(department.name)),
 
 	getById: (id: number) =>
 		db
@@ -12,14 +12,14 @@ export const departmentService = {
 			.where(eq(department.id, id))
 			.then((r) => r[0]),
 
-	create: (data: { name: string }) =>
+	create: (data: { name: string; pp?: number }) =>
 		db
 			.insert(department)
 			.values(data)
 			.returning()
 			.then((r) => r[0]),
 
-	update: (id: number, data: { name: string }) =>
+	update: (id: number, data: { name: string; pp?: number }) =>
 		db
 			.update(department)
 			.set(data)
