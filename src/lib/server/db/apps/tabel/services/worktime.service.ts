@@ -12,6 +12,7 @@ import { calendar } from '../tables/calendar';
 import { calendarDay } from '../tables/calendar-day';
 import { eq, and, asc, between, desc, gte, lte, sql, or, isNull } from 'drizzle-orm';
 import { buildEmployeeSegments } from './employee-segments';
+import { effectiveWorkMinutes, effectiveNightMinutes } from '$lib/apps/tabel/utils/effective-time';
 
 /** Получить из app_constant множество shortName отметок, при простановке которых подставляются часы из графика */
 async function getShiftMarkShortnames(): Promise<Set<string>> {
@@ -74,6 +75,7 @@ export function patchWttMonthCache(
 	fields: {
 		reportWorkTime?: number | null;
 		reportNightWorkTime?: number | null;
+		reportMarkCode?: string | null;
 		dayMarkCode?: string | null;
 		extraMarkCode?: string | null;
 		extraMarkMinutes?: number | null;
@@ -89,8 +91,8 @@ export function patchWttMonthCache(
 				let totalNight = 0;
 				for (const day of emp.days ?? []) {
 					if (day.date === dateStr) Object.assign(day, fields);
-					totalReport += day.reportWorkTime ?? day.shiftWorkTime ?? 0;
-					totalNight += day.reportNightWorkTime ?? day.shiftNightWorkTime ?? 0;
+					totalReport += effectiveWorkMinutes(day) ?? 0;
+					totalNight += effectiveNightMinutes(day) ?? 0;
 				}
 				emp.totalReport = totalReport;
 				emp.totalNight = totalNight;
@@ -349,8 +351,8 @@ const worktimeServiceBase = {
 					extraMarkMinutes: rec?.extraMarkMinutes ?? null,
 					scheduleId: rec?.scheduleId ?? null
 				});
-				totalReport += rec?.reportWorkTime ?? rec?.shiftWorkTime ?? 0;
-				totalNight += rec?.reportNightWorkTime ?? rec?.shiftNightWorkTime ?? 0;
+				totalReport += effectiveWorkMinutes(rec) ?? 0;
+				totalNight += effectiveNightMinutes(rec) ?? 0;
 			}
 
 			dept.employees.push({
@@ -483,10 +485,14 @@ const worktimeServiceBase = {
 			updatedBy: updatedBy ?? null
 		};
 		if (!trimmed) {
-			// Пустая строка — снимаем ручной оверрайд (день снова показывает факт импорта)
-			updateData.reportMarkCode = null;
-			updateData.reportWorkTime = null;
-			updateData.reportNightWorkTime = null;
+			// Прямой клик по ячейке — явная очистка: маркер '' отличает «очищено»
+			// от «не трогали» (иначе часы снова берутся из импорта).
+			// Вызовы с extraMarkCode (модалка/доп.отметка) report-поля не трогают.
+			if (extraMarkCode === undefined) {
+				updateData.reportMarkCode = '';
+				updateData.reportWorkTime = null;
+				updateData.reportNightWorkTime = null;
+			}
 		} else {
 			updateData.reportMarkCode = markCode;
 		}
@@ -532,6 +538,8 @@ const worktimeServiceBase = {
 					updateData.reportNightWorkTime = markCode === 'N' ? empSchedule.standardWorkTime : 0;
 				}
 			} else if (trimmed === '-') {
+				// '-' — аналог пустой отметки: маркер очистки, часы пустые
+				updateData.reportMarkCode = '';
 				updateData.reportWorkTime = null;
 				updateData.reportNightWorkTime = null;
 			}
@@ -565,6 +573,7 @@ const worktimeServiceBase = {
 		patchWttMonthCache(Number(date.slice(0, 4)), Number(date.slice(5, 7)), employeeId, date, {
 			reportWorkTime: saved!.reportWorkTime,
 			reportNightWorkTime: saved!.reportNightWorkTime,
+			reportMarkCode: saved!.reportMarkCode,
 			dayMarkCode: saved!.reportMarkCode ?? saved!.dayMarkCode,
 			extraMarkCode: saved!.extraMarkCode,
 			extraMarkMinutes: saved!.extraMarkMinutes
@@ -612,9 +621,9 @@ const worktimeServiceBase = {
 				const setData: Record<string, any> = {
 					updatedBy: updatedBy ?? null
 				};
-				if (!trimmed) {
-					// Пустая метка — снимаем ручной оверрайд, как «» в одиночном методе
-					setData.reportMarkCode = null;
+				if (!trimmed || trimmed === '-') {
+					// Явная очистка — маркер '' (пустая метка, часы пустые)
+					setData.reportMarkCode = '';
 					setData.reportWorkTime = null;
 					setData.reportNightWorkTime = null;
 				} else {
@@ -646,6 +655,7 @@ const worktimeServiceBase = {
 					{
 						reportWorkTime: r.reportWorkTime,
 						reportNightWorkTime: r.reportNightWorkTime,
+						reportMarkCode: r.reportMarkCode,
 						dayMarkCode: r.reportMarkCode ?? r.dayMarkCode,
 						extraMarkCode: r.extraMarkCode,
 						extraMarkMinutes: r.extraMarkMinutes

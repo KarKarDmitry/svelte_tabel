@@ -17,6 +17,7 @@ export type StyleEntry = {
 	date: string;
 	dayMarkCode: string | null;
 	reportWorkTime: number | null;
+	reportMarkCode?: string | null;
 };
 
 /** Расцветка и shortName для списка обновлённых ячеек */

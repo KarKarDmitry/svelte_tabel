@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { cellStyle, esc, buildColorLegend } from '$lib/apps/tabel/utils';
+	import {
+		cellStyle,
+		esc,
+		buildColorLegend,
+		effectiveWorkMinutes,
+		effectiveNightMinutes
+	} from '$lib/apps/tabel/utils';
 	import {
 		Collapsible,
 		SubCollapsible,
@@ -97,14 +103,13 @@
 					? data.schedulesById[day.scheduleId].standardWorkTime
 					: null) ??
 				emp.schedule?.standardWorkTime;
-			const workTime = showActual ? day.rawWorkTime : (day.reportWorkTime ?? day.shiftWorkTime);
-			const nightTime = showActual
-				? day.rawNightWorkTime
-				: (day.reportNightWorkTime ?? day.shiftNightWorkTime);
+			const workTime = showActual ? day.rawWorkTime : effectiveWorkMinutes(day);
+			const nightTime = showActual ? day.rawNightWorkTime : effectiveNightMinutes(day);
 			totalReport += workTime ?? 0;
 			totalNight += nightTime ?? 0;
-			// Звёздочка — день с отчётными значениями (проставлен табельщиком)
-			const hasReport = day.reportWorkTime != null || day.reportNightWorkTime != null;
+			// Звёздочка — есть ручной оверрайд, включая явную очистку (маркер '')
+			const hasReport =
+				day.reportWorkTime != null || day.reportNightWorkTime != null || day.reportMarkCode === '';
 			// Отчётные часы приоритетны; пока табельщик их не проставил — берём сменные из импорта
 			const workMinutes = day.reportWorkTime ?? day.shiftWorkTime;
 			const hasShortage = workMinutes != null && stdMin != null && workMinutes < stdMin;
@@ -127,7 +132,7 @@
 		return {
 			id: emp.id,
 			number: emp.number,
-			fio: `${emp.lastName} ${emp.firstName}`,
+			fio: `${emp.lastName} ${emp.firstName} ${emp.middleName}`,
 			totalReport: (totalReport / 60).toFixed(1),
 			totalNight: (totalNight / 60).toFixed(1),
 			totalReportMinutes: totalReport,
@@ -220,10 +225,12 @@
 
 			hoursCell.setAttribute('data-minutes', newMin);
 			hoursCell.setAttribute('data-night', newNight);
-			// Звёздочка — отчётные значения проставлены (в режиме «фактическое» не показываем)
+			// Звёздочка — есть ручной оверрайд, включая очистку (маркер ''), в «фактическом» не показываем
 			var star = nativeActual()
 				? ''
-				: updated.reportWorkTime != null || updated.reportNightWorkTime != null
+				: updated.reportWorkTime != null ||
+					  updated.reportNightWorkTime != null ||
+					  updated.reportMarkCode === ''
 					? '*'
 					: '';
 			hoursCell.innerText = (newMin ? (newMin / 60).toFixed(1) : '') + star;

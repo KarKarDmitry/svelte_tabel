@@ -3,6 +3,10 @@
 	import { goto } from '$app/navigation';
 	import { parse } from 'devalue';
 	import { cellStyle } from '$lib/apps/tabel/utils/cell-style';
+	import {
+		effectiveWorkMinutes,
+		effectiveNightMinutes
+	} from '$lib/apps/tabel/utils/effective-time';
 	import { buildColorLegend } from '$lib/apps/tabel/utils/color-legend';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
@@ -307,8 +311,8 @@
 							dmc: day.dayMarkCode
 						});
 					}
-					totalReport += day.reportWorkTime ?? day.shiftWorkTime ?? 0;
-					totalNight += day.reportNightWorkTime ?? day.shiftNightWorkTime ?? 0;
+					totalReport += (showActual ? day.rawWorkTime : effectiveWorkMinutes(day)) ?? 0;
+					totalNight += (showActual ? day.rawNightWorkTime : effectiveNightMinutes(day)) ?? 0;
 				}
 
 				console.log('[WTT] new totals', {
@@ -404,6 +408,7 @@
 			<div class="min-w-0 truncate">
 				{row.lastName}
 				{row.firstName}
+				{row.middleName}
 			</div>
 		</div>
 	{/if}

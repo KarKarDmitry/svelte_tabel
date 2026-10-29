@@ -292,6 +292,7 @@ export async function saveEmployeeEvents(
 		reportWorkTime: number | null;
 		reportNightWorkTime: number | null;
 		dayMarkCode: string | null;
+		reportMarkCode?: string | null;
 		extraMarkCode?: string | null;
 		extraMarkMinutes?: number | null;
 		shortName?: string;
@@ -320,6 +321,8 @@ export async function saveEmployeeEvents(
 
 		const explicitHours = day.reportWorkTime !== undefined && day.reportWorkTime !== null;
 		const explicitNight = day.reportNightWorkTime !== undefined && day.reportNightWorkTime !== null;
+		// Пустая метка + явные часы — вводимые часы не должны скрываться маркером очистки
+		const clearMarker = !mark && (explicitHours || explicitNight);
 
 		if (
 			explicitHours ||
@@ -328,6 +331,7 @@ export async function saveEmployeeEvents(
 			day.extraMarkMinutes != null
 		) {
 			const setData: any = {};
+			if (clearMarker) setData.reportMarkCode = null;
 			if (explicitHours) setData.reportWorkTime = day.reportWorkTime;
 			if (explicitNight) setData.reportNightWorkTime = day.reportNightWorkTime;
 			if (day.extraMarkCode?.trim()) setData.extraMarkCode = day.extraMarkCode.trim();
@@ -349,6 +353,7 @@ export async function saveEmployeeEvents(
 			reportWorkTime: day.reportWorkTime ?? result.reportWorkTime,
 			reportNightWorkTime: day.reportNightWorkTime ?? result.reportNightWorkTime,
 			dayMarkCode: mark || result.dayMarkCode,
+			reportMarkCode: clearMarker ? null : (result.reportMarkCode ?? null),
 			extraMarkCode: day.extraMarkCode?.trim() || result.extraMarkCode || null,
 			extraMarkMinutes: day.extraMarkMinutes ?? result.extraMarkMinutes ?? null
 		});
@@ -381,6 +386,7 @@ export async function saveEmployeeEvents(
 				{
 					reportWorkTime: updated[i].reportWorkTime,
 					reportNightWorkTime: updated[i].reportNightWorkTime,
+					reportMarkCode: updated[i].reportMarkCode,
 					dayMarkCode: updated[i].dayMarkCode,
 					extraMarkCode: updated[i].extraMarkCode,
 					extraMarkMinutes: updated[i].extraMarkMinutes

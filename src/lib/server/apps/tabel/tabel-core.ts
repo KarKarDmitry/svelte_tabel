@@ -231,7 +231,8 @@ export async function bulkAssignMarks(
 			employeeId: s.employeeId,
 			date: s.date,
 			dayMarkCode: s.dayMarkCode,
-			reportWorkTime: s.reportWorkTime
+			reportWorkTime: s.reportWorkTime,
+			reportMarkCode: s.reportMarkCode
 		}))
 	);
 	return { count: saved.length, updated };

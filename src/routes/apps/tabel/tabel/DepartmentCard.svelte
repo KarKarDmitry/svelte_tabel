@@ -13,6 +13,10 @@
 	import { Grid2x2Check } from '@lucide/svelte';
 	import type { EColumn } from '$lib/components/ETable/types';
 	import { cellStyle, type CellStyleCtx } from '$lib/apps/tabel/utils/cell-style';
+	import {
+		effectiveWorkMinutes,
+		effectiveNightMinutes
+	} from '$lib/apps/tabel/utils/effective-time';
 
 	type DayMarkValue = {
 		value: string;
@@ -34,6 +38,7 @@
 		number: string;
 		lastName: string;
 		firstName: string;
+		middleName: string;
 		totalReport?: number;
 		totalNight?: number;
 		schedule?: any;
@@ -97,6 +102,7 @@
 			number: emp.number,
 			lastName: emp.lastName,
 			firstName: emp.firstName,
+			middleName: emp.middleName,
 			totalReport: 0,
 			totalNight: 0
 		};
@@ -108,6 +114,7 @@
 			number: '',
 			lastName: '',
 			firstName: '',
+			middleName: '',
 			positionName: emp.positionName ?? '',
 			schedule: emp.schedule
 		};
@@ -125,14 +132,13 @@
 						: null;
 			const stdMin = calDayForDate?.workTime ?? dayStdMin ?? emp.schedule?.standardWorkTime;
 
-			const workTime = showActual ? day.rawWorkTime : workMinutes;
-			const nightTime = showActual
-				? day.rawNightWorkTime
-				: (day.reportNightWorkTime ?? day.shiftNightWorkTime);
+			const workTime = showActual ? day.rawWorkTime : effectiveWorkMinutes(day);
+			const nightTime = showActual ? day.rawNightWorkTime : effectiveNightMinutes(day);
 			const hasShortage = workMinutes != null && stdMin != null && workMinutes < stdMin;
 
-			// Звёздочка — день с отчётными значениями (проставлен табельщиком)
-			const hasReport = day.reportWorkTime != null || day.reportNightWorkTime != null;
+			// Звёздочка — есть ручной оверрайд, включая явную очистку (маркер '')
+			const hasReport =
+				day.reportWorkTime != null || day.reportNightWorkTime != null || day.reportMarkCode === '';
 			hoursRow[`day_${index + 1}`] = formatHours(workTime) + (hasReport && !showActual ? '*' : '');
 			hoursRow[`day_${index + 1}_blocked`] = day.blocked ?? false;
 			totalReport += workTime ?? 0;
@@ -362,6 +368,7 @@
 									>
 										{emp.lastName}
 										{emp.firstName}
+										{emp.middleName}
 										<span class="text-right font-mono text-xs tabular-nums">
 											{formatHoursMobile(emp.totalReport)}ч
 											{#if emp.totalNight > 0}
@@ -414,11 +421,13 @@
 															: (day.reportMarkCode ?? day.dayMarkCode ?? ' ')
 													)}
 												</span>
-												{@const wt = showActual
-													? day.rawWorkTime
-													: (day.reportWorkTime ?? day.shiftWorkTime)}
+												{@const wt = showActual ? day.rawWorkTime : effectiveWorkMinutes(day)}
 												<span class="font-mono text-xs tabular-nums">
-													{wt != null ? formatHoursMobile(wt) : ' '}
+													{wt != null
+														? formatHoursMobile(wt)
+														: day.reportMarkCode === ''
+															? '*'
+															: ' '}
 												</span>
 											{/if}
 										</div>
