@@ -9,10 +9,23 @@ export type DocSegment = {
 	dateTo: string;
 };
 
-function clamp(date: string, min: string, max: string): string {
-	if (date < min) return min;
-	if (date > max) return max;
-	return date;
+/**
+ * Пересечение интервала [from, to] с месяцем.
+ * null — если интервала нет или он целиком лежит вне месяца
+ * (иначе clamp прижимал бы его к monthStart/monthEnd и создавал фантомный день).
+ */
+function intersect(
+	from: string,
+	to: string,
+	monthStart: string,
+	monthEnd: string
+): { dateFrom: string; dateTo: string } | null {
+	if (from > to) return null;
+	if (to < monthStart || from > monthEnd) return null;
+	return {
+		dateFrom: from < monthStart ? monthStart : from,
+		dateTo: to > monthEnd ? monthEnd : to
+	};
 }
 
 export function buildEmployeeSegments(
@@ -58,13 +71,19 @@ export function buildEmployeeSegments(
 	for (const doc of docs) {
 		if (doc.date > monthEnd) continue;
 
-		// Сегмент ПЕРЕД текущим документом (использует отдел предыдущего документа)
-		if (prevDoc) {
-			const segFrom = clamp(addDays(prevDoc.date, 1), monthStart, monthEnd);
+		// Сегмент ПЕРЕД текущим документом (использует отдел предыдущего документа).
+		// После увольнения сотрудник не работает — разрыв до следующего приёма,
+		// иначе отдел из записи увольнения ошибочно продолжается.
+		if (prevDoc && prevDoc.type !== 'dismissal') {
 			// Для всех типов документов: сегмент заканчивается ДО даты документа
-			const segTo = clamp(addDays(doc.date, -1), monthStart, monthEnd);
+			const range = intersect(
+				addDays(prevDoc.date, 1),
+				addDays(doc.date, -1),
+				monthStart,
+				monthEnd
+			);
 
-			if (segTo >= segFrom) {
+			if (range) {
 				const dept = prevDoc.departmentId ? deptById.get(prevDoc.departmentId) : undefined;
 				const pos = prevDoc.positionId ? posById.get(prevDoc.positionId) : undefined;
 				segments.push({
@@ -72,8 +91,8 @@ export function buildEmployeeSegments(
 					departmentName: dept?.name ?? null,
 					positionId: prevDoc.positionId ?? null,
 					positionName: pos?.name ?? null,
-					dateFrom: segFrom,
-					dateTo: segTo
+					dateFrom: range.dateFrom,
+					dateTo: range.dateTo
 				});
 			}
 		}
@@ -81,10 +100,9 @@ export function buildEmployeeSegments(
 		// Сегмент С текущего документа (использует отдел этого документа)
 		// Для увольнения — не создаём, сотрудник уволен с этой даты
 		if (doc.type !== 'dismissal') {
-			const segFrom = clamp(prevDoc ? doc.date : monthStart, monthStart, monthEnd);
-			const segTo = clamp(doc.date, monthStart, monthEnd);
+			const range = intersect(prevDoc ? doc.date : monthStart, doc.date, monthStart, monthEnd);
 
-			if (segTo >= segFrom) {
+			if (range) {
 				const dept = doc.departmentId ? deptById.get(doc.departmentId) : undefined;
 				const pos = doc.positionId ? posById.get(doc.positionId) : undefined;
 				segments.push({
@@ -92,8 +110,8 @@ export function buildEmployeeSegments(
 					departmentName: dept?.name ?? null,
 					positionId: doc.positionId ?? null,
 					positionName: pos?.name ?? null,
-					dateFrom: segFrom,
-					dateTo: segTo
+					dateFrom: range.dateFrom,
+					dateTo: range.dateTo
 				});
 			}
 		}
@@ -103,19 +121,22 @@ export function buildEmployeeSegments(
 
 	// Последний сегмент — от последнего документа до конца месяца
 	if (prevDoc && prevDoc.type !== 'dismissal') {
-		const lastFrom = clamp(addDays(prevDoc.date, 1), monthStart, monthEnd);
+		const lastFrom = addDays(prevDoc.date, 1);
 		const lastSeg = segments[segments.length - 1];
-		if (lastFrom <= monthEnd && (!lastSeg || lastFrom > lastSeg.dateTo)) {
-			const dept = prevDoc.departmentId ? deptById.get(prevDoc.departmentId) : undefined;
-			const pos = prevDoc.positionId ? posById.get(prevDoc.positionId) : undefined;
-			segments.push({
-				departmentId: prevDoc.departmentId ?? null,
-				departmentName: dept?.name ?? null,
-				positionId: prevDoc.positionId ?? null,
-				positionName: pos?.name ?? null,
-				dateFrom: lastFrom,
-				dateTo: monthEnd
-			});
+		if (!lastSeg || lastFrom > lastSeg.dateTo) {
+			const range = intersect(lastFrom, monthEnd, monthStart, monthEnd);
+			if (range) {
+				const dept = prevDoc.departmentId ? deptById.get(prevDoc.departmentId) : undefined;
+				const pos = prevDoc.positionId ? posById.get(prevDoc.positionId) : undefined;
+				segments.push({
+					departmentId: prevDoc.departmentId ?? null,
+					departmentName: dept?.name ?? null,
+					positionId: prevDoc.positionId ?? null,
+					positionName: pos?.name ?? null,
+					dateFrom: range.dateFrom,
+					dateTo: range.dateTo
+				});
+			}
 		}
 	}
 
@@ -138,12 +159,17 @@ export function buildEmployeeSegments(
 		}
 	}
 
+	// Ни один активный период не пересекает месяц (например, увольнение 1-го числа,
+	// но есть записи табеля). Показываем последний действующий отдел на весь месяц —
+	// как в ветке «все документы до месяца», чтобы данные не уехали в «Без отдела».
 	if (segments.length === 0) {
+		const dept = lastActive?.departmentId ? deptById.get(lastActive.departmentId) : undefined;
+		const pos = lastActive?.positionId ? posById.get(lastActive.positionId) : undefined;
 		segments.push({
-			departmentId: null,
-			departmentName: null,
-			positionId: null,
-			positionName: null,
+			departmentId: lastActive?.departmentId ?? null,
+			departmentName: dept?.name ?? null,
+			positionId: lastActive?.positionId ?? null,
+			positionName: pos?.name ?? null,
 			dateFrom: monthStart,
 			dateTo: monthEnd
 		});
