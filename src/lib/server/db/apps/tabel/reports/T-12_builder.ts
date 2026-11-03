@@ -1,4 +1,5 @@
 import Excel from 'exceljs';
+import { effectiveWorkMinutes, effectiveNightMinutes } from '$lib/apps/tabel/utils/effective-time';
 
 // --- Временный профилировщик (для замера узких мест buildT12) ---
 const __prof = new Map<string, { count: number; ms: number }>();
@@ -44,6 +45,9 @@ type EmployeeRow = {
 	overtimeHours: number;
 	weekendHolidayHours: number;
 };
+
+type ScheduleInfo = { standardWorkTime: number; weekDays?: string | null };
+type CalendarDayInfo = { dayType: string; workTime: number | null };
 
 interface RoundingConfig {
 	holidays: Set<number>;
@@ -213,8 +217,8 @@ function roundWorkTime(
 function roundingForDay(
 	day: DayData | null | undefined,
 	rounding: RoundingConfig | null,
-	schedStdById: Record<string | number, { standardWorkTime: number }> | null | undefined,
-	calendarDays?: Record<string, { dayType: string; workTime: number | null }>
+	schedStdById: Record<string | number, ScheduleInfo> | null | undefined,
+	calendarDays?: Record<string, CalendarDayInfo>
 ): RoundingConfig | null {
 	if (!rounding) return rounding;
 	const sid = day?.scheduleId;
@@ -226,7 +230,49 @@ function roundingForDay(
 	if (std == null && day?.date && calendarDays?.[day.date]?.workTime != null) {
 		std = calendarDays[day.date].workTime;
 	}
-	return std === rounding.scheduleStandardTime ? rounding : { ...rounding, scheduleStandardTime: std };
+	return std === rounding.scheduleStandardTime
+		? rounding
+		: { ...rounding, scheduleStandardTime: std };
+}
+
+function parseWeekDays(value: string | null | undefined): number[] | null {
+	if (!value) return null;
+	try {
+		const parsed = JSON.parse(value);
+		if (!Array.isArray(parsed)) return null;
+		const days = parsed.filter((n) => typeof n === 'number' && n >= 1 && n <= 7);
+		return days.length > 0 ? days : null;
+	} catch {
+		return null;
+	}
+}
+
+/** ISO-день недели: понедельник = 1, воскресенье = 7. */
+function isoWeekday(date: string): number {
+	const wd = new Date(`${date}T00:00:00Z`).getUTCDay();
+	return wd === 0 ? 7 : wd;
+}
+
+/**
+ * Тип дня для расчёта Т-12: личный график дня имеет приоритет над календарём.
+ * Праздники считаются всегда, выходные — только если день не входит в график.
+ */
+function resolveDayFlags(
+	day: { date: string; scheduleId: number | null },
+	calendarDays?: Record<string, CalendarDayInfo>,
+	schedStdById?: Record<string | number, ScheduleInfo> | null
+): { isWeekend: boolean; isHoliday: boolean; isWeekendOrHoliday: boolean } {
+	const dayType = calendarDays?.[day.date]?.dayType ?? 'workday';
+	if (dayType === 'transferred_workday') {
+		return { isWeekend: false, isHoliday: false, isWeekendOrHoliday: false };
+	}
+
+	const isHoliday = dayType === 'holiday' || dayType === 'transferred_holiday';
+	const sched = day.scheduleId != null ? schedStdById?.[day.scheduleId] : null;
+	const weekDays = parseWeekDays(sched?.weekDays);
+	const isWeekend = weekDays ? !weekDays.includes(isoWeekday(day.date)) : dayType === 'weekend';
+
+	return { isWeekend, isHoliday, isWeekendOrHoliday: isHoliday || isWeekend };
 }
 
 export async function buildT12(
@@ -239,12 +285,12 @@ export async function buildT12(
 	onProgress?: (division: string, employee: string) => void,
 	holidays?: Set<number>,
 	roundingConfig?: Omit<RoundingConfig, 'scheduleStandardTime'> | null,
-	calendarDays?: Record<string, { dayType: string; workTime: number | null }>,
+	calendarDays?: Record<string, CalendarDayInfo>,
 	shiftMarkShortnames?: string[],
 	options?: ExportOptions,
 	autoAbsenceMark?: string,
-	/** schedule_id → { standardWorkTime }: для per-day стандарта по правилу 2 округления */
-	schedStdById?: Record<string | number, { standardWorkTime: number }> | null
+	/** schedule_id → { standardWorkTime, weekDays }: стандарт и рабочие дни графика дня */
+	schedStdById?: Record<string | number, ScheduleInfo> | null
 ): Promise<Buffer> {
 	const opts: ExportOptions = { ...DEFAULT_EXPORT_OPTIONS, ...options };
 	const wb = new Excel.Workbook();
@@ -264,7 +310,7 @@ export async function buildT12(
 	const shiftMarkCodes = new Set<string>();
 	if (shiftMarkShortnames) {
 		for (const sn of shiftMarkShortnames) {
-			const obj = markByShortObj.get(sn);
+			const obj = markByCodeObj.get(sn) ?? markByShortObj.get(sn);
 			if (obj) shiftMarkCodes.add(obj.code);
 		}
 	}
@@ -364,7 +410,15 @@ export async function buildT12(
 						sheet.ws,
 						sheet.row,
 						time('buildEmpRow', () =>
-							buildEmpRow(emp, calendarDays, shiftMarkCodes, markByCodeObj)
+							buildEmpRow(
+								emp,
+								calendarDays,
+								shiftMarkCodes,
+								markByCodeObj,
+								schedStdById,
+								rounding,
+								holidays ?? new Set()
+							)
 						),
 						lastDay,
 						half1,
@@ -436,9 +490,12 @@ export async function buildT12(
 
 function buildEmpRow(
 	emp: any,
-	calendarDays?: Record<string, { dayType: string; workTime: number | null }>,
+	calendarDays?: Record<string, CalendarDayInfo>,
 	shiftMarkCodes?: Set<string>,
-	markByCodeObj?: Map<string, any>
+	markByCodeObj?: Map<string, any>,
+	schedStdById?: Record<string | number, ScheduleInfo> | null,
+	rounding?: RoundingConfig | null,
+	holidays?: Set<number>
 ): EmployeeRow {
 	const stdMinutes = emp.schedule?.standardWorkTime ?? 0;
 
@@ -450,16 +507,17 @@ function buildEmpRow(
 	const builtDays: DayData[] = [];
 
 	for (const d of emp.days) {
-		const workTime = d.reportWorkTime ?? d.shiftWorkTime ?? null;
-		const nightTime = d.reportNightWorkTime ?? d.shiftNightWorkTime ?? null;
+		const workTime = effectiveWorkMinutes(d);
+		const nightTime = effectiveNightMinutes(d);
 		const markCode = d.dayMarkCode ?? '';
+		const scheduleId = d.scheduleId ?? null;
 
 		builtDays.push({
 			date: d.date,
 			dayMarkCode: markCode,
 			reportWorkTime: workTime,
 			reportNightWorkTime: nightTime,
-			scheduleId: d.scheduleId ?? null
+			scheduleId
 		});
 
 		if (workTime == null) continue;
@@ -467,20 +525,26 @@ function buildEmpRow(
 		totalMinutes += workTime;
 		nightMinutes += nightTime ?? 0;
 
-		// Определяем тип дня по календарю
-		const cal = calendarDays?.[d.date];
-		const dayType = cal?.dayType ?? 'workday';
-		const isWeekendOrHoliday =
-			dayType === 'holiday' || dayType === 'weekend' || dayType === 'transferred_holiday';
+		const dayStd = scheduleId != null ? schedStdById?.[scheduleId]?.standardWorkTime : null;
+		const standard = dayStd ?? stdMinutes;
+		const flags = resolveDayFlags({ date: d.date, scheduleId }, calendarDays, schedStdById);
+		const dayOfMonth = parseInt(d.date.split('-')[2], 10);
+		const isShift = shiftMarkCodes?.has(markCode) ?? false;
+		const decreaseByHoliday = isShift && holidays?.has(dayOfMonth) ? 1 : 0;
+		const roundedHours = roundWorkTime(
+			workTime,
+			roundingForDay(d, rounding ?? null, schedStdById, calendarDays),
+			decreaseByHoliday
+		);
 
-		// Выходные/праздничные часы
-		if (isWeekendOrHoliday) {
-			weekendHolidayMinutes += workTime;
+		// Выходные/праздничные часы — по тем же округлённым часам, что в ячейках дня
+		if (flags.isWeekendOrHoliday) {
+			weekendHolidayMinutes += (roundedHours ?? workTime / 60) * 60;
 		}
 
-		// Сверхурочные: на workday если отработано больше стандарта
-		if (!isWeekendOrHoliday && stdMinutes > 0 && workTime > stdMinutes) {
-			overtimeMinutes += workTime - stdMinutes;
+		// Сверхурочные: только в рабочий день и относительно стандарта графика дня
+		if (!flags.isWeekendOrHoliday && standard > 0 && workTime > standard) {
+			overtimeMinutes += workTime - standard;
 		}
 	}
 
@@ -771,10 +835,10 @@ function writeEmployee(
 	options: ExportOptions,
 	absenceMark: string,
 	absenceReportCode: string,
-	/** schedule_id → { standardWorkTime } для определения стандарта дня по правилу 2 округления */
-	schedStdById: Record<string | number, { standardWorkTime: number }> | null | undefined,
+	/** schedule_id → { standardWorkTime, weekDays } для стандарта и типа дня */
+	schedStdById: Record<string | number, ScheduleInfo> | null | undefined,
 	/** Календарь месяца (фолбэк стандарта дня, когда графика нет) */
-	calendarDays?: Record<string, { dayType: string; workTime: number | null }>
+	calendarDays?: Record<string, CalendarDayInfo>
 ): number {
 	const hr = row + 1;
 	const d = emp?.days ?? [];
@@ -876,12 +940,12 @@ function writeEmployee(
 					const isHoliday = isShift && holidays.has(dayOfMonth);
 					hoursVal =
 						isShift && day?.reportWorkTime != null
-						? roundWorkTime(
-								day.reportWorkTime,
-								roundingForDay(day, rounding, schedStdById, calendarDays),
-								isHoliday ? 1 : 0
-							)
-						: '';
+							? roundWorkTime(
+									day.reportWorkTime,
+									roundingForDay(day, rounding, schedStdById, calendarDays),
+									isHoliday ? 1 : 0
+								)
+							: '';
 				} else if (options.autoAbsence && workDayIndices.has(dayOfMonth)) {
 					// Автопрогул: пустой рабочий день → отметка пропуска
 					displayMark = absenceMark;
@@ -967,6 +1031,9 @@ function writeEmployee(
 					}
 					continue;
 				}
+
+				// Сменные отметки (SHIFT_MARK_SHORTNAMES) — не неявки, даже если у них есть reportCode
+				if (shiftMarkCodes.has(day.dayMarkCode)) continue;
 
 				const markObj = markByCode.get(day.dayMarkCode);
 				const reportCode = markObj?.reportCode;
