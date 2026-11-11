@@ -76,9 +76,8 @@ npm run dev
 
 ## Продакшен (prod)
 
-Приложение собирается и запускается **в Docker** (контейнер `app`, порт 8080).
-Перед этим в `.env` обязательно: `ORIGIN` = реальный адрес (например `http://192.168.1.242:8080`),
-`BETTER_AUTH_SECRET` = свой секрет.
+Приложение собирается и запускается **в Docker** (контейнер `tabel-app`, наружу — nginx на порту 80).
+Перед этим в `.env` обязательно: `ORIGIN` = реальный адрес, `BETTER_AUTH_SECRET` = свой секрет.
 
 ```sh
 # 1. Поднять только БД (до первой сборки приложения)
@@ -89,22 +88,33 @@ npm run db:push
 
 # 3. Создать первого администратора (только при первом запуске)
 npm run db:bootstrap
-
-# 4. Собрать приложение и поднять весь стек (db + app + dns)
-#    db:deploy = npm run build && docker compose up -d --build
-#    Сборка нужна на хосте: Dockerfile одностадийный, копирует готовый build/ в образ.
-npm run db:deploy
-
-# 5. Приложение доступно по ORIGIN (http://localhost:8080)
 ```
+
+Дальнейшие обновления — `npm run deploy`:
+
+```sh
+npm run deploy              # app
+npm run deploy -- db        # db
+npm run deploy -- nginx     # nginx
+npm run deploy -- db nginx  # db + nginx
+npm run deploy -- all       # db + nginx + app
+```
+
+- локальный Docker не нужен, сборка идёт на сервере по SSH;
+- исходники синхронизируются в `/home/mettem-srv/builds/svelte_tabel`;
+- `.env` по умолчанию берётся с сервера; `DEPLOY_SYNC_ENV=1` — загрузить локальный `.env`;
+- перед сборкой выполняется `check:compile`;
+- выбранные контейнеры пересоздаются, предыдущие образы сохраняются как `*:previous`;
+- проверяются HTTP, nginx-конфиг и доступность БД; при ошибке выполняется откат.
+
+Параметры: `DEPLOY_HOST`, `DEPLOY_DIR`, `DEPLOY_IMAGE`, `DEPLOY_DB_IMAGE`,
+`DEPLOY_NGINX_IMAGE`, `DEPLOY_COMPOSE_PROJECT`.
 
 После пересборки контейнера `db` один раз инициализировать репозиторий бэкапов:
 
 ```sh
 npm run db:stanza-create
 ```
-
-Дальнейшие обновления — только `npm run db:deploy` (пересборка + перезапуск).
 
 ## Основные npm-скрипты
 
@@ -123,7 +133,10 @@ npm run db:stanza-create
 | `npm run db:backup:list`            | список точек восстановления                          |
 | `npm run db:restore`                | восстановление из точки (интерактивный выбор + PITR) |
 | `npm run db:stanza-create`          | инициализация репозитория pgBackRest                 |
-| `npm run db:deploy`                 | сборка + деплой compose-стека                        |
+| `npm run deploy`                    | сборка и деплой app (по умолчанию)                   |
+| `npm run deploy:db`                 | сборка и деплой db                                   |
+| `npm run deploy:nginx`              | сборка и деплой nginx                                |
+| `npm run deploy:all`                | db + nginx + app                                     |
 
 Бэкапы и восстановление реализованы одним скриптом `scripts/db.py`
 (запуск: `python scripts/db.py <full|diff|incr|scheduled|list|restore|...>`,

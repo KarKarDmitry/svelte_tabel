@@ -163,17 +163,30 @@ recovery и работает только на чтение (`pausing at the end
 ## 5. Деплой
 
 ```sh
-npm run db:deploy
+npm run deploy              # app
+npm run deploy -- db        # db
+npm run deploy -- nginx     # nginx
+npm run deploy -- db nginx  # db + nginx
+npm run deploy -- all       # db + nginx + app
 ```
 
-Собирает приложение и пересоздаёт compose-стек (`app` на порту 8080, БД, DNS).
+Скрипт собирает выбранные образы на сервере по SSH и пересоздаёт контейнеры;
+локальный Docker не нужен. Перед сборкой выполняется `check:compile`.
+Исходники синхронизируются в `/home/mettem-srv/builds/svelte_tabel`, `.env`
+по умолчанию берётся с сервера (`DEPLOY_SYNC_ENV=1` — загрузить локальный
+`.env`). Предыдущие образы сохраняются как `svelte_tabel-app:previous`,
+`tabel-db:previous` и `svelte_tabel-nginx:previous`.
+
+Проверки: `app` — `/`, `/auth/login` и подключение к БД; `db` — `pg_isready`;
+`nginx` — `nginx -t` и `/`. При ошибке выбранные сервисы автоматически
+пересоздаются из `*:previous`.
 
 Особенности стека:
 
-- `compose.yaml`: сервисы `dns` (dnsmasq), `db` (postgres:18 + pgBackRest), `app`.
-- БД хранится на хосте: `D:\pg\tabel\pgdata`.
-- Бэкапы: `D:\pg\tabel\pgbackups`.
-- Приложение доступно по `ORIGIN` из `.env`.
+- `compose.yaml`: сервисы `db` (postgres:18 + pgBackRest), `app`, `nginx`.
+- БД хранится на хосте: `/srv/mettem/tabel/pgdata`.
+- Бэкапы: `/srv/mettem/tabel/pgbackups`.
+- Приложение доступно через nginx на порту 80, `ORIGIN` — из `.env`.
 
 После пересборки `db` (новый образ) один раз выполнить:
 

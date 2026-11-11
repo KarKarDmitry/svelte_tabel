@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.db
-    image: tabel-db:latest
+    image: ${DB_IMAGE:-tabel-db:latest}
     container_name: tabel-db
     restart: always
     ports:
@@ -25,10 +25,14 @@ services:
     #   - 192.168.1.242
 
   app:
-    build: .
+    build:
+      context: .
+      secrets:
+        - env
+    image: ${APP_IMAGE:-svelte_tabel-app:latest}
     container_name: tabel-app
     restart: always
-    # Прямого проброса нет — наружу смотрит только nginx (8080).
+    # Прямого проброса нет — наружу смотрит только nginx (80).
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       ORIGIN: ${ORIGIN}
@@ -36,6 +40,16 @@ services:
     env_file: .env
     depends_on:
       - db
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/auth/login').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
     # Указываем адрес нашего нового рабочего DNS-сервера
     # dns:
     #   - 192.168.1.242
@@ -44,6 +58,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.nginx
+    image: ${NGINX_IMAGE:-svelte_tabel-nginx:latest}
     container_name: tabel-nginx
     restart: always
     ports:
@@ -52,6 +67,10 @@ services:
       # - 443:443
     depends_on:
       - app
+
+secrets:
+  env:
+    file: .env
 
 volumes:
   pgdata:
