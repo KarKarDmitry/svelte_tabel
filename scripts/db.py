@@ -538,6 +538,44 @@ def ask_target_non_tty(row, lo_ts, hi_ts):
         return "time", dt.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+def preflight_restore_image():
+    """Образ для restore есть на демоне и содержит pgbackrest.conf.
+
+    Конфиг вшит в образ (Dockerfile.db: COPY pgbackrest.conf /etc/pgbackrest.conf),
+    поэтому монтировать локальный файл не нужно и нельзя: при удалённом
+    DOCKER_HOST (ssh-контекст) путь bind-mount трактуется на стороне демона,
+    отсутствующий там источник docker создаёт как каталог — попытка
+    смонтировать каталог на файл падает с «not a directory».
+    """
+    r = run(["docker", "image", "inspect", IMAGE])
+    if r.returncode != 0:
+        eprint(C_RED + f"Образ {IMAGE} не найден на демоне Docker." + C_RESET)
+        eprint((r.stderr or r.stdout).strip())
+        eprint("Соберите его: docker compose build db")
+        return False
+    r = run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--entrypoint",
+            "sh",
+            IMAGE,
+            "-c",
+            "test -f /etc/pgbackrest.conf",
+        ]
+    )
+    if r.returncode != 0:
+        eprint(
+            C_RED
+            + f"В образе {IMAGE} нет /etc/pgbackrest.conf — пересоберите: docker compose build db"
+            + C_RESET
+        )
+        eprint((r.stderr or r.stdout).strip())
+        return False
+    return True
+
+
 def perform_restore(label, mode, target, timeline):
     """Подтверждение и само восстановление через docker."""
     desc = (
@@ -551,6 +589,11 @@ def perform_restore(label, mode, target, timeline):
     ).strip()
     if confirm != "yes":
         print("Отменено.")
+        sys.exit(1)
+
+    print("Проверяю образ для восстановления...")
+    if not preflight_restore_image():
+        print("ОШИБКА: восстановление отменено, контейнеры не тронуты.")
         sys.exit(1)
 
     print("Останавливаю app и db...")
@@ -567,12 +610,12 @@ def perform_restore(label, mode, target, timeline):
         "pgbackrest-restore",
         "--user",
         "postgres",
+        # Конфиг /etc/pgbackrest.conf уже в образе (см. preflight_restore_image),
+        # монтируем только тома: пути bind-mount резолвятся на хосте демона.
         "-v",
         f"{PGDATA_VOLUME}:/var/lib/postgresql",
         "-v",
         f"{BACKUP_VOLUME}:/var/lib/pgbackrest",
-        "-v",
-        f"{PROJECT_ROOT / 'pgbackrest.conf'}:/etc/pgbackrest.conf:ro",
         IMAGE,
         "pgbackrest",
         "--stanza=" + STANZA,

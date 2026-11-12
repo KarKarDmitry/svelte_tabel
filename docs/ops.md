@@ -75,9 +75,11 @@ npm run db:import
 
 ## 3. Резервное копирование (pgBackRest)
 
-Бэкапы выполняет **pgBackRest 2.59**, установленный в контейнер БД (`tabel-db`).
+Бэкапы выполняет **pgBackRest** (образ `tabel-db`; версия —
+`docker exec tabel-db pgbackrest version`).
 
-- Репозиторий: том `svelte_tabel_pgbackups` → на хосте `D:\pg\tabel\pgbackups`.
+- Репозиторий: том `svelte_tabel_pgbackups` (на машине демона Docker —
+  `docker volume inspect svelte_tabel_pgbackups` покажет точку монтирования).
 - Лимиты хранения: **4 полных** + **52 диффа** (настраиваются в `pgbackrest.conf`).
 - После каждого бэкапа ротация (`expire`) выполняется автоматически.
 - Включён WAL-архив — восстановление возможно до любой минуты (PITR).
@@ -95,21 +97,45 @@ npm run db:import
 
 Бэкапы выполняются на работающей БД (остановка не нужна).
 
-### Расписание (Task Scheduler)
+### Расписание
 
-В планировщик ставится прямой вызов python, без npm:
+`scripts/db.py scheduled` сам выбирает тип: **пятница 16:00 — полный бэкап**,
+всё остальное — дифф. Ставить надо там, где `docker` видит демон (локально или
+через `DOCKER_HOST`/контекст), и запускать напрямую python, без npm.
 
-1. `Win+R` → `taskschd.msc` → «Создать задачу».
-2. **Триггеры**: ежедневно в 08:00 и 16:00 (два триггера в одном задании).
-3. **Действие**:
-   - Программа: путь к `python.exe` (проверяется `where python`, напр. `C:\python312\python.exe`)
-   - Аргументы: `C:\Users\user\repos\svelte_tabel\scripts\db.py scheduled`
-   - Рабочая папка: `C:\Users\user\repos\svelte_tabel`
-4. **Условия**: снять «Запускать только при питании от электросети».
-5. **Параметры**: включить «Выполнить задачу как можно скорее после пропущенного планового запуска».
+Пример systemd-таймера (дважды в день):
 
-Скрипт сам решает тип: **пятница 16:00 — полный бэкап**, всё остальное — дифф.
-Проверка: ПКМ на задании → «Выполнить», затем `npm run db:backup:list`.
+```ini
+# /etc/systemd/system/mettem-backup.service
+[Unit]
+Description=pgBackRest backup (mettem)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/mettem
+ExecStart=/usr/bin/python3 scripts/db.py scheduled
+```
+
+```ini
+# /etc/systemd/system/mettem-backup.timer
+[Unit]
+Description=pgBackRest backup 2x/day
+
+[Timer]
+OnCalendar=*-*-* 08,16:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+systemctl enable --now mettem-backup.timer
+npm run db:backup:list   # проверить status: ok
+journalctl -u mettem-backup --since today
+```
+
+Cron-аналог: `0 8,16 * * * cd /opt/mettem && python3 scripts/db.py scheduled`.
 
 ### Восстановление
 
@@ -127,6 +153,18 @@ npm run db:restore
 
 Восстановление **всегда требует остановки БД** — планируйте окно простоя.
 При неудаче скрипт оставляет БД остановленной и указывает на логи pgBackRest.
+
+Конфиг pgBackRest (`pgbackrest.conf`) **вшит в образ** (`Dockerfile.db` →
+`COPY pgbackrest.conf /etc/pgbackrest.conf`), отдельно он не монтируется. После
+правки конфига образ нужно пересобрать: `docker compose build db && docker compose up -d db`.
+Перед восстановлением скрипт проверяет, что образ есть на демоне и конфиг в нём
+на месте, — иначе останавливаться не начинает.
+
+> Docker может быть удалённым (`DOCKER_HOST`, контекст вида `ssh://user@host`;
+> `docker context ls`). Тогда **все** пути в bind-mount (`-v /path/...`) ищутся
+> на машине демона, а не на локальной. Поэтому в скриптах не должно быть маунтов
+> локальных файлов: отсутствующий на хосте-демоне путь docker создаёт как каталог
+> и падает с `not a directory`.
 
 ### PITR (восстановление на момент времени)
 
